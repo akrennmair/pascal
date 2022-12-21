@@ -87,6 +87,10 @@ const (
 	itemCharLiteral
 	itemStringLiteral
 	itemCaret
+	itemPlus
+	itemMinus
+	itemMultiply
+	itemFloatDivide
 )
 
 var key = map[string]itemType{
@@ -267,6 +271,20 @@ func lexText(l *lexer) stateFn {
 		return lexStringLiteral
 	case r == '{':
 		return lexComment
+	case r == '+':
+		l.next()
+		l.emit(itemPlus)
+		return lexText
+	case r == '-':
+		l.next()
+		l.emit(itemMinus)
+		return lexText
+	case r == '*':
+		l.next()
+		l.emit(itemMultiply)
+	case r == '/':
+		l.next()
+		l.emit(itemFloatDivide)
 	case r == '.':
 		l.next()
 		r = l.peek()

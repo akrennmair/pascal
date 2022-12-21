@@ -52,6 +52,35 @@ func TestParser(t *testing.T) {
 			for i := 0 to 23 do
 				writeln(i)
 		end.`},
+		{"repeat until", `program test;
+		begin
+			repeat
+				writeln(23)
+			until a
+		end.`},
+		{"simple if", `program test;
+		begin
+			if a then
+				writeln(23)
+		end.`},
+		{"if else", `program test;
+		begin
+			if a then
+				writeln(23)
+			else
+				writeln(42)
+		end.`},
+		{"if else with begin end", `program test;
+		begin
+			if a then
+			begin
+				writeln(23)
+			end
+			else
+			begin
+				writeln(42)
+			end
+		end.`},
 	}
 
 	for idx, testEntry := range testData {

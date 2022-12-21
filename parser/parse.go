@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"strconv"
+	"strings"
 )
 
 func parse(name, text string) (p *program, err error) {
@@ -638,20 +640,6 @@ type statement interface {
 	Label() *string
 }
 
-type statementStruct struct {
-	Type          statementType
-	Label         *string
-	TargetLabel   *string            // for goto
-	Name          string             // for procedure call, assignment, variable in for-statement
-	ParameterList []*expression      // for procedure call
-	Expression    *expression        // for assignment, while, repeat until, for, if
-	FinalExpr     *expression        // for final expression in for-statement
-	Statements    []*statementStruct // for compound statement, repeat until
-	Body          *statementStruct   // for while, for, if
-	ElseBody      *statementStruct   // for if ... else
-	Down          bool               // to indicate it's for ... downto ...
-}
-
 func (p *program) parseStatement(b *block) statement {
 	var label *string
 	if p.peek().typ == itemUnsignedDigitSequence {
@@ -716,7 +704,7 @@ func (p *program) parseAssignmentOrProcedureStatement(b *block) statement {
 	switch p.peek().typ {
 	case itemAssignment:
 		p.next()
-		expr := p.parseExpression(b)
+		expr := p.parseExpression()
 		return &assignmentStatement{name: identifier, expr: expr}
 	case itemOpenParen:
 		actualParameterList := p.parseActualParameterList(b)
@@ -732,7 +720,7 @@ func (p *program) parseWhileStatement(b *block) *whileStatement {
 	}
 	p.next()
 
-	condition := p.parseExpression(b)
+	condition := p.parseExpression()
 
 	if p.peek().typ != itemDo {
 		p.errorf("expected do, got %s", p.next())
@@ -755,8 +743,9 @@ func (p *program) parseRepeatStatement(b *block) *repeatStatement {
 	if p.peek().typ != itemUntil {
 		p.errorf("expected until, got %s", p.next())
 	}
+	p.next()
 
-	condition := p.parseExpression(b)
+	condition := p.parseExpression()
 
 	return &repeatStatement{condition: condition, stmts: stmts}
 }
@@ -778,7 +767,7 @@ func (p *program) parseForStatement(b *block) *forStatement {
 	}
 	p.next()
 
-	initialExpr := p.parseExpression(b)
+	initialExpr := p.parseExpression()
 
 	down := false
 	switch p.peek().typ {
@@ -791,7 +780,7 @@ func (p *program) parseForStatement(b *block) *forStatement {
 	}
 	p.next()
 
-	finalExpr := p.parseExpression(b)
+	finalExpr := p.parseExpression()
 
 	if p.peek().typ != itemDo {
 		p.errorf("expected do, got %s", p.next())
@@ -809,7 +798,7 @@ func (p *program) parseIfStatement(b *block) *ifStatement {
 	}
 	p.next()
 
-	condition := p.parseExpression(b)
+	condition := p.parseExpression()
 
 	if p.peek().typ != itemThen {
 		p.errorf("expected then, got %s", p.next())
@@ -834,16 +823,16 @@ func (p *program) parseCaseStatement(b *block) statement {
 	return nil
 }
 
-func (p *program) parseActualParameterList(b *block) []*expression {
+func (p *program) parseActualParameterList(b *block) []expression {
 	if p.peek().typ != itemOpenParen {
 		p.errorf("expected (, got %s", p.next())
 	}
 	p.next()
 
-	params := []*expression{}
+	params := []expression{}
 
 	for {
-		expr := p.parseExpression(b)
+		expr := p.parseExpression()
 
 		params = append(params, expr)
 
@@ -868,19 +857,204 @@ const (
 	exprNumber
 )
 
-type expression struct {
-	Type  exprType
-	Value string
+func (p *program) parseExpression() expression {
+	expr := p.parseSimpleExpression()
+
+	if !isRelationalOperator(p.peek().typ) {
+		return expr
+	}
+
+	operator := p.next().typ
+
+	rightExpr := p.parseSimpleExpression()
+
+	return &relationalExpr{
+		left:     expr,
+		operator: operator,
+		right:    rightExpr,
+	}
 }
 
-func (p *program) parseExpression(b *block) *expression {
+func (p *program) parseSimpleExpression() *simpleExpression {
+	var sign *itemType
+	if typ := p.peek().typ; typ == itemPlus || typ == itemMinus {
+		sign = &typ
+		p.next()
+	}
+
+	term := p.parseTerm()
+
+	simpleExpr := &simpleExpression{
+		sign:  sign,
+		first: term,
+	}
+
+	if !isAdditionOperator(p.peek().typ) {
+		return simpleExpr
+	}
+
+	for {
+		operator := p.next().typ
+
+		nextTerm := p.parseTerm()
+
+		simpleExpr.next = append(simpleExpr.next, &addition{operator: operator, term: nextTerm})
+
+		if !isAdditionOperator(p.peek().typ) {
+			break
+		}
+	}
+
+	return simpleExpr
+}
+
+func (p *program) parseTerm() *termExpr {
+	factor := p.parseFactor()
+
+	term := &termExpr{
+		first: factor,
+	}
+
+	if !isMultiplicationOperator(p.peek().typ) {
+		return term
+	}
+
+	for {
+		operator := p.next().typ
+
+		nextFactor := p.parseFactor()
+
+		term.next = append(term.next, &multiplication{operator: operator, factor: nextFactor})
+
+		if !isMultiplicationOperator(p.peek().typ) {
+			return term
+		}
+	}
+
+	return term
+}
+
+func (p *program) parseFactor() factorExpr {
 	switch p.peek().typ {
 	case itemIdentifier:
-		return &expression{Type: exprIdentifier, Value: p.next().val}
+		// TODO: determine whether identifier is function call, or index-variable, or field-designator
+		return &identifierExpr{p.next().val}
+	case itemPlus, itemMinus:
+		sign := p.next().typ
+		if p.peek().typ != itemUnsignedDigitSequence {
+			p.errorf("expected unsigned-digit-sequence after sign")
+		}
+		return p.parseNumber(sign == itemMinus)
 	case itemUnsignedDigitSequence:
-		return &expression{Type: exprNumber, Value: p.next().val}
+		return p.parseNumber(false)
+	case itemStringLiteral:
+		return &stringExpr{p.next().val}
+	case itemOpenBracket:
+		return p.parseSet()
+	case itemNil:
+		return &nilExpr{}
+	case itemOpenParen:
+		return p.parseSubExpr()
+	case itemNot:
+		p.next()
+		return &notExpr{p.parseFactor()}
 	default:
-		p.errorf("TODO: only identifiers and numbers allowed as expressions")
+		p.errorf("unexpected %s while parsing factor", p.peek())
 	}
+	// unreachable
 	return nil
+}
+
+func (p *program) parseNumber(minus bool) factorExpr {
+	unsignedDigitSequence := p.next().val
+	if p.peek().typ == itemDot || (p.peek().typ == itemIdentifier && strings.ToLower(p.peek().val) == "e") {
+		scaleFactor := 0
+		afterComma := ""
+		if p.peek().typ == itemDot {
+			p.next()
+			if p.peek().typ == itemUnsignedDigitSequence { // N.B. EBNF says digit-sequence here, but this doesn't make sense.
+				afterComma = p.next().val
+			}
+			if p.peek().typ == itemIdentifier && strings.ToLower(p.peek().val) == "e" {
+				scaleFactor = p.parseScaleFactor()
+			}
+		} else if p.peek().typ == itemIdentifier && strings.ToLower(p.peek().val) == "e" {
+			scaleFactor = p.parseScaleFactor()
+		} else {
+			p.errorf("expected either . or E, but got %v instead", p.peek())
+		}
+		return &floatExpr{minus: minus, beforeComma: unsignedDigitSequence, afterComma: afterComma, scaleFactor: scaleFactor}
+	}
+	intValue, err := strconv.ParseInt(unsignedDigitSequence, 10, 64)
+	if err != nil {
+		p.errorf("failed to parse %s as integer: %v", unsignedDigitSequence, err)
+	}
+	if minus {
+		intValue = -intValue
+	}
+	return &integerExpr{intValue}
+}
+
+func (p *program) parseScaleFactor() int {
+	minus := false
+	if typ := p.peek().typ; typ == itemPlus || typ == itemMinus {
+		p.next()
+		minus = typ == itemMinus
+	}
+	if p.peek().typ != itemUnsignedDigitSequence {
+		p.errorf("expected unsigned-digit-sequence, got %v instead", p.peek())
+	}
+	num := p.next().val
+	scaleFactor, err := strconv.ParseInt(num, 10, 64)
+	if err != nil {
+		p.errorf("failed to parse %s as integer: %v", num, err)
+	}
+	if minus {
+		scaleFactor = -scaleFactor
+	}
+	return int(scaleFactor)
+}
+
+func (p *program) parseSet() *setExpr {
+	if p.peek().typ != itemOpenBracket {
+		p.errorf("expected [, found %s instead", p.next())
+	}
+
+	set := &setExpr{}
+
+	expr := p.parseExpression()
+	set.elements = append(set.elements, expr)
+
+loop:
+	for {
+		switch p.peek().typ {
+		case itemComma:
+			p.next()
+		case itemCloseBracket:
+			p.next()
+			break loop
+		default:
+			p.errorf("expected , or ], got %s intead", p.peek())
+		}
+
+		expr := p.parseExpression()
+		set.elements = append(set.elements, expr)
+	}
+
+	return set
+}
+
+func (p *program) parseSubExpr() *subExpr {
+	if p.peek().typ != itemOpenParen {
+		p.errorf("expected (, got %s instead", p.peek())
+	}
+	p.next()
+
+	expr := p.parseExpression()
+
+	if p.peek().typ != itemCloseParen {
+		p.errorf("expected ), got %s instead", p.peek())
+	}
+
+	return &subExpr{expr}
 }

@@ -26,7 +26,7 @@ func (s *compoundStatement) Label() *string {
 }
 
 type whileStatement struct {
-	condition *expression
+	condition expression
 	stmt      statement
 }
 
@@ -39,7 +39,7 @@ func (s *whileStatement) Label() *string {
 }
 
 type repeatStatement struct {
-	condition *expression
+	condition expression
 	stmts     []statement
 }
 
@@ -53,8 +53,8 @@ func (s *repeatStatement) Label() *string {
 
 type forStatement struct {
 	name        string
-	initialExpr *expression
-	finalExpr   *expression
+	initialExpr expression
+	finalExpr   expression
 	body        statement
 	down        bool
 }
@@ -68,7 +68,7 @@ func (s *forStatement) Label() *string {
 }
 
 type ifStatement struct {
-	condition *expression
+	condition expression
 	body      statement
 	elseBody  statement
 }
@@ -83,7 +83,7 @@ func (s *ifStatement) Label() *string {
 
 type assignmentStatement struct {
 	name string
-	expr *expression
+	expr expression
 }
 
 func (s *assignmentStatement) Type() statementType {
@@ -96,7 +96,7 @@ func (s *assignmentStatement) Label() *string {
 
 type procedureCallStatement struct {
 	name          string
-	parameterList []*expression
+	parameterList []expression
 }
 
 func (s *procedureCallStatement) Type() statementType {
