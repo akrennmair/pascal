@@ -99,7 +99,7 @@ type block struct {
 	typeDefinitions      []*typeDefinition
 	variables            []*variable
 	procedures           []*procedure
-	statements           []*statement
+	statements           []statement
 }
 
 func (b *block) isValidLabel(label string) bool {
@@ -593,21 +593,28 @@ func (p *program) parseFunctionDeclaration(b *block) {
 	b.procedures = append(b.procedures, &procedure{Name: procedureName, Block: procedureBlock, FormalParameters: parameterList, ReturnType: &returnType})
 }
 
-func (p *program) parseStatementSequence(b *block) []*statement {
-	var statements []*statement
+func (p *program) parseStatementSequence(b *block) []statement {
+	var statements []statement
+
+	first := true
+
 	for {
 		if p.peek().typ == itemEnd || p.peek().typ == itemUntil {
 			break
+		}
+
+		if !first {
+			if p.peek().typ != itemSemicolon {
+				break
+			}
+			p.next()
 		}
 
 		stmt := p.parseStatement(b)
 
 		statements = append(statements, stmt)
 
-		if p.peek().typ != itemSemicolon {
-			break
-		}
-		p.next()
+		first = false
 	}
 
 	return statements
@@ -626,21 +633,26 @@ const (
 	stmtIf
 )
 
-type statement struct {
-	Type          statementType
-	Label         *string
-	TargetLabel   *string       // for goto
-	Name          string        // for procedure call, assignment, variable in for-statement
-	ParameterList []*expression // for procedure call
-	Expression    *expression   // for assignment, while, repeat until, for, if
-	FinalExpr     *expression   // for final expression in for-statement
-	Statements    []*statement  // for compound statement, repeat until
-	Body          *statement    // for while, for, if
-	ElseBody      *statement    // for if ... else
-	Down          bool          // to indicate it's for ... downto ...
+type statement interface {
+	Type() statementType
+	Label() *string
 }
 
-func (p *program) parseStatement(b *block) *statement {
+type statementStruct struct {
+	Type          statementType
+	Label         *string
+	TargetLabel   *string            // for goto
+	Name          string             // for procedure call, assignment, variable in for-statement
+	ParameterList []*expression      // for procedure call
+	Expression    *expression        // for assignment, while, repeat until, for, if
+	FinalExpr     *expression        // for final expression in for-statement
+	Statements    []*statementStruct // for compound statement, repeat until
+	Body          *statementStruct   // for while, for, if
+	ElseBody      *statementStruct   // for if ... else
+	Down          bool               // to indicate it's for ... downto ...
+}
+
+func (p *program) parseStatement(b *block) statement {
 	var label *string
 	if p.peek().typ == itemUnsignedDigitSequence {
 		l := p.next().val
@@ -666,7 +678,7 @@ func (p *program) parseStatement(b *block) *statement {
 		if !b.isValidLabel(tl) {
 			p.errorf("invalid goto label %s", tl)
 		}
-		return &statement{Type: stmtGoto, Label: label, TargetLabel: &tl}
+		return &statementGoto{label: label, target: tl}
 	case itemIdentifier:
 		return p.parseAssignmentOrProcedureStatement(b)
 	case itemBegin:
@@ -676,7 +688,7 @@ func (p *program) parseStatement(b *block) *statement {
 			p.errorf("expected end, got %s", p.next())
 		}
 		p.next()
-		return &statement{Type: stmtCompoundStatement, Statements: statements}
+		return &compoundStatement{statements: statements}
 	case itemWhile:
 		return p.parseWhileStatement(b)
 	case itemRepeat:
@@ -693,7 +705,7 @@ func (p *program) parseStatement(b *block) *statement {
 	return nil
 }
 
-func (p *program) parseAssignmentOrProcedureStatement(b *block) *statement {
+func (p *program) parseAssignmentOrProcedureStatement(b *block) statement {
 	// TODO: implement support for all types of variables.
 	if p.peek().typ != itemIdentifier {
 		p.errorf("expected identifier, got %s", p.next())
@@ -705,16 +717,16 @@ func (p *program) parseAssignmentOrProcedureStatement(b *block) *statement {
 	case itemAssignment:
 		p.next()
 		expr := p.parseExpression(b)
-		return &statement{Type: stmtAssignment, Name: identifier, Expression: expr}
+		return &assignmentStatement{name: identifier, expr: expr}
 	case itemOpenParen:
 		actualParameterList := p.parseActualParameterList(b)
-		return &statement{Type: stmtProcedureCall, Name: identifier, ParameterList: actualParameterList}
+		return &procedureCallStatement{name: identifier, parameterList: actualParameterList}
 	default:
-		return &statement{Type: stmtProcedureCall, Name: identifier}
+		return &procedureCallStatement{name: identifier}
 	}
 }
 
-func (p *program) parseWhileStatement(b *block) *statement {
+func (p *program) parseWhileStatement(b *block) *whileStatement {
 	if p.peek().typ != itemWhile {
 		p.errorf("expected while, got %s", p.next())
 	}
@@ -729,10 +741,10 @@ func (p *program) parseWhileStatement(b *block) *statement {
 
 	stmt := p.parseStatement(b)
 
-	return &statement{Type: stmtWhile, Body: stmt, Expression: condition}
+	return &whileStatement{condition: condition, stmt: stmt}
 }
 
-func (p *program) parseRepeatStatement(b *block) *statement {
+func (p *program) parseRepeatStatement(b *block) *repeatStatement {
 	if p.peek().typ != itemRepeat {
 		p.errorf("expected repeat, got %s", p.next())
 	}
@@ -746,10 +758,10 @@ func (p *program) parseRepeatStatement(b *block) *statement {
 
 	condition := p.parseExpression(b)
 
-	return &statement{Type: stmtRepeat, Statements: stmts, Expression: condition}
+	return &repeatStatement{condition: condition, stmts: stmts}
 }
 
-func (p *program) parseForStatement(b *block) *statement {
+func (p *program) parseForStatement(b *block) *forStatement {
 	if p.peek().typ != itemFor {
 		p.errorf("expected for, got %s", p.next())
 	}
@@ -788,10 +800,10 @@ func (p *program) parseForStatement(b *block) *statement {
 
 	stmt := p.parseStatement(b)
 
-	return &statement{Type: stmtFor, Name: variable, Expression: initialExpr, FinalExpr: finalExpr, Body: stmt, Down: down}
+	return &forStatement{name: variable, initialExpr: initialExpr, finalExpr: finalExpr, body: stmt, down: down}
 }
 
-func (p *program) parseIfStatement(b *block) *statement {
+func (p *program) parseIfStatement(b *block) *ifStatement {
 	if p.peek().typ != itemIf {
 		p.errorf("expected if, got %s", p.next())
 	}
@@ -806,17 +818,17 @@ func (p *program) parseIfStatement(b *block) *statement {
 
 	stmt := p.parseStatement(b)
 
-	var elseStmt *statement
+	var elseStmt statement
 
 	if p.peek().typ == itemElse {
 		p.next()
 		elseStmt = p.parseStatement(b)
 	}
 
-	return &statement{Type: stmtIf, Expression: condition, Body: stmt, ElseBody: elseStmt}
+	return &ifStatement{condition: condition, body: stmt, elseBody: elseStmt}
 }
 
-func (p *program) parseCaseStatement(b *block) *statement {
+func (p *program) parseCaseStatement(b *block) statement {
 	p.errorf("TODO: case not implemented")
 	// TODO: implement.
 	return nil
