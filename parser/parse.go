@@ -395,10 +395,16 @@ type dataType struct {
 	Name            string // name of type for alias, pointer type.
 	EnumIdentifiers []string
 	Packed          bool
-	IndexTypes      []*dataType // index types for array
-	ElementType     *dataType   // element type for array, set, file
-	LowerBound      int         // lower bound for subrange type
-	UpperBound      int         // upper bound for subrange type
+	IndexTypes      []*dataType    // index types for array
+	ElementType     *dataType      // element type for array, set, file
+	LowerBound      int            // lower bound for subrange type
+	UpperBound      int            // upper bound for subrange type
+	Fields          []*recordField // for record
+}
+
+type recordField struct {
+	Identifiers []string
+	Type        *dataType
 }
 
 func (p *program) parseDataType(b *block) *dataType {
@@ -415,7 +421,7 @@ restartParseDataType:
 		}
 		return &dataType{Type: typePointer, Name: p.next().val}
 	case itemOpenParen:
-		return p.parseEnumType()
+		return p.parseEnumType(b)
 	case itemPacked: // TODO: ensure that packed only appears before structured types (array, record, set, file)
 		if packed {
 			p.errorf("expected type after packed, got %s", p.next())
@@ -426,8 +432,7 @@ restartParseDataType:
 	case itemArray:
 		return p.parseArrayType(b)
 	case itemRecord:
-		return &dataType{Type: typeRecord, Packed: packed}
-		// TODO: parse record type
+		return p.parseRecordType(b)
 	case itemSet:
 		p.next()
 		if p.peek().typ != itemOf {
@@ -451,13 +456,13 @@ restartParseDataType:
 	return nil
 }
 
-func (p *program) parseEnumType() *dataType {
+func (p *program) parseEnumType(b *block) *dataType {
 	if p.peek().typ != itemOpenParen {
 		p.errorf("expected (, got %s", p.next())
 	}
 	p.next()
 
-	identifierList := p.parseIdentifierList()
+	identifierList := p.parseIdentifierList(b)
 
 	if p.peek().typ != itemCloseParen {
 		p.errorf("expected ), got %s", p.next())
@@ -467,7 +472,7 @@ func (p *program) parseEnumType() *dataType {
 	return &dataType{Type: typeEnum, EnumIdentifiers: identifierList}
 }
 
-func (p *program) parseIdentifierList() []string {
+func (p *program) parseIdentifierList(b *block) []string {
 	identifierList := []string{}
 
 	if p.peek().typ != itemIdentifier {
@@ -503,7 +508,7 @@ func (p *program) parseVarDeclarationPart(b *block) {
 
 	for {
 
-		variableNames := p.parseIdentifierList()
+		variableNames := p.parseIdentifierList(b)
 
 		if p.peek().typ != itemColon {
 			p.errorf("expected :, got %s", p.next())
@@ -629,7 +634,7 @@ func (p *program) parseFormalParameter(b *block) []*formalParameter {
 		p.errorf("expected identifier, got %s", p.next())
 	}
 
-	parameterNames := p.parseIdentifierList()
+	parameterNames := p.parseIdentifierList(b)
 
 	if p.peek().typ != itemColon {
 		p.errorf("expected :, got %s", p.next())
@@ -1317,7 +1322,7 @@ func (p *program) parseArrayType(b *block) *dataType {
 
 func (p *program) parseSimpleType(b *block) *dataType {
 	if p.peek().typ == itemOpenParen {
-		return p.parseEnumType()
+		return p.parseEnumType(b)
 	}
 
 	lowerBound := p.parseConstant(b)
@@ -1375,4 +1380,53 @@ func (p *program) parseConstant(b *block) int {
 	p.errorf("got unexpected %s while parsing constant", p.peek())
 	// unreachable
 	return 0
+}
+
+func (p *program) parseRecordType(b *block) *dataType {
+	if p.peek().typ != itemRecord {
+		p.errorf("expected record, got %s instead.", p.peek())
+	}
+
+	fieldList := p.parseFieldList(b)
+
+	if p.peek().typ != itemEnd {
+		p.errorf("expected end, got %s instead.", p.peek())
+	}
+
+	return &dataType{
+		Type:   typeRecord,
+		Fields: fieldList,
+	}
+}
+
+func (p *program) parseFieldList(b *block) (fields []*recordField) {
+	field := p.parseRecordSection(b)
+
+	fields = append(fields, field)
+
+	for {
+		if p.peek().typ == itemSemicolon {
+			break
+		}
+		p.next()
+
+		field := p.parseRecordSection(b)
+		fields = append(fields, field)
+
+	}
+
+	return fields
+}
+
+func (p *program) parseRecordSection(b *block) *recordField {
+	identifierList := p.parseIdentifierList(b)
+
+	if p.peek().typ != itemColon {
+		p.errorf("expected :, got %s instead.", p.peek())
+	}
+	p.next()
+
+	typ := p.parseDataType(b)
+
+	return &recordField{Identifiers: identifierList, Type: typ}
 }
