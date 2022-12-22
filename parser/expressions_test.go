@@ -95,7 +95,7 @@ func TestParseExpressions(t *testing.T) {
 				Name: "ptr",
 				Type: &dataType{
 					Type: typePointer,
-					DataType: &dataType{
+					ElementType: &dataType{
 						Type: typeInteger,
 					},
 				},

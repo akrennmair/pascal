@@ -87,6 +87,32 @@ func TestParser(t *testing.T) {
 				writeln(42)
 			end
 		end.`},
+		{
+			"variable with one-dimensional integer array",
+			`program test;
+			var a : array[1..10] of integer;
+			begin
+			end.
+			`,
+		},
+		{
+			"variable with two-dimensional integer array",
+			`program test;
+			var a : array[1..10, -1..+1] of integer;
+			begin
+			end.
+			`,
+		},
+		{
+			"variable with one-dimenstional integer array assignment",
+			`program test;
+			var a : array[1..10] of integer;
+			begin
+				a[1] := 3;
+				a[2] := 4
+			end.
+			`,
+		},
 	}
 
 	for idx, testEntry := range testData {
