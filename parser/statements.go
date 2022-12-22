@@ -82,8 +82,8 @@ func (s *ifStatement) Label() *string {
 }
 
 type assignmentStatement struct {
-	name string
-	expr expression
+	lexpr expression
+	rexpr expression
 }
 
 func (s *assignmentStatement) Type() statementType {

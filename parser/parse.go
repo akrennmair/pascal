@@ -126,7 +126,64 @@ type block struct {
 	typeDefinitions      []*typeDefinition
 	variables            []*variable
 	procedures           []*procedure
+	functions            []*procedure
 	statements           []statement
+}
+
+func (b *block) findConstantDeclaration(name string) *constDeclaration {
+	if b == nil {
+		return nil
+	}
+
+	for _, constant := range b.constantDeclarations {
+		if constant.Name == name {
+			return constant
+		}
+	}
+
+	return b.parent.findConstantDeclaration(name)
+}
+
+func (b *block) findVariable(name string) *variable {
+	if b == nil {
+		return nil
+	}
+
+	for _, variable := range b.variables {
+		if variable.Name == name {
+			return variable
+		}
+	}
+
+	return b.parent.findVariable(name)
+}
+
+func (b *block) findProcedure(name string) *procedure {
+	if b == nil {
+		return findBuiltinProcedure(name)
+	}
+
+	for _, proc := range b.procedures {
+		if proc.Name == name {
+			return proc
+		}
+	}
+
+	return b.parent.findProcedure(name)
+}
+
+func (b *block) findFunction(name string) *procedure {
+	if b == nil {
+		return nil
+	}
+
+	for _, proc := range b.functions {
+		if proc.Name == name {
+			return proc
+		}
+	}
+
+	return b.parent.findFunction(name)
 }
 
 func (b *block) isValidLabel(label string) bool {
@@ -327,6 +384,10 @@ const (
 	typeRecord
 	typeSet
 	typeFile
+	typeInteger
+	typeBoolean
+	typeString
+	typeReal
 )
 
 type dataType struct {
@@ -489,7 +550,7 @@ type procedure struct {
 	Name             string
 	Block            *block
 	FormalParameters []*formalParameter
-	ReturnType       *string
+	ReturnType       *dataType
 }
 
 func (p *program) parseProcedureDeclaration(b *block) {
@@ -607,7 +668,12 @@ func (p *program) parseFunctionDeclaration(b *block) {
 	if p.peek().typ != itemIdentifier {
 		p.errorf("expected type-identifier, got %s", p.next())
 	}
-	returnType := p.next().val
+
+	returnTypeIdentifier := p.next().val // TODO: implement type parsing
+	_ = returnTypeIdentifier
+	returnType := &dataType{
+		Type: typeInteger,
+	}
 
 	if p.peek().typ != itemSemicolon {
 		p.errorf("expected ;, got %s", p.next())
@@ -617,7 +683,7 @@ func (p *program) parseFunctionDeclaration(b *block) {
 	procedureBlock := p.parseBlock()
 	procedureBlock.parent = b
 
-	b.procedures = append(b.procedures, &procedure{Name: procedureName, Block: procedureBlock, FormalParameters: parameterList, ReturnType: &returnType})
+	b.functions = append(b.functions, &procedure{Name: procedureName, Block: procedureBlock, FormalParameters: parameterList, ReturnType: returnType})
 }
 
 func (p *program) parseStatementSequence(b *block) []statement {
@@ -719,22 +785,60 @@ func (p *program) parseStatement(b *block) statement {
 }
 
 func (p *program) parseAssignmentOrProcedureStatement(b *block) statement {
-	// TODO: implement support for all types of variables.
 	if p.peek().typ != itemIdentifier {
 		p.errorf("expected identifier, got %s", p.next())
 	}
 
 	identifier := p.next().val
 
+	var lexpr expression
+
+	if b.findVariable(identifier) != nil {
+		lexpr = &variableExpr{name: identifier}
+	}
+
+	switch p.peek().typ {
+	case itemOpenBracket:
+		p.next()
+		indexes := p.parseExpressionList(b)
+		if p.peek().typ != itemCloseBracket {
+			p.errorf("expected ], got %s instead", p.peek())
+		}
+		p.next()
+		if b.findVariable(identifier) == nil {
+			p.errorf("unknown indexed variable %s", identifier)
+		}
+		// TODO: check whether variable is an array, and whether dimensions fit.
+		lexpr = &indexedVariableExpr{name: identifier, exprs: indexes}
+	case itemDot:
+		if b.findVariable(identifier) == nil {
+			p.errorf("unknown variable %s", identifier)
+		}
+		p.next()
+		if p.peek().typ != itemIdentifier {
+			p.errorf("expected field identifier, got %s instead", p.peek())
+		}
+		fieldIdentifier := p.next().val
+		// TODO: check field identifier against variable type.
+		lexpr = &fieldDesignatorExpr{name: identifier, field: fieldIdentifier}
+	case itemOpenParen:
+		if b.findProcedure(identifier) == nil {
+			p.errorf("unknown procedure %s", identifier)
+		}
+		actualParameterList := p.parseActualParameterList(b)
+		return &procedureCallStatement{name: identifier, parameterList: actualParameterList}
+	}
+
 	switch p.peek().typ {
 	case itemAssignment:
 		p.next()
-		expr := p.parseExpression()
-		return &assignmentStatement{name: identifier, expr: expr}
-	case itemOpenParen:
-		actualParameterList := p.parseActualParameterList(b)
-		return &procedureCallStatement{name: identifier, parameterList: actualParameterList}
+		rexpr := p.parseExpression(b)
+		return &assignmentStatement{lexpr: lexpr, rexpr: rexpr}
 	default:
+		// TODO: improve handling if we hit this branch, but previously had an indexed-variable or field-designator.
+		if b.findProcedure(identifier) == nil {
+			p.errorf("unknown procedure %s", identifier)
+		}
 		return &procedureCallStatement{name: identifier}
 	}
 }
@@ -745,7 +849,7 @@ func (p *program) parseWhileStatement(b *block) *whileStatement {
 	}
 	p.next()
 
-	condition := p.parseExpression()
+	condition := p.parseExpression(b)
 
 	if p.peek().typ != itemDo {
 		p.errorf("expected do, got %s", p.next())
@@ -770,7 +874,7 @@ func (p *program) parseRepeatStatement(b *block) *repeatStatement {
 	}
 	p.next()
 
-	condition := p.parseExpression()
+	condition := p.parseExpression(b)
 
 	return &repeatStatement{condition: condition, stmts: stmts}
 }
@@ -787,12 +891,16 @@ func (p *program) parseForStatement(b *block) *forStatement {
 
 	variable := p.next().val
 
+	if b.findVariable(variable) == nil {
+		p.errorf("unknown variable %s", variable)
+	}
+
 	if p.peek().typ != itemAssignment {
 		p.errorf("expected :=, got %s", p.next())
 	}
 	p.next()
 
-	initialExpr := p.parseExpression()
+	initialExpr := p.parseExpression(b)
 
 	down := false
 	switch p.peek().typ {
@@ -805,7 +913,7 @@ func (p *program) parseForStatement(b *block) *forStatement {
 	}
 	p.next()
 
-	finalExpr := p.parseExpression()
+	finalExpr := p.parseExpression(b)
 
 	if p.peek().typ != itemDo {
 		p.errorf("expected do, got %s", p.next())
@@ -823,7 +931,7 @@ func (p *program) parseIfStatement(b *block) *ifStatement {
 	}
 	p.next()
 
-	condition := p.parseExpression()
+	condition := p.parseExpression(b)
 
 	if p.peek().typ != itemThen {
 		p.errorf("expected then, got %s", p.next())
@@ -857,7 +965,7 @@ func (p *program) parseActualParameterList(b *block) []expression {
 	params := []expression{}
 
 	for {
-		expr := p.parseExpression()
+		expr := p.parseExpression(b)
 
 		params = append(params, expr)
 
@@ -882,10 +990,10 @@ const (
 	exprNumber
 )
 
-func (p *program) parseExpression() expression {
+func (p *program) parseExpression(b *block) expression {
 	p.logger.Printf("Parsing expression")
 
-	expr := p.parseSimpleExpression()
+	expr := p.parseSimpleExpression(b)
 	if !isRelationalOperator(p.peek().typ) {
 		return expr
 	}
@@ -894,7 +1002,7 @@ func (p *program) parseExpression() expression {
 
 	p.logger.Printf("Found relational operator %s after first simple expression", operator)
 
-	rightExpr := p.parseSimpleExpression()
+	rightExpr := p.parseSimpleExpression(b)
 
 	p.logger.Printf("Finished parsing expression")
 
@@ -905,14 +1013,14 @@ func (p *program) parseExpression() expression {
 	}
 }
 
-func (p *program) parseSimpleExpression() *simpleExpression {
+func (p *program) parseSimpleExpression(b *block) *simpleExpression {
 	p.logger.Printf("Parsing simple expression")
 	var sign string
 	if typ := p.peek().typ; typ == itemSign {
 		sign = p.next().val
 	}
 
-	term := p.parseTerm()
+	term := p.parseTerm(b)
 
 	simpleExpr := &simpleExpression{
 		sign:  sign,
@@ -929,7 +1037,7 @@ func (p *program) parseSimpleExpression() *simpleExpression {
 
 		operator := tokenToAdditionOperator(operatorToken)
 
-		nextTerm := p.parseTerm()
+		nextTerm := p.parseTerm(b)
 
 		simpleExpr.next = append(simpleExpr.next, &addition{operator: operator, term: nextTerm})
 
@@ -943,9 +1051,9 @@ func (p *program) parseSimpleExpression() *simpleExpression {
 	return simpleExpr
 }
 
-func (p *program) parseTerm() *termExpr {
+func (p *program) parseTerm(b *block) *termExpr {
 	p.logger.Printf("Parsing term")
-	factor := p.parseFactor()
+	factor := p.parseFactor(b)
 
 	term := &termExpr{
 		first: factor,
@@ -960,7 +1068,7 @@ func (p *program) parseTerm() *termExpr {
 		operator := itemTypeToMultiplicationOperator(p.next().typ)
 		p.logger.Printf("parseTerm: got operator %s", operator)
 
-		nextFactor := p.parseFactor()
+		nextFactor := p.parseFactor(b)
 
 		term.next = append(term.next, &multiplication{operator: operator, factor: nextFactor})
 
@@ -974,7 +1082,7 @@ func (p *program) parseTerm() *termExpr {
 	return term
 }
 
-func (p *program) parseFactor() factorExpr {
+func (p *program) parseFactor(b *block) factorExpr {
 	p.logger.Printf("Parsing factor")
 	defer p.logger.Printf("Finished parsing factor")
 
@@ -985,14 +1093,17 @@ func (p *program) parseFactor() factorExpr {
 		switch p.peek().typ {
 		case itemOpenBracket:
 			p.next()
-			expressions := p.parseExpressionList()
+			expressions := p.parseExpressionList(b)
 			if p.peek().typ != itemCloseBracket {
 				p.errorf("expected ], got %s instead", p.peek())
 			}
 			p.next()
 			return &indexedVariableExpr{name: ident, exprs: expressions}
 		case itemOpenParen:
-			params := p.parseActualParameterList(nil) // TODO: check whether we need block as parameter.
+			if b.findFunction(ident) == nil {
+				p.errorf("unknown function %s", ident)
+			}
+			params := p.parseActualParameterList(b) // TODO: check whether we need block as parameter.
 			return &functionCallExpr{name: ident, params: params}
 		case itemDot:
 			p.next()
@@ -1002,8 +1113,16 @@ func (p *program) parseFactor() factorExpr {
 			fieldIdentifier := p.next().val
 			return &fieldDesignatorExpr{name: ident, field: fieldIdentifier}
 		}
-		// TODO: when whether identifier is a known function, create functionCallExpr if it is, otherwise identifier.
-		return &identifierExpr{ident}
+		if b.findFunction(ident) != nil {
+			return &functionCallExpr{name: ident}
+		}
+		if b.findConstantDeclaration(ident) != nil {
+			return &constantExpr{ident}
+		}
+		if b.findVariable(ident) != nil {
+			return &variableExpr{ident}
+		}
+		p.errorf("unknown identifier %s", ident)
 	case itemSign:
 		sign := p.next().val
 		return p.parseNumber(sign == "-")
@@ -1013,15 +1132,15 @@ func (p *program) parseFactor() factorExpr {
 		p.logger.Printf("parseFactor: got string literal %s", p.peek())
 		return &stringExpr{p.next().val}
 	case itemOpenBracket:
-		return p.parseSet()
+		return p.parseSet(b)
 	case itemNil:
 		p.next()
 		return &nilExpr{}
 	case itemOpenParen:
-		return p.parseSubExpr()
+		return p.parseSubExpr(b)
 	case itemNot:
 		p.next()
-		return &notExpr{p.parseFactor()}
+		return &notExpr{p.parseFactor(b)}
 	default:
 		p.errorf("unexpected %s while parsing factor", p.peek())
 	}
@@ -1084,7 +1203,7 @@ func (p *program) parseScaleFactor() int {
 	return int(scaleFactor)
 }
 
-func (p *program) parseSet() *setExpr {
+func (p *program) parseSet(b *block) *setExpr {
 	if p.peek().typ != itemOpenBracket {
 		p.errorf("expected [, found %s instead", p.next())
 	}
@@ -1092,7 +1211,7 @@ func (p *program) parseSet() *setExpr {
 
 	set := &setExpr{}
 
-	expr := p.parseExpression()
+	expr := p.parseExpression(b)
 	set.elements = append(set.elements, expr)
 
 loop:
@@ -1107,20 +1226,20 @@ loop:
 			p.errorf("expected , or ], got %s intead", p.peek())
 		}
 
-		expr := p.parseExpression()
+		expr := p.parseExpression(b)
 		set.elements = append(set.elements, expr)
 	}
 
 	return set
 }
 
-func (p *program) parseSubExpr() *subExpr {
+func (p *program) parseSubExpr(b *block) *subExpr {
 	if p.peek().typ != itemOpenParen {
 		p.errorf("expected (, got %s instead", p.peek())
 	}
 	p.next()
 
-	expr := p.parseExpression()
+	expr := p.parseExpression(b)
 
 	if p.peek().typ != itemCloseParen {
 		p.errorf("expected ), got %s instead", p.peek())
@@ -1130,10 +1249,10 @@ func (p *program) parseSubExpr() *subExpr {
 	return &subExpr{expr}
 }
 
-func (p *program) parseExpressionList() []expression {
+func (p *program) parseExpressionList(b *block) []expression {
 	var exprs []expression
 
-	expr := p.parseExpression()
+	expr := p.parseExpression(b)
 
 	exprs = append(exprs, expr)
 
@@ -1143,7 +1262,7 @@ func (p *program) parseExpressionList() []expression {
 		}
 		p.next()
 
-		expr := p.parseExpression()
+		expr := p.parseExpression(b)
 
 		exprs = append(exprs, expr)
 	}

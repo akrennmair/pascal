@@ -40,6 +40,8 @@ func TestParser(t *testing.T) {
 		{"program with label declarations and gotos", `program test; label 23, 42; begin 23: goto 42; 42: goto 23 end.`},
 		{"program with assignments", `program test; var a, b : integer; begin a := 3; b := a end.`},
 		{"while loop with begin end block", `program test;
+		var b : boolean;
+			a : integer;
 		begin
 			while a do
 			begin
@@ -53,17 +55,20 @@ func TestParser(t *testing.T) {
 				writeln(i)
 		end.`},
 		{"repeat until", `program test;
+		var a : boolean;
 		begin
 			repeat
 				writeln(23)
 			until a
 		end.`},
 		{"simple if", `program test;
+		var a : integer;
 		begin
-			if a then
+			if a <> 24 then
 				writeln(23)
 		end.`},
 		{"if else", `program test;
+		var a : boolean;
 		begin
 			if a then
 				writeln(23)
@@ -71,8 +76,9 @@ func TestParser(t *testing.T) {
 				writeln(42)
 		end.`},
 		{"if else with begin end", `program test;
+		var a : string;
 		begin
-			if a then
+			if a <> '' then
 			begin
 				writeln(23)
 			end

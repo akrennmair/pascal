@@ -177,6 +177,22 @@ func (e *identifierExpr) String() string {
 	return fmt.Sprintf("ident:<%s>", e.name)
 }
 
+type constantExpr struct {
+	name string
+}
+
+func (e *constantExpr) String() string {
+	return fmt.Sprintf("constant:<%s>", e.name)
+}
+
+type variableExpr struct {
+	name string
+}
+
+func (e *variableExpr) String() string {
+	return fmt.Sprintf("variable:<%s>", e.name)
+}
+
 type integerExpr struct {
 	val int64
 }
