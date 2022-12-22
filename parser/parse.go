@@ -3,14 +3,38 @@ package parser
 import (
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"runtime"
 	"strconv"
 	"strings"
 )
 
+func NewParser(name, text string) *program {
+	return &program{
+		lexer:  lex(name, text),
+		logger: log.New(io.Discard, "parser", log.LstdFlags|log.Lshortfile),
+	}
+}
+
+func (p *program) SetLogOutput(w io.Writer) {
+	p.logger.SetOutput(w)
+}
+
+func (p *program) Parse() (err error) {
+	defer p.recover(&err)
+	err = p.parse()
+	return err
+}
+
 func parse(name, text string) (p *program, err error) {
+	return parseWithLexer(lex(name, text))
+}
+
+func parseWithLexer(lexer *lexer) (p *program, err error) {
 	p = &program{
-		lexer: lex(name, text),
+		lexer:  lexer,
+		logger: log.New(io.Discard, "parser", log.LstdFlags|log.Lshortfile),
 	}
 	defer p.recover(&err)
 	err = p.parse()
@@ -19,6 +43,7 @@ func parse(name, text string) (p *program, err error) {
 
 type program struct {
 	lexer     *lexer
+	logger    *log.Logger
 	token     [3]item
 	peekCount int
 
@@ -858,15 +883,20 @@ const (
 )
 
 func (p *program) parseExpression() expression {
-	expr := p.parseSimpleExpression()
+	p.logger.Printf("Parsing expression")
 
+	expr := p.parseSimpleExpression()
 	if !isRelationalOperator(p.peek().typ) {
 		return expr
 	}
 
-	operator := p.next().typ
+	operator := itemTypeToRelationalOperator(p.next().typ)
+
+	p.logger.Printf("Found relational operator %s after first simple expression", operator)
 
 	rightExpr := p.parseSimpleExpression()
+
+	p.logger.Printf("Finished parsing expression")
 
 	return &relationalExpr{
 		left:     expr,
@@ -876,10 +906,10 @@ func (p *program) parseExpression() expression {
 }
 
 func (p *program) parseSimpleExpression() *simpleExpression {
-	var sign *itemType
-	if typ := p.peek().typ; typ == itemPlus || typ == itemMinus {
-		sign = &typ
-		p.next()
+	p.logger.Printf("Parsing simple expression")
+	var sign string
+	if typ := p.peek().typ; typ == itemSign {
+		sign = p.next().val
 	}
 
 	term := p.parseTerm()
@@ -890,11 +920,14 @@ func (p *program) parseSimpleExpression() *simpleExpression {
 	}
 
 	if !isAdditionOperator(p.peek().typ) {
+		p.logger.Printf("Finished parsing simple expression without further operators because %s is not an addition operator", p.peek())
 		return simpleExpr
 	}
 
 	for {
-		operator := p.next().typ
+		operatorToken := p.next()
+
+		operator := tokenToAdditionOperator(operatorToken)
 
 		nextTerm := p.parseTerm()
 
@@ -905,10 +938,13 @@ func (p *program) parseSimpleExpression() *simpleExpression {
 		}
 	}
 
+	p.logger.Printf("Finished parsing simple expression because %s is not an addition operator", p.peek())
+
 	return simpleExpr
 }
 
 func (p *program) parseTerm() *termExpr {
+	p.logger.Printf("Parsing term")
 	factor := p.parseFactor()
 
 	term := &termExpr{
@@ -916,42 +952,70 @@ func (p *program) parseTerm() *termExpr {
 	}
 
 	if !isMultiplicationOperator(p.peek().typ) {
+		p.logger.Printf("Finished parsing term without further operator because %s is not a multiplication operator", p.peek())
 		return term
 	}
 
 	for {
-		operator := p.next().typ
+		operator := itemTypeToMultiplicationOperator(p.next().typ)
+		p.logger.Printf("parseTerm: got operator %s", operator)
 
 		nextFactor := p.parseFactor()
 
 		term.next = append(term.next, &multiplication{operator: operator, factor: nextFactor})
 
 		if !isMultiplicationOperator(p.peek().typ) {
-			return term
+			break
 		}
 	}
+
+	p.logger.Printf("Finished parsing term because %s is not a multiplication operator", p.peek())
 
 	return term
 }
 
 func (p *program) parseFactor() factorExpr {
+	p.logger.Printf("Parsing factor")
+	defer p.logger.Printf("Finished parsing factor")
+
 	switch p.peek().typ {
 	case itemIdentifier:
-		// TODO: determine whether identifier is function call, or index-variable, or field-designator
-		return &identifierExpr{p.next().val}
-	case itemPlus, itemMinus:
-		sign := p.next().typ
-		if p.peek().typ != itemUnsignedDigitSequence {
-			p.errorf("expected unsigned-digit-sequence after sign")
+		p.logger.Printf("parseFactor: got identifier %s", p.peek().val)
+		ident := p.next().val
+		switch p.peek().typ {
+		case itemOpenBracket:
+			p.next()
+			expressions := p.parseExpressionList()
+			if p.peek().typ != itemCloseBracket {
+				p.errorf("expected ], got %s instead", p.peek())
+			}
+			p.next()
+			return &indexedVariableExpr{name: ident, exprs: expressions}
+		case itemOpenParen:
+			params := p.parseActualParameterList(nil) // TODO: check whether we need block as parameter.
+			return &functionCallExpr{name: ident, params: params}
+		case itemDot:
+			p.next()
+			if p.peek().typ != itemIdentifier {
+				p.errorf("expected identifier, got %s instead", p.peek())
+			}
+			fieldIdentifier := p.next().val
+			return &fieldDesignatorExpr{name: ident, field: fieldIdentifier}
 		}
-		return p.parseNumber(sign == itemMinus)
+		// TODO: when whether identifier is a known function, create functionCallExpr if it is, otherwise identifier.
+		return &identifierExpr{ident}
+	case itemSign:
+		sign := p.next().val
+		return p.parseNumber(sign == "-")
 	case itemUnsignedDigitSequence:
 		return p.parseNumber(false)
 	case itemStringLiteral:
+		p.logger.Printf("parseFactor: got string literal %s", p.peek())
 		return &stringExpr{p.next().val}
 	case itemOpenBracket:
 		return p.parseSet()
 	case itemNil:
+		p.next()
 		return &nilExpr{}
 	case itemOpenParen:
 		return p.parseSubExpr()
@@ -966,6 +1030,8 @@ func (p *program) parseFactor() factorExpr {
 }
 
 func (p *program) parseNumber(minus bool) factorExpr {
+	p.logger.Printf("Parsing number")
+
 	unsignedDigitSequence := p.next().val
 	if p.peek().typ == itemDot || (p.peek().typ == itemIdentifier && strings.ToLower(p.peek().val) == "e") {
 		scaleFactor := 0
@@ -976,13 +1042,16 @@ func (p *program) parseNumber(minus bool) factorExpr {
 				afterComma = p.next().val
 			}
 			if p.peek().typ == itemIdentifier && strings.ToLower(p.peek().val) == "e" {
+				p.next()
 				scaleFactor = p.parseScaleFactor()
 			}
-		} else if p.peek().typ == itemIdentifier && strings.ToLower(p.peek().val) == "e" {
+		} else if p.peek().typ == itemIdentifier && strings.ToLower(p.peek().val) == "e" { // TODO: change lexing so that e is returned as its own token in this particular instance.
+			p.next()
 			scaleFactor = p.parseScaleFactor()
 		} else {
 			p.errorf("expected either . or E, but got %v instead", p.peek())
 		}
+		p.logger.Printf("parseNumber: parsed float")
 		return &floatExpr{minus: minus, beforeComma: unsignedDigitSequence, afterComma: afterComma, scaleFactor: scaleFactor}
 	}
 	intValue, err := strconv.ParseInt(unsignedDigitSequence, 10, 64)
@@ -992,14 +1061,14 @@ func (p *program) parseNumber(minus bool) factorExpr {
 	if minus {
 		intValue = -intValue
 	}
+	p.logger.Printf("parseNumber: parsed int %d", intValue)
 	return &integerExpr{intValue}
 }
 
 func (p *program) parseScaleFactor() int {
 	minus := false
-	if typ := p.peek().typ; typ == itemPlus || typ == itemMinus {
-		p.next()
-		minus = typ == itemMinus
+	if typ := p.peek().typ; typ == itemSign {
+		minus = p.next().val == "-"
 	}
 	if p.peek().typ != itemUnsignedDigitSequence {
 		p.errorf("expected unsigned-digit-sequence, got %v instead", p.peek())
@@ -1019,6 +1088,7 @@ func (p *program) parseSet() *setExpr {
 	if p.peek().typ != itemOpenBracket {
 		p.errorf("expected [, found %s instead", p.next())
 	}
+	p.next()
 
 	set := &setExpr{}
 
@@ -1055,6 +1125,28 @@ func (p *program) parseSubExpr() *subExpr {
 	if p.peek().typ != itemCloseParen {
 		p.errorf("expected ), got %s instead", p.peek())
 	}
+	p.next()
 
 	return &subExpr{expr}
+}
+
+func (p *program) parseExpressionList() []expression {
+	var exprs []expression
+
+	expr := p.parseExpression()
+
+	exprs = append(exprs, expr)
+
+	for {
+		if p.peek().typ != itemComma {
+			break
+		}
+		p.next()
+
+		expr := p.parseExpression()
+
+		exprs = append(exprs, expr)
+	}
+
+	return exprs
 }

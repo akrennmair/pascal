@@ -84,11 +84,8 @@ const (
 	itemRange
 	itemDot
 	itemDoubleDot
-	itemCharLiteral
 	itemStringLiteral
 	itemCaret
-	itemPlus
-	itemMinus
 	itemMultiply
 	itemFloatDivide
 )
@@ -266,25 +263,17 @@ func lexText(l *lexer) stateFn {
 		l.emit(itemComma)
 		return lexText
 	case r == '\'':
-		return lexCharLiteral
-	case r == '"':
 		return lexStringLiteral
 	case r == '{':
 		return lexComment
-	case r == '+':
-		l.next()
-		l.emit(itemPlus)
-		return lexText
-	case r == '-':
-		l.next()
-		l.emit(itemMinus)
-		return lexText
 	case r == '*':
 		l.next()
 		l.emit(itemMultiply)
+		return lexText
 	case r == '/':
 		l.next()
 		l.emit(itemFloatDivide)
+		return lexText
 	case r == '.':
 		l.next()
 		r = l.peek()
@@ -364,21 +353,18 @@ func lexColonOrAssignment(l *lexer) stateFn {
 	return lexText
 }
 
-func lexCharLiteral(l *lexer) stateFn {
-	// TODO: implement special case '''' to express a single '.
-	r := l.next()
-	for r = l.next(); r != eof && r != '\''; r = l.next() {
-	}
-	if r != eof {
-		l.emit(itemCharLiteral)
-	}
-	return lexText
-}
-
 func lexStringLiteral(l *lexer) stateFn {
 	r := l.next()
-	for r = l.next(); r != eof && r != '"'; r = l.next() {
+	for r = l.next(); r != eof; r = l.next() {
+		if r == '\'' { // if the current character is ', then we peek to the next one.
+			r = l.peek()
+			if r != '\'' { // if it also a ', then we just go to next one, otherwise we've hit the final ' of a string.
+				break
+			}
+			l.next()
+		}
 	}
+
 	if r != eof {
 		l.emit(itemStringLiteral)
 	}
