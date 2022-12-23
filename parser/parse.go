@@ -186,6 +186,32 @@ func (b *block) findFunction(name string) *procedure {
 	return b.parent.findFunction(name)
 }
 
+func (b *block) findType(name string) dataType {
+	typ := getBuiltinType(name)
+	if typ != nil {
+		return typ
+	}
+
+	if b == nil {
+		return nil
+	}
+
+	var foundType dataType
+
+	for _, typ := range b.typeDefinitions {
+		if typ.Name == name {
+			foundType = typ.Type
+			break
+		}
+	}
+
+	if foundType == nil {
+		foundType = b.parent.findType(name)
+	}
+
+	return foundType
+}
+
 func (b *block) isValidLabel(label string) bool {
 	for _, l := range b.labels {
 		if l == label {
@@ -398,7 +424,11 @@ func (p *program) parseDataType(b *block) dataType {
 restartParseDataType:
 	switch p.peek().typ {
 	case itemIdentifier:
-		return &aliasType{name: p.next().val}
+		ident := p.next().val
+		if typ := b.findType(ident); typ != nil {
+			return typ
+		}
+		p.errorf("unknown type %s", ident)
 	case itemCaret:
 		p.next() // skip ^ token.
 		if p.peek().typ != itemIdentifier {
@@ -776,25 +806,30 @@ func (p *program) parseAssignmentOrProcedureStatement(b *block) statement {
 
 	var lexpr expression
 
-	if b.findVariable(identifier) != nil {
-		lexpr = &variableExpr{name: identifier}
+	varDecl := b.findVariable(identifier)
+	if varDecl != nil {
+		lexpr = &variableExpr{name: identifier, typ: varDecl.Type}
 	}
 
 	switch p.peek().typ {
 	case itemOpenBracket:
 		p.next()
-		indexes := p.parseExpressionList(b)
+		indexes := p.parseExpressionList(b) // TODO: validate that all expressions are of the right type for indexing an array.
 		if p.peek().typ != itemCloseBracket {
 			p.errorf("expected ], got %s instead", p.peek())
 		}
 		p.next()
-		if b.findVariable(identifier) == nil {
-			p.errorf("unknown indexed variable %s", identifier)
+		if varDecl == nil {
+			p.errorf("unknown variable %s", identifier)
+		}
+		at, ok := varDecl.Type.(*arrayType) // TODO: support string
+		if !ok {
+			p.errorf("variable %s is not an array", identifier)
 		}
 		// TODO: check whether variable is an array, and whether dimensions fit.
-		lexpr = &indexedVariableExpr{name: identifier, exprs: indexes}
+		lexpr = &indexedVariableExpr{name: identifier, exprs: indexes, typ: at.elementType}
 	case itemDot:
-		if b.findVariable(identifier) == nil {
+		if varDecl == nil {
 			p.errorf("unknown variable %s", identifier)
 		}
 		p.next()
@@ -802,8 +837,15 @@ func (p *program) parseAssignmentOrProcedureStatement(b *block) statement {
 			p.errorf("expected field identifier, got %s instead", p.peek())
 		}
 		fieldIdentifier := p.next().val
-		// TODO: check field identifier against variable type.
-		lexpr = &fieldDesignatorExpr{name: identifier, field: fieldIdentifier}
+		rt, ok := varDecl.Type.(*recordType)
+		if !ok {
+			p.errorf("variable %s is not a record", identifier)
+		}
+		field := rt.findField(fieldIdentifier)
+		if field == nil {
+			p.errorf("field %s.%s does not exist", identifier, fieldIdentifier)
+		}
+		lexpr = &fieldDesignatorExpr{name: identifier, field: fieldIdentifier, typ: field.Type}
 	case itemOpenParen:
 		if b.findProcedure(identifier) == nil {
 			p.errorf("unknown procedure %s", identifier)
@@ -834,6 +876,10 @@ func (p *program) parseWhileStatement(b *block) *whileStatement {
 
 	condition := p.parseExpression(b)
 
+	if !condition.Type().Equals(&booleanType{}) {
+		p.errorf("condition is not boolean, but %s", condition.Type().Type())
+	}
+
 	if p.peek().typ != itemDo {
 		p.errorf("expected do, got %s", p.next())
 	}
@@ -858,6 +904,9 @@ func (p *program) parseRepeatStatement(b *block) *repeatStatement {
 	p.next()
 
 	condition := p.parseExpression(b)
+	if !condition.Type().Equals(&booleanType{}) {
+		p.errorf("condition is not boolean, but %s", condition.Type().Type())
+	}
 
 	return &repeatStatement{condition: condition, stmts: stmts}
 }
@@ -915,6 +964,9 @@ func (p *program) parseIfStatement(b *block) *ifStatement {
 	p.next()
 
 	condition := p.parseExpression(b)
+	if !condition.Type().Equals(&booleanType{}) {
+		p.errorf("condition is not boolean, but %s", condition.Type().Type())
+	}
 
 	if p.peek().typ != itemThen {
 		p.errorf("expected then, got %s", p.next())
@@ -989,11 +1041,30 @@ func (p *program) parseExpression(b *block) expression {
 
 	p.logger.Printf("Finished parsing expression")
 
-	return &relationalExpr{
+	relExpr := &relationalExpr{
 		left:     expr,
 		operator: operator,
 		right:    rightExpr,
 	}
+
+	lt := relExpr.left.Type()
+	rt := relExpr.right.Type()
+	if operator == opIn {
+		st, ok := rt.(*setType)
+		if !ok {
+			p.errorf("in: expected set type, got %s instead.", rt)
+		}
+		if !lt.Equals(st.elementType) {
+			p.errorf("type %s does not match set type %s", lt.Type(), st.elementType.Type())
+		}
+	} else {
+		ok := lt.Equals(rt)
+		if !ok {
+			p.errorf("can't %s %s %s", lt.Type(), relExpr.operator, rt.Type())
+		}
+	}
+
+	return relExpr
 }
 
 func (p *program) parseSimpleExpression(b *block) *simpleExpression {
@@ -1020,7 +1091,20 @@ func (p *program) parseSimpleExpression(b *block) *simpleExpression {
 
 		operator := tokenToAdditionOperator(operatorToken)
 
+		if operator == opOr {
+			_, ok := simpleExpr.first.Type().(*booleanType)
+			if !ok {
+				p.errorf("can't use or with %s", simpleExpr.first.Type().Type())
+			}
+		} else {
+			// TODO: validate whether type is suitable for addition
+		}
+
 		nextTerm := p.parseTerm(b)
+
+		if !simpleExpr.first.Type().Equals(nextTerm.Type()) {
+			p.errorf("can't %s %s %s", simpleExpr.first.Type().Type(), operator, nextTerm.Type().Type())
+		}
 
 		simpleExpr.next = append(simpleExpr.next, &addition{operator: operator, term: nextTerm})
 
@@ -1051,7 +1135,20 @@ func (p *program) parseTerm(b *block) *termExpr {
 		operator := itemTypeToMultiplicationOperator(p.next().typ)
 		p.logger.Printf("parseTerm: got operator %s", operator)
 
+		if operator == opAnd {
+			_, ok := term.first.Type().(*booleanType)
+			if !ok {
+				p.errorf("can't use and with %s", term.first.Type().Type())
+			}
+		} else {
+			// TODO: validate whether type is suitable for multiplication
+		}
+
 		nextFactor := p.parseFactor(b)
+
+		if !term.first.Type().Equals(nextFactor.Type()) {
+			p.errorf("can't %s %s %s", term.first.Type().Type(), operator, nextFactor.Type().Type())
+		}
 
 		term.next = append(term.next, &multiplication{operator: operator, factor: nextFactor})
 
@@ -1075,35 +1172,56 @@ func (p *program) parseFactor(b *block) factorExpr {
 		ident := p.next().val
 		switch p.peek().typ {
 		case itemOpenBracket:
+			varDecl := b.findVariable(ident)
+			if varDecl == nil {
+				p.errorf("unknown variable %s", ident)
+			}
 			p.next()
-			expressions := p.parseExpressionList(b)
+			expressions := p.parseExpressionList(b) // TODO: validate that all expressions are of the right type for indexing an array.
 			if p.peek().typ != itemCloseBracket {
 				p.errorf("expected ], got %s instead", p.peek())
 			}
 			p.next()
-			return &indexedVariableExpr{name: ident, exprs: expressions}
+			at, ok := varDecl.Type.(*arrayType)
+			if !ok {
+				p.errorf("variable %s is not an array", ident)
+			}
+			return &indexedVariableExpr{name: ident, exprs: expressions, typ: at.elementType}
 		case itemOpenParen:
-			if b.findFunction(ident) == nil {
+			funcDecl := b.findFunction(ident)
+			if funcDecl == nil {
 				p.errorf("unknown function %s", ident)
 			}
 			params := p.parseActualParameterList(b)
-			return &functionCallExpr{name: ident, params: params}
+			return &functionCallExpr{name: ident, params: params, typ: funcDecl.ReturnType}
 		case itemDot:
 			p.next()
+
+			varDecl := b.findVariable(ident)
+			if varDecl == nil {
+				p.errorf("unknown variable %s", ident)
+			}
+			rt, ok := varDecl.Type.(*recordType)
+			if !ok {
+				p.errorf("variable %s is not of a record type", ident)
+			}
+
 			if p.peek().typ != itemIdentifier {
 				p.errorf("expected identifier, got %s instead", p.peek())
 			}
 			fieldIdentifier := p.next().val
-			return &fieldDesignatorExpr{name: ident, field: fieldIdentifier}
+			field := rt.findField(fieldIdentifier)
+
+			return &fieldDesignatorExpr{name: ident, field: fieldIdentifier, typ: field.Type}
 		}
-		if b.findFunction(ident) != nil {
-			return &functionCallExpr{name: ident}
+		if funcDecl := b.findFunction(ident); funcDecl != nil {
+			return &functionCallExpr{name: ident, typ: funcDecl.ReturnType}
 		}
-		if b.findConstantDeclaration(ident) != nil {
-			return &constantExpr{ident}
+		if constDecl := b.findConstantDeclaration(ident); constDecl != nil {
+			return &constantExpr{ident, &integerType{} /* TODO: constDecl.Type */}
 		}
-		if b.findVariable(ident) != nil {
-			return &variableExpr{ident}
+		if varDecl := b.findVariable(ident); varDecl != nil {
+			return &variableExpr{name: ident, typ: varDecl.Type}
 		}
 		p.errorf("unknown identifier %s", ident)
 	case itemSign:
@@ -1123,7 +1241,11 @@ func (p *program) parseFactor(b *block) factorExpr {
 		return p.parseSubExpr(b)
 	case itemNot:
 		p.next()
-		return &notExpr{p.parseFactor(b)}
+		expr := p.parseFactor(b)
+		if !expr.Type().Equals(&booleanType{}) {
+			p.errorf("can't NOT %s", expr.Type().Type())
+		}
+		return &notExpr{expr}
 	default:
 		p.errorf("unexpected %s while parsing factor", p.peek())
 	}

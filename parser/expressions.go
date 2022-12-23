@@ -7,6 +7,7 @@ import (
 
 type expression interface {
 	String() string
+	Type() dataType
 	// TODO
 }
 
@@ -60,12 +61,20 @@ func (e *relationalExpr) String() string {
 	return fmt.Sprintf("relation<%s %s %s>", e.left, e.operator, e.right)
 }
 
+func (e *relationalExpr) Type() dataType {
+	return &booleanType{}
+}
+
 type minusExpr struct {
 	expr *termExpr
 }
 
 func (e *minusExpr) String() string {
 	return fmt.Sprintf("minus<%s>", e.expr)
+}
+
+func (e *minusExpr) Type() dataType {
+	return e.expr.Type()
 }
 
 func isAdditionOperator(typ itemType) bool {
@@ -86,6 +95,10 @@ func (e *simpleExpression) String() string {
 	}
 	fmt.Fprint(&buf, ">")
 	return buf.String()
+}
+
+func (e *simpleExpression) Type() dataType {
+	return e.first.Type()
 }
 
 type additionOperator string
@@ -124,6 +137,10 @@ func (e *termExpr) String() string {
 	}
 	fmt.Fprint(&buf, ">")
 	return buf.String()
+}
+
+func (e *termExpr) Type() dataType {
+	return e.first.Type()
 }
 
 type multiplication struct {
@@ -169,28 +186,30 @@ type factorExpr interface {
 	expression
 }
 
-type identifierExpr struct {
-	name string
-}
-
-func (e *identifierExpr) String() string {
-	return fmt.Sprintf("ident:<%s>", e.name)
-}
-
 type constantExpr struct {
 	name string
+	typ  dataType
 }
 
 func (e *constantExpr) String() string {
 	return fmt.Sprintf("constant:<%s>", e.name)
 }
 
+func (e *constantExpr) Type() dataType {
+	return e.typ
+}
+
 type variableExpr struct {
 	name string
+	typ  dataType
 }
 
 func (e *variableExpr) String() string {
 	return fmt.Sprintf("variable:<%s>", e.name)
+}
+
+func (e *variableExpr) Type() dataType {
+	return e.typ
 }
 
 type integerExpr struct {
@@ -199,6 +218,10 @@ type integerExpr struct {
 
 func (e *integerExpr) String() string {
 	return fmt.Sprintf("int:<%d>", e.val)
+}
+
+func (e *integerExpr) Type() dataType {
+	return &integerType{}
 }
 
 type floatExpr struct {
@@ -216,6 +239,10 @@ func (e *floatExpr) String() string {
 	return fmt.Sprintf("float:<%s%s.%se%d>", sign, e.beforeComma, e.afterComma, e.scaleFactor)
 }
 
+func (e *floatExpr) Type() dataType {
+	return &realType{}
+}
+
 type stringExpr struct {
 	str string
 }
@@ -224,10 +251,20 @@ func (e *stringExpr) String() string {
 	return fmt.Sprintf("str:<%q>", e.str)
 }
 
+func (e *stringExpr) Type() dataType {
+	return &stringType{}
+}
+
 type nilExpr struct{}
 
 func (e *nilExpr) String() string {
 	return "nil"
+}
+
+func (e *nilExpr) Type() dataType {
+	return &pointerType{
+		name: "", // empty name indicates that it's compatible with any pointer type
+	}
 }
 
 type notExpr struct {
@@ -236,6 +273,10 @@ type notExpr struct {
 
 func (e *notExpr) String() string {
 	return fmt.Sprintf("not:<%s>", e.expr)
+}
+
+func (e *notExpr) Type() dataType {
+	return e.expr.Type()
 }
 
 type setExpr struct {
@@ -255,6 +296,12 @@ func (e *setExpr) String() string {
 	return buf.String()
 }
 
+func (e *setExpr) Type() dataType {
+	return &setType{
+		elementType: e.elements[0].Type(),
+	}
+}
+
 type subExpr struct {
 	expr expression
 }
@@ -263,8 +310,13 @@ func (e *subExpr) String() string {
 	return fmt.Sprintf("sub-expr:<%s>", e.expr)
 }
 
+func (e *subExpr) Type() dataType {
+	return e.expr.Type()
+}
+
 type indexedVariableExpr struct {
 	name  string
+	typ   dataType
 	exprs []expression
 }
 
@@ -281,8 +333,13 @@ func (e *indexedVariableExpr) String() string {
 	return buf.String()
 }
 
+func (e *indexedVariableExpr) Type() dataType {
+	return e.typ
+}
+
 type functionCallExpr struct {
 	name   string
+	typ    dataType
 	params []expression
 }
 
@@ -300,11 +357,20 @@ func (e *functionCallExpr) String() string {
 	return buf.String()
 }
 
+func (e *functionCallExpr) Type() dataType {
+	return e.typ
+}
+
 type fieldDesignatorExpr struct {
 	name  string
 	field string
+	typ   dataType
 }
 
 func (e *fieldDesignatorExpr) String() string {
 	return fmt.Sprintf("field-designator-expr:<%s.%s>", e.name, e.field)
+}
+
+func (e *fieldDesignatorExpr) Type() dataType {
+	return e.typ
 }

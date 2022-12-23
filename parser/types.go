@@ -5,19 +5,6 @@ import (
 	"strings"
 )
 
-type aliasType struct {
-	name string
-}
-
-func (t *aliasType) Type() string {
-	return fmt.Sprintf("%s", t.name)
-}
-
-func (t *aliasType) Equals(dt dataType) bool {
-	o, ok := dt.(*aliasType)
-	return ok && t.name == o.name
-}
-
 type pointerType struct {
 	name string
 }
@@ -28,7 +15,7 @@ func (t *pointerType) Type() string {
 
 func (t *pointerType) Equals(dt dataType) bool {
 	o, ok := dt.(*pointerType)
-	return ok && t.name == o.name
+	return ok && (t.name == "" || o.name == "" || t.name == o.name)
 }
 
 type subrangeType struct {
@@ -105,6 +92,17 @@ func (t *arrayType) Equals(dt dataType) bool {
 type recordType struct {
 	fields []*recordField
 	packed bool
+}
+
+func (t *recordType) findField(name string) *recordField {
+	for _, f := range t.fields {
+		for _, id := range f.Identifiers {
+			if id == name {
+				return f
+			}
+		}
+	}
+	return nil
 }
 
 func (t *recordType) Type() string {

@@ -17,7 +17,7 @@ func TestParser(t *testing.T) {
 		{"multiple label declarations", "program test; label 1, 2, 3; begin end."},
 		{"const declaration", "program test; const foo = 1; begin end."},
 		{"multiple const declarations", "program test; const foo = 1; bar = 2; quux = 3; begin end."},
-		{"type declaration alias", "program test; type bar = int; begin end."},
+		{"type declaration alias", "program test; type bar = integer; begin end."},
 		{"type declaration pointer", "program test; type foo = ^integer; begin end."},
 		{"type declaration enumerated", "program test; type foo = ( bar ); begin end."},
 		{"type declaration enumerated 2", "program test; type foo = ( bar, baz, quux ); begin end."},
@@ -43,7 +43,7 @@ func TestParser(t *testing.T) {
 		var b : boolean;
 			a : integer;
 		begin
-			while a do
+			while b do
 			begin
 				a := 3
 			end
@@ -201,6 +201,46 @@ func TestParser(t *testing.T) {
 
 			begin
 				x
+			end.
+			`,
+		},
+		{
+			"type declaration, then type used in variable",
+			`program test;
+			type foo = array[1..10] of integer;
+			var x : foo;
+			begin
+				x[1] := 0
+			end.
+			`,
+		},
+		{
+			"type declaration of alias, then alias type used in variable",
+			`program test;
+			type foo = array[1..10] of integer;
+				bar = foo;
+			var x : bar;
+			begin
+				if x[1] <> 0 then
+					writeln(23)
+			end.
+			`,
+		},
+		{
+			"type declaration, then type is used in variable in procedure",
+			`program test;
+
+			type foo = array[1..10] of integer;
+
+			procedure quux;
+			var x : foo;
+			begin
+			if x[1] <> 0 then
+				writeln(23)
+			end;
+
+			begin
+				quux
 			end.
 			`,
 		},
