@@ -574,6 +574,7 @@ type procedure struct {
 	Block            *block
 	FormalParameters []*formalParameter
 	ReturnType       dataType
+	varargs          bool // for builtin functions with variable arguments.
 }
 
 func (p *program) parseProcedureDeclaration(b *block) {
@@ -847,10 +848,14 @@ func (p *program) parseAssignmentOrProcedureStatement(b *block) statement {
 		}
 		lexpr = &fieldDesignatorExpr{name: identifier, field: fieldIdentifier, typ: field.Type}
 	case itemOpenParen:
-		if b.findProcedure(identifier) == nil {
+		proc := b.findProcedure(identifier)
+		if proc == nil {
 			p.errorf("unknown procedure %s", identifier)
 		}
 		actualParameterList := p.parseActualParameterList(b)
+		if err := p.validateParameters(proc.varargs, proc.FormalParameters, actualParameterList); err != nil {
+			p.errorf("procedure %s: %v", identifier, err)
+		}
 		return &procedureCallStatement{name: identifier, parameterList: actualParameterList}
 	}
 
@@ -861,8 +866,12 @@ func (p *program) parseAssignmentOrProcedureStatement(b *block) statement {
 		return &assignmentStatement{lexpr: lexpr, rexpr: rexpr}
 	default:
 		// TODO: improve handling if we hit this branch, but previously had an indexed-variable or field-designator.
-		if b.findProcedure(identifier) == nil {
+		proc := b.findProcedure(identifier)
+		if proc == nil {
 			p.errorf("unknown procedure %s", identifier)
+		}
+		if err := p.validateParameters(proc.varargs, proc.FormalParameters, []expression{}); err != nil {
+			p.errorf("procedure %s: %v", identifier, err)
 		}
 		return &procedureCallStatement{name: identifier}
 	}
@@ -1193,6 +1202,9 @@ func (p *program) parseFactor(b *block) factorExpr {
 				p.errorf("unknown function %s", ident)
 			}
 			params := p.parseActualParameterList(b)
+			if err := p.validateParameters(funcDecl.varargs, funcDecl.FormalParameters, params); err != nil {
+				p.errorf("function %s: %v", ident, err)
+			}
 			return &functionCallExpr{name: ident, params: params, typ: funcDecl.ReturnType}
 		case itemDot:
 			p.next()
@@ -1215,6 +1227,9 @@ func (p *program) parseFactor(b *block) factorExpr {
 			return &fieldDesignatorExpr{name: ident, field: fieldIdentifier, typ: field.Type}
 		}
 		if funcDecl := b.findFunction(ident); funcDecl != nil {
+			if err := p.validateParameters(funcDecl.varargs, funcDecl.FormalParameters, []expression{}); err != nil {
+				p.errorf("function %s: %v", ident, err)
+			}
 			return &functionCallExpr{name: ident, typ: funcDecl.ReturnType}
 		}
 		if constDecl := b.findConstantDeclaration(ident); constDecl != nil {
@@ -1525,4 +1540,25 @@ func (p *program) parseRecordSection(b *block) *recordField {
 	typ := p.parseDataType(b)
 
 	return &recordField{Identifiers: identifierList, Type: typ}
+}
+
+func (p *program) validateParameters(varargs bool, formalParams []*formalParameter, actualParams []expression) error {
+	if varargs {
+		return nil
+	}
+
+	if len(formalParams) != len(actualParams) {
+		return fmt.Errorf("%d parameter(s) were declared, but %d were provided", len(formalParams), len(actualParams))
+	}
+
+	for idx := range formalParams {
+		if !formalParams[idx].Type.Equals(actualParams[idx].Type()) {
+			return fmt.Errorf("parameter %s expects type %s, but %s was provided",
+				formalParams[idx].Name, formalParams[idx].Type.Type(), actualParams[idx].Type().Type())
+		}
+	}
+
+	// TODO: check var parameters whether actual parameter is var expression.
+
+	return nil
 }

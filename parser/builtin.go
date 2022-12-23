@@ -11,7 +11,7 @@ func findBuiltinProcedure(name string) *procedure {
 }
 
 var builtinProcedures = []*procedure{
-	{Name: "writeln"},
+	{Name: "writeln", varargs: true},
 }
 
 func getBuiltinType(identifier string) dataType {

@@ -105,7 +105,16 @@ func TestParseExpressions(t *testing.T) {
 		},
 		functions: []*procedure{
 			{
-				Name:       "length",
+				Name: "length",
+				FormalParameters: []*formalParameter{
+					{
+						Name: "arr",
+						Type: &arrayType{
+							indexTypes:  []dataType{&subrangeType{lowerBound: 1, upperBound: 10}},
+							elementType: &integerType{},
+						},
+					},
+				},
 				ReturnType: &integerType{},
 			},
 		},
