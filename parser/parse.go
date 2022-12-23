@@ -349,7 +349,7 @@ func (p *program) parseTypeDeclarationPart(b *block) {
 
 type typeDefinition struct {
 	Name string
-	Type *dataType
+	Type dataType
 }
 
 func (p *program) parseTypeDefinition(b *block) (*typeDefinition, bool) {
@@ -369,53 +369,42 @@ func (p *program) parseTypeDefinition(b *block) (*typeDefinition, bool) {
 	return &typeDefinition{Name: typeName, Type: dataType}, true
 }
 
-type dataTypeType int
-
-const (
-	typeAlias dataTypeType = iota
-	typePointer
-	typeSubrange
-	typeEnum
-	typeArray
-	typeRecord
-	typeSet
-	typeFile
-	typeInteger
-	typeBoolean
-	typeString
-	typeReal
-)
-
-type dataType struct {
-	Type            dataTypeType
-	Name            string // name of type for alias, pointer type.
-	EnumIdentifiers []string
-	Packed          bool
-	IndexTypes      []*dataType    // index types for array
-	ElementType     *dataType      // element type for array, set, file
-	LowerBound      int            // lower bound for subrange type
-	UpperBound      int            // upper bound for subrange type
-	Fields          []*recordField // for record
+type dataType interface {
+	Type() string
+	Equals(dt dataType) bool
 }
 
 type recordField struct {
 	Identifiers []string
-	Type        *dataType
+	Type        dataType
 }
 
-func (p *program) parseDataType(b *block) *dataType {
+func (f *recordField) String() string {
+	var buf strings.Builder
+	for idx, id := range f.Identifiers {
+		if idx > 0 {
+			buf.WriteString(", ")
+		}
+		buf.WriteString(id)
+	}
+	buf.WriteString(" : ")
+	buf.WriteString(f.Type.Type())
+	return buf.String()
+}
+
+func (p *program) parseDataType(b *block) dataType {
 	packed := false
 
 restartParseDataType:
 	switch p.peek().typ {
 	case itemIdentifier:
-		return &dataType{Type: typeAlias, Name: p.next().val}
+		return &aliasType{name: p.next().val}
 	case itemCaret:
 		p.next() // skip ^ token.
 		if p.peek().typ != itemIdentifier {
 			p.errorf("expected type after ^, got %s", p.next())
 		}
-		return &dataType{Type: typePointer, Name: p.next().val}
+		return &pointerType{name: p.next().val}
 	case itemOpenParen:
 		return p.parseEnumType(b)
 	case itemPacked: // TODO: ensure that packed only appears before structured types (array, record, set, file)
@@ -426,9 +415,9 @@ restartParseDataType:
 		packed = true
 		goto restartParseDataType
 	case itemArray:
-		return p.parseArrayType(b)
+		return p.parseArrayType(b, packed)
 	case itemRecord:
-		return p.parseRecordType(b)
+		return p.parseRecordType(b, packed)
 	case itemSet:
 		p.next()
 		if p.peek().typ != itemOf {
@@ -436,7 +425,7 @@ restartParseDataType:
 		}
 		p.next()
 		setDataType := p.parseDataType(b)
-		return &dataType{Type: typeSet, Packed: packed, ElementType: setDataType}
+		return &setType{elementType: setDataType, packed: packed}
 	case itemFile:
 		p.next()
 		if p.peek().typ != itemOf {
@@ -444,7 +433,8 @@ restartParseDataType:
 		}
 		p.next()
 		fileDataType := p.parseDataType(b)
-		return &dataType{Type: typeFile, Packed: packed, ElementType: fileDataType}
+		_ = fileDataType
+		return nil // TODO: implement file type, including packed
 	default:
 		p.errorf("unknown type %s", p.next().val)
 	}
@@ -452,7 +442,7 @@ restartParseDataType:
 	return nil
 }
 
-func (p *program) parseEnumType(b *block) *dataType {
+func (p *program) parseEnumType(b *block) *enumType {
 	if p.peek().typ != itemOpenParen {
 		p.errorf("expected (, got %s", p.next())
 	}
@@ -465,7 +455,7 @@ func (p *program) parseEnumType(b *block) *dataType {
 	}
 	p.next()
 
-	return &dataType{Type: typeEnum, EnumIdentifiers: identifierList}
+	return &enumType{identifiers: identifierList}
 }
 
 func (p *program) parseIdentifierList(b *block) []string {
@@ -493,7 +483,7 @@ func (p *program) parseIdentifierList(b *block) []string {
 
 type variable struct {
 	Name string
-	Type *dataType
+	Type dataType
 }
 
 func (p *program) parseVarDeclarationPart(b *block) {
@@ -553,7 +543,7 @@ type procedure struct {
 	Name             string
 	Block            *block
 	FormalParameters []*formalParameter
-	ReturnType       *dataType
+	ReturnType       dataType
 }
 
 func (p *program) parseProcedureDeclaration(b *block) {
@@ -584,7 +574,7 @@ func (p *program) parseProcedureDeclaration(b *block) {
 
 type formalParameter struct {
 	Name           string
-	Type           *dataType
+	Type           dataType
 	ValueParameter bool
 }
 
@@ -667,15 +657,7 @@ func (p *program) parseFunctionDeclaration(b *block) {
 	}
 	p.next()
 
-	if p.peek().typ != itemIdentifier {
-		p.errorf("expected type-identifier, got %s", p.next())
-	}
-
-	returnTypeIdentifier := p.next().val // TODO: implement type parsing
-	_ = returnTypeIdentifier
-	returnType := &dataType{
-		Type: typeInteger,
-	}
+	returnType := p.parseDataType(b)
 
 	if p.peek().typ != itemSemicolon {
 		p.errorf("expected ;, got %s", p.next())
@@ -1271,7 +1253,7 @@ func (p *program) parseExpressionList(b *block) []expression {
 	return exprs
 }
 
-func (p *program) parseArrayType(b *block) *dataType {
+func (p *program) parseArrayType(b *block, packed bool) *arrayType {
 	if p.peek().typ != itemArray {
 		p.errorf("expected array, got %s instead", p.peek())
 	}
@@ -1282,7 +1264,7 @@ func (p *program) parseArrayType(b *block) *dataType {
 	}
 	p.next()
 
-	indexTypes := []*dataType{p.parseSimpleType(b)}
+	indexTypes := []dataType{p.parseSimpleType(b)}
 
 	for {
 		if p.peek().typ != itemComma {
@@ -1307,14 +1289,14 @@ func (p *program) parseArrayType(b *block) *dataType {
 
 	elementType := p.parseDataType(b)
 
-	return &dataType{
-		Type:        typeArray,
-		IndexTypes:  indexTypes,
-		ElementType: elementType,
+	return &arrayType{
+		indexTypes:  indexTypes,
+		elementType: elementType,
+		packed:      packed,
 	}
 }
 
-func (p *program) parseSimpleType(b *block) *dataType {
+func (p *program) parseSimpleType(b *block) dataType {
 	if p.peek().typ == itemOpenParen {
 		return p.parseEnumType(b)
 	}
@@ -1328,10 +1310,9 @@ func (p *program) parseSimpleType(b *block) *dataType {
 
 	upperBound := p.parseConstant(b)
 
-	return &dataType{
-		Type:       typeSubrange,
-		LowerBound: lowerBound,
-		UpperBound: upperBound,
+	return &subrangeType{
+		lowerBound: lowerBound,
+		upperBound: upperBound,
 	}
 }
 
@@ -1373,7 +1354,7 @@ func (p *program) parseConstant(b *block) int {
 	return 0
 }
 
-func (p *program) parseRecordType(b *block) *dataType {
+func (p *program) parseRecordType(b *block, packed bool) *recordType {
 	if p.peek().typ != itemRecord {
 		p.errorf("expected record, got %s instead.", p.peek())
 	}
@@ -1386,9 +1367,9 @@ func (p *program) parseRecordType(b *block) *dataType {
 	}
 	p.next()
 
-	return &dataType{
-		Type:   typeRecord,
-		Fields: fieldList,
+	return &recordType{
+		fields: fieldList,
+		packed: packed,
 	}
 }
 

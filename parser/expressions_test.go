@@ -39,74 +39,55 @@ func TestParseExpressions(t *testing.T) {
 		variables: []*variable{
 			{
 				Name: "a",
-				Type: &dataType{
-					Type: typeInteger,
-				},
+				Type: &integerType{},
 			},
 			{
 				Name: "b",
-				Type: &dataType{
-					Type: typeInteger,
-				},
+				Type: &integerType{},
 			},
 			{
 				Name: "c",
-				Type: &dataType{
-					Type: typeInteger,
-				},
+				Type: &integerType{},
 			},
 			{
 				Name: "i",
-				Type: &dataType{
-					Type: typeInteger,
-				},
+				Type: &integerType{},
 			},
 			{
 				Name: "j",
-				Type: &dataType{
-					Type: typeInteger,
-				},
+				Type: &integerType{},
 			},
 			{
 				Name: "s",
-				Type: &dataType{
-					Type: typeArray,
+				Type: &arrayType{
+					indexTypes:  []dataType{&subrangeType{1, 10}},
+					elementType: &integerType{},
 				},
 			},
 			{
 				Name: "data",
-				Type: &dataType{
-					Type: typeArray,
+				Type: &arrayType{
+					indexTypes:  []dataType{&subrangeType{1, 10}},
+					elementType: &integerType{},
 				},
 			},
 			{
 				Name: "result",
-				Type: &dataType{
-					Type: typeReal,
-				},
+				Type: &realType{},
 			},
 			{
 				Name: "x",
-				Type: &dataType{
-					Type: typeInteger,
-				},
+				Type: &integerType{},
 			},
 			{
 				Name: "ptr",
-				Type: &dataType{
-					Type: typePointer,
-					ElementType: &dataType{
-						Type: typeInteger,
-					},
-				},
+				Type: &pointerType{name: "integer"},
 			},
 		},
 		functions: []*procedure{
 			{
-				Name: "length",
-				ReturnType: &dataType{
-					Type: typeInteger,
-				},
+				Name:       "length",
+				ReturnType: &integerType{},
 			},
 		},
 	}
