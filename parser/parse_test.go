@@ -88,6 +88,13 @@ func TestParser(t *testing.T) {
 			end
 		end.`},
 		{
+			"procedure call with multiple actual parameters",
+			`program test;
+			begin
+				writeln('The answer is ', 42)
+			end.`,
+		},
+		{
 			"variable with one-dimensional integer array",
 			`program test;
 			var a : array[1..10] of integer;
@@ -110,6 +117,90 @@ func TestParser(t *testing.T) {
 			begin
 				a[1] := 3;
 				a[2] := 4
+			end.
+			`,
+		},
+		{
+			"variable with one-dimenstional integer array and constants as subrange",
+			`program test;
+			const min = -10;
+				max = 10;
+			var a : array[min..max] of integer;
+			begin
+				a[1] := 3;
+				a[2] := 4
+			end.
+			`,
+		},
+		{
+			"variable with one-dimenstional integer array and negated constant in subrange",
+			`program test;
+			const size = 10;
+			var a : array[-size..+size] of integer;
+			begin
+				a[1] := 3;
+				a[2] := 4
+			end.
+			`,
+		},
+		{
+			"record type definition",
+			`program test;
+			type foo = record
+						a, b : integer;
+						c, d : string
+					end;
+			begin
+			end.
+			`,
+		},
+		{
+			"record variable definition",
+			`program test;
+			var foo : record
+						a, b : integer;
+						c, d : string
+					end;
+			begin
+			end.
+			`,
+		},
+		{
+			"record variable definition and field assignment",
+			`program test;
+			var foo : record
+						a : integer
+					end;
+			begin
+				foo.a := 3
+			end.
+			`,
+		},
+		{
+			"function declaration, then call of function in condition",
+			`program test;
+			const a = 42;
+			function x : integer;
+			begin
+			end;
+
+			begin
+				if x <> a then
+					writeln(23)
+			end.
+			`,
+		},
+		{
+			"procedure declaration with no parameters, then call of procedure in main program",
+			`program test;
+			const a = 42;
+			procedure x;
+			begin
+				writeln(a)
+			end;
+
+			begin
+				x
 			end.
 			`,
 		},

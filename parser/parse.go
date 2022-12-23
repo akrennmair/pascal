@@ -92,7 +92,7 @@ func (p *program) errorf(fmtstr string, args ...interface{}) {
 func (p *program) parse() (err error) {
 	defer p.recover(&err)
 	p.parseProgramHeading()
-	p.block = p.parseBlock()
+	p.block = p.parseBlock(nil)
 
 	if p.peek().typ != itemDot {
 		p.errorf("expected ., got %s instead", p.next())
@@ -195,8 +195,8 @@ func (b *block) isValidLabel(label string) bool {
 	return false
 }
 
-func (p *program) parseBlock() *block {
-	b := new(block)
+func (p *program) parseBlock(parent *block) *block {
+	b := &block{parent: parent}
 	p.parseDeclarationPart(b)
 	p.parseStatementPart(b)
 	return b
@@ -268,7 +268,7 @@ func (p *program) parseConstDeclarationPart(b *block) {
 
 	b.constantDeclarations = []*constDeclaration{}
 
-	constDecl, ok := p.parseConstantDefinition()
+	constDecl, ok := p.parseConstantDefinition(b)
 	if !ok {
 		p.errorf("expected constant definition")
 	}
@@ -280,7 +280,7 @@ func (p *program) parseConstDeclarationPart(b *block) {
 	p.next()
 
 	for {
-		constDecl, ok := p.parseConstantDefinition()
+		constDecl, ok := p.parseConstantDefinition(b)
 		if !ok {
 			break
 		}
@@ -295,10 +295,10 @@ func (p *program) parseConstDeclarationPart(b *block) {
 
 type constDeclaration struct {
 	Name  string
-	Value string
+	Value int // TODO: support all types of constants
 }
 
-func (p *program) parseConstantDefinition() (*constDeclaration, bool) {
+func (p *program) parseConstantDefinition(b *block) (*constDeclaration, bool) {
 	if p.peek().typ != itemIdentifier {
 		return nil, false
 	}
@@ -310,11 +310,7 @@ func (p *program) parseConstantDefinition() (*constDeclaration, bool) {
 	}
 	p.next()
 
-	// TODO: support all allowed constants.
-	if p.peek().typ != itemUnsignedDigitSequence {
-		p.errorf("expected unsigned number, got %s", p.next())
-	}
-	constValue := p.next().val
+	constValue := p.parseConstant(b)
 
 	return &constDeclaration{Name: constName, Value: constValue}, true
 }
@@ -581,8 +577,7 @@ func (p *program) parseProcedureDeclaration(b *block) {
 	}
 	p.next()
 
-	procedureBlock := p.parseBlock()
-	procedureBlock.parent = b
+	procedureBlock := p.parseBlock(b)
 
 	b.procedures = append(b.procedures, &procedure{Name: procedureName, Block: procedureBlock, FormalParameters: parameterList})
 }
@@ -687,8 +682,7 @@ func (p *program) parseFunctionDeclaration(b *block) {
 	}
 	p.next()
 
-	procedureBlock := p.parseBlock()
-	procedureBlock.parent = b
+	procedureBlock := p.parseBlock(b)
 
 	b.functions = append(b.functions, &procedure{Name: procedureName, Block: procedureBlock, FormalParameters: parameterList, ReturnType: returnType})
 }
@@ -976,7 +970,7 @@ func (p *program) parseActualParameterList(b *block) []expression {
 
 		params = append(params, expr)
 
-		if p.peek().typ != itemSemicolon {
+		if p.peek().typ != itemComma {
 			break
 		}
 		p.next()
@@ -1110,7 +1104,7 @@ func (p *program) parseFactor(b *block) factorExpr {
 			if b.findFunction(ident) == nil {
 				p.errorf("unknown function %s", ident)
 			}
-			params := p.parseActualParameterList(b) // TODO: check whether we need block as parameter.
+			params := p.parseActualParameterList(b)
 			return &functionCallExpr{name: ident, params: params}
 		case itemDot:
 			p.next()
@@ -1353,10 +1347,7 @@ func (p *program) parseConstant(b *block) int {
 		if decl == nil {
 			p.errorf("undeclared constant %s", constantName)
 		}
-		v, err := strconv.Atoi(decl.Value)
-		if err != nil {
-			p.errorf("constant %s is not an integer: %v", constantName, err)
-		}
+		v := decl.Value
 		if minus {
 			v = -v
 		}
@@ -1386,12 +1377,14 @@ func (p *program) parseRecordType(b *block) *dataType {
 	if p.peek().typ != itemRecord {
 		p.errorf("expected record, got %s instead.", p.peek())
 	}
+	p.next()
 
 	fieldList := p.parseFieldList(b)
 
 	if p.peek().typ != itemEnd {
 		p.errorf("expected end, got %s instead.", p.peek())
 	}
+	p.next()
 
 	return &dataType{
 		Type:   typeRecord,
@@ -1405,7 +1398,7 @@ func (p *program) parseFieldList(b *block) (fields []*recordField) {
 	fields = append(fields, field)
 
 	for {
-		if p.peek().typ == itemSemicolon {
+		if p.peek().typ != itemSemicolon {
 			break
 		}
 		p.next()
