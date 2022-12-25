@@ -92,7 +92,7 @@ func (p *program) errorf(fmtstr string, args ...interface{}) {
 func (p *program) parse() (err error) {
 	defer p.recover(&err)
 	p.parseProgramHeading()
-	p.block = p.parseBlock(nil)
+	p.block = p.parseBlock(nil, nil)
 
 	if p.peek().typ != itemDot {
 		p.errorf("expected ., got %s instead", p.next())
@@ -120,7 +120,8 @@ func (p *program) parseProgramHeading() {
 }
 
 type block struct {
-	parent               *block
+	parent               *block     // the parent block this block belongs to.
+	procedure            *procedure // the procedure or function this block belongs to. nil if topmost program.
 	labels               []string
 	constantDeclarations []*constDeclaration
 	typeDefinitions      []*typeDefinition
@@ -158,6 +159,24 @@ func (b *block) findVariable(name string) *variable {
 	return b.parent.findVariable(name)
 }
 
+func (b *block) findFormalParameter(name string) *formalParameter {
+	if b == nil {
+		return nil
+	}
+
+	if b.procedure == nil {
+		return b.parent.findFormalParameter(name)
+	}
+
+	for _, param := range b.procedure.FormalParameters {
+		if param.Name == name {
+			return param
+		}
+	}
+
+	return b.parent.findFormalParameter(name)
+}
+
 func (b *block) findProcedure(name string) *procedure {
 	if b == nil {
 		return findBuiltinProcedure(name)
@@ -184,6 +203,18 @@ func (b *block) findFunction(name string) *procedure {
 	}
 
 	return b.parent.findFunction(name)
+}
+
+func (b *block) findFunctionForAssignment(name string) *procedure {
+	if b == nil || b.procedure == nil {
+		return nil
+	}
+
+	if b.procedure.Name == name {
+		return b.procedure
+	}
+
+	return b.parent.findFunctionForAssignment(name)
 }
 
 func (b *block) findType(name string) dataType {
@@ -221,8 +252,11 @@ func (b *block) isValidLabel(label string) bool {
 	return false
 }
 
-func (p *program) parseBlock(parent *block) *block {
-	b := &block{parent: parent}
+func (p *program) parseBlock(parent *block, proc *procedure) *block {
+	b := &block{
+		parent:    parent,
+		procedure: proc,
+	}
 	p.parseDeclarationPart(b)
 	p.parseStatementPart(b)
 	return b
@@ -246,7 +280,7 @@ func (p *program) parseDeclarationPart(b *block) {
 
 func (p *program) parseStatementPart(b *block) {
 	if p.peek().typ != itemBegin {
-		p.errorf("expected begin, got %s intead", p.next())
+		p.errorf("expected begin, got %s instead", p.next())
 	}
 	p.next()
 
@@ -598,9 +632,11 @@ func (p *program) parseProcedureDeclaration(b *block) {
 	}
 	p.next()
 
-	procedureBlock := p.parseBlock(b)
+	proc := &procedure{Name: procedureName, FormalParameters: parameterList}
 
-	b.procedures = append(b.procedures, &procedure{Name: procedureName, Block: procedureBlock, FormalParameters: parameterList})
+	proc.Block = p.parseBlock(b, proc)
+
+	b.procedures = append(b.procedures, proc)
 }
 
 type formalParameter struct {
@@ -695,9 +731,11 @@ func (p *program) parseFunctionDeclaration(b *block) {
 	}
 	p.next()
 
-	procedureBlock := p.parseBlock(b)
+	proc := &procedure{Name: procedureName, FormalParameters: parameterList, ReturnType: returnType}
 
-	b.functions = append(b.functions, &procedure{Name: procedureName, Block: procedureBlock, FormalParameters: parameterList, ReturnType: returnType})
+	proc.Block = p.parseBlock(b, proc)
+
+	b.functions = append(b.functions, proc)
 }
 
 func (p *program) parseStatementSequence(b *block) []statement {
@@ -807,11 +845,6 @@ func (p *program) parseAssignmentOrProcedureStatement(b *block) statement {
 
 	var lexpr expression
 
-	varDecl := b.findVariable(identifier)
-	if varDecl != nil {
-		lexpr = &variableExpr{name: identifier, typ: varDecl.Type}
-	}
-
 	switch p.peek().typ {
 	case itemOpenBracket:
 		p.next()
@@ -820,6 +853,7 @@ func (p *program) parseAssignmentOrProcedureStatement(b *block) statement {
 			p.errorf("expected ], got %s instead", p.peek())
 		}
 		p.next()
+		varDecl := b.findVariable(identifier)
 		if varDecl == nil {
 			p.errorf("unknown variable %s", identifier)
 		}
@@ -830,6 +864,7 @@ func (p *program) parseAssignmentOrProcedureStatement(b *block) statement {
 		// TODO: check whether variable is an array, and whether dimensions fit.
 		lexpr = &indexedVariableExpr{name: identifier, exprs: indexes, typ: at.elementType}
 	case itemDot:
+		varDecl := b.findVariable(identifier)
 		if varDecl == nil {
 			p.errorf("unknown variable %s", identifier)
 		}
@@ -857,11 +892,20 @@ func (p *program) parseAssignmentOrProcedureStatement(b *block) statement {
 			p.errorf("procedure %s: %v", identifier, err)
 		}
 		return &procedureCallStatement{name: identifier, parameterList: actualParameterList}
+	default:
+		if varDecl := b.findVariable(identifier); varDecl != nil {
+			lexpr = &variableExpr{name: identifier, typ: varDecl.Type}
+		} else if funcDecl := b.findFunctionForAssignment(identifier); funcDecl != nil {
+			lexpr = &variableExpr{name: identifier, typ: funcDecl.ReturnType} // TODO: do we need a separate expression type for this?
+		}
 	}
 
 	switch p.peek().typ {
 	case itemAssignment:
 		p.next()
+		if lexpr == nil {
+			p.errorf("assignment: unknown left expression %s", identifier)
+		}
 		rexpr := p.parseExpression(b)
 		return &assignmentStatement{lexpr: lexpr, rexpr: rexpr}
 	default:
@@ -1237,6 +1281,9 @@ func (p *program) parseFactor(b *block) factorExpr {
 		}
 		if varDecl := b.findVariable(ident); varDecl != nil {
 			return &variableExpr{name: ident, typ: varDecl.Type}
+		}
+		if paramDecl := b.findFormalParameter(ident); paramDecl != nil {
+			return &variableExpr{name: ident, typ: paramDecl.Type} // TODO: do we need a separate formal parameter expression here?
 		}
 		p.errorf("unknown identifier %s", ident)
 	case itemSign:
