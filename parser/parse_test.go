@@ -477,6 +477,39 @@ func TestParserSuccesses(t *testing.T) {
 			end.
 			`,
 		},
+		{
+			"const declaration of a string constant",
+			`program test;
+
+			const foo = 'hello world';
+
+			begin
+				writeln(foo)
+			end.`,
+		},
+		{
+			"const declaration of real constants",
+			`program test;
+
+			const foo = 3.1415;
+				bar = -0.1;
+
+			begin
+				writeln(foo, bar)
+			end.`,
+		},
+		{
+			"const declaration of a real constant and a negated version referring to the first one",
+			`program test;
+
+			const foo = 3.1415;
+				bar = -foo;
+
+			begin
+				if bar < foo then
+					writeln('bar is indeed smaller than foo')
+			end.`,
+		},
 	}
 
 	for idx, testEntry := range testData {

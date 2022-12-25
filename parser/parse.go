@@ -418,7 +418,7 @@ func (p *program) parseConstDeclarationPart(b *block) {
 
 	b.constantDeclarations = []*constDeclaration{}
 
-	constDecl, ok := p.parseConstantDefinition(b)
+	constDecl, ok := p.parseConstantDeclaration(b)
 	if !ok {
 		p.errorf("expected constant definition")
 	}
@@ -432,7 +432,7 @@ func (p *program) parseConstDeclarationPart(b *block) {
 	p.next()
 
 	for {
-		constDecl, ok := p.parseConstantDefinition(b)
+		constDecl, ok := p.parseConstantDeclaration(b)
 		if !ok {
 			break
 		}
@@ -450,10 +450,10 @@ func (p *program) parseConstDeclarationPart(b *block) {
 
 type constDeclaration struct {
 	Name  string
-	Value int // TODO: support all types of constants
+	Value constantLiteral
 }
 
-func (p *program) parseConstantDefinition(b *block) (*constDeclaration, bool) {
+func (p *program) parseConstantDeclaration(b *block) (*constDeclaration, bool) {
 	if p.peek().typ != itemIdentifier {
 		return nil, false
 	}
@@ -1593,6 +1593,11 @@ func (p *program) parseSimpleType(b *block) dataType {
 
 	lowerBound := p.parseConstant(b)
 
+	lb, ok := lowerBound.(*integerLiteral)
+	if !ok {
+		p.errorf("expected lower bound to be an integer, got a %s instead", lowerBound.ConstantType().Type())
+	}
+
 	if p.peek().typ != itemDoubleDot {
 		p.errorf("expected .., got %s", p.peek())
 	}
@@ -1600,17 +1605,24 @@ func (p *program) parseSimpleType(b *block) dataType {
 
 	upperBound := p.parseConstant(b)
 
+	ub, ok := upperBound.(*integerLiteral)
+	if !ok {
+		p.errorf("expected upper bound to be an integer, got a %s instead", upperBound.ConstantType().Type())
+	}
+
 	return &subrangeType{
-		lowerBound: lowerBound,
-		upperBound: upperBound,
+		lowerBound: lb.Value,
+		upperBound: ub.Value,
 	}
 }
 
-func (p *program) parseConstant(b *block) int {
+func (p *program) parseConstant(b *block) constantLiteral {
 	minus := false
 	if p.peek().typ == itemSign {
 		minus = p.next().val == "-"
 	}
+
+	var v constantLiteral
 
 	if p.peek().typ == itemIdentifier {
 		constantName := p.next().val
@@ -1618,30 +1630,30 @@ func (p *program) parseConstant(b *block) int {
 		if decl == nil {
 			p.errorf("undeclared constant %s", constantName)
 		}
-		v := decl.Value
-		if minus {
-			v = -v
+		v = decl.Value
+	} else if p.peek().typ == itemUnsignedDigitSequence {
+		number := p.parseNumber(false) // negation will be done later on.
+		switch n := number.(type) {
+		case *integerExpr:
+			v = &integerLiteral{Value: int(n.val)}
+		case *floatExpr:
+			v = &floatLiteral{minus: n.minus, beforeComma: n.beforeComma, afterComma: n.afterComma, scaleFactor: n.scaleFactor}
 		}
-		return v
+	} else if p.peek().typ == itemStringLiteral {
+		v = &stringLiteral{Value: p.next().val}
+	} else {
+		p.errorf("got unexpected %s while parsing constant", p.peek())
 	}
 
-	if p.peek().typ == itemUnsignedDigitSequence { // TODO: support all numbers
-		valueStr := p.next().val
-		v, err := strconv.Atoi(valueStr)
+	if minus {
+		nv, err := v.Negate()
 		if err != nil {
-			p.errorf("literal %s is not an integer: %v", valueStr, err)
+			p.errorf("%v", err)
 		}
-		if minus {
-			v = -v
-		}
-		return v
+		v = nv
 	}
 
-	// TODO: support strings.
-
-	p.errorf("got unexpected %s while parsing constant", p.peek())
-	// unreachable
-	return 0
+	return v
 }
 
 func (p *program) parseRecordType(b *block, packed bool) *recordType {

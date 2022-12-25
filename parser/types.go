@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -193,4 +194,51 @@ func (t *realType) Type() string {
 func (t *realType) Equals(dt dataType) bool {
 	_, ok := dt.(*realType)
 	return ok
+}
+
+type constantLiteral interface {
+	ConstantType() dataType
+	Negate() (constantLiteral, error)
+}
+
+type integerLiteral struct {
+	Value int
+}
+
+func (l *integerLiteral) ConstantType() dataType {
+	return &integerType{}
+}
+
+func (l *integerLiteral) Negate() (constantLiteral, error) {
+	return &integerLiteral{Value: -l.Value}, nil
+}
+
+type floatLiteral struct {
+	minus       bool
+	beforeComma string
+	afterComma  string
+	scaleFactor int
+}
+
+func (l *floatLiteral) ConstantType() dataType {
+	return &realType{}
+}
+
+func (l *floatLiteral) Negate() (constantLiteral, error) {
+	nl := &floatLiteral{}
+	*nl = *l
+	nl.minus = !nl.minus
+	return nl, nil
+}
+
+type stringLiteral struct {
+	Value string
+}
+
+func (l *stringLiteral) ConstantType() dataType {
+	return &stringType{}
+}
+
+func (l *stringLiteral) Negate() (constantLiteral, error) {
+	return nil, errors.New("can't negate string literal")
 }
