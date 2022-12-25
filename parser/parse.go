@@ -252,6 +252,94 @@ func (b *block) isValidLabel(label string) bool {
 	return false
 }
 
+func (b *block) getIdentifiersInRegion() (identifiers []string) {
+	for _, l := range b.labels {
+		identifiers = append(identifiers, l)
+	}
+
+	for _, decl := range b.constantDeclarations {
+		identifiers = append(identifiers, decl.Name)
+	}
+
+	for _, decl := range b.typeDefinitions {
+		identifiers = append(identifiers, decl.Name)
+	}
+
+	for _, v := range b.variables {
+		identifiers = append(identifiers, v.Name)
+	}
+
+	for _, p := range append(b.procedures, b.functions...) {
+		identifiers = append(identifiers, p.Name)
+	}
+
+	return identifiers
+}
+
+func (b *block) isIdentifierUsed(name string) bool {
+	for _, ident := range b.getIdentifiersInRegion() {
+		if ident == name {
+			return true
+		}
+	}
+	return false
+}
+
+func (b *block) addLabel(label string) error {
+	if b.isIdentifierUsed(label) {
+		return fmt.Errorf("duplicate label identifier %q", label)
+	}
+
+	b.labels = append(b.labels, label)
+
+	return nil
+}
+
+func (b *block) addConstantDeclaration(constDecl *constDeclaration) error {
+	if b.isIdentifierUsed(constDecl.Name) {
+		return fmt.Errorf("duplicate const identifier %q", constDecl.Name)
+	}
+
+	b.constantDeclarations = append(b.constantDeclarations, constDecl)
+	return nil
+}
+
+func (b *block) addTypeDefinition(typeDef *typeDefinition) error {
+	if b.isIdentifierUsed(typeDef.Name) {
+		return fmt.Errorf("duplicate type name %q", typeDef.Name)
+	}
+
+	b.typeDefinitions = append(b.typeDefinitions, typeDef)
+	return nil
+}
+
+func (b *block) addVariable(varDecl *variable) error {
+	if b.isIdentifierUsed(varDecl.Name) {
+		return fmt.Errorf("duplicate variable name %q", varDecl.Name)
+	}
+
+	b.variables = append(b.variables, varDecl)
+	return nil
+}
+
+func (b *block) addProcedure(proc *procedure) error {
+	if b.isIdentifierUsed(proc.Name) {
+		return fmt.Errorf("duplicate procedure name %q", proc.Name)
+	}
+
+	b.procedures = append(b.procedures, proc)
+	return nil
+}
+
+func (b *block) addFunction(funcDecl *procedure) error {
+	if b.isIdentifierUsed(funcDecl.Name) {
+		return fmt.Errorf("duplicate function name %q", funcDecl.Name)
+	}
+
+	b.functions = append(b.procedures, funcDecl)
+	return nil
+}
+
 func (p *program) parseBlock(parent *block, proc *procedure) *block {
 	b := &block{
 		parent:    parent,
@@ -306,7 +394,9 @@ labelDeclarationLoop:
 		if p.peek().typ != itemUnsignedDigitSequence {
 			p.errorf("expected number, got %s", p.next())
 		}
-		b.labels = append(b.labels, p.next().val)
+		if err := b.addLabel(p.next().val); err != nil {
+			p.errorf("%v", err)
+		}
 
 		switch p.peek().typ {
 		case itemComma:
@@ -332,7 +422,9 @@ func (p *program) parseConstDeclarationPart(b *block) {
 	if !ok {
 		p.errorf("expected constant definition")
 	}
-	b.constantDeclarations = append(b.constantDeclarations, constDecl)
+	if err := b.addConstantDeclaration(constDecl); err != nil {
+		p.errorf("%v", err)
+	}
 
 	if p.peek().typ != itemSemicolon {
 		p.errorf("expected semicolon, got %s", p.next())
@@ -345,7 +437,10 @@ func (p *program) parseConstDeclarationPart(b *block) {
 			break
 		}
 
-		b.constantDeclarations = append(b.constantDeclarations, constDecl)
+		if err := b.addConstantDeclaration(constDecl); err != nil {
+			p.errorf("%v", err)
+		}
+
 		if p.peek().typ != itemSemicolon {
 			p.errorf("expected semicolon, got %s", p.next())
 		}
@@ -382,11 +477,13 @@ func (p *program) parseTypeDeclarationPart(b *block) {
 	p.next()
 
 	b.typeDefinitions = []*typeDefinition{}
-	typeDecl, ok := p.parseTypeDefinition(b)
+	typeDef, ok := p.parseTypeDefinition(b)
 	if !ok {
 		p.errorf("expected type definition")
 	}
-	b.typeDefinitions = append(b.typeDefinitions, typeDecl)
+	if err := b.addTypeDefinition(typeDef); err != nil {
+		p.errorf("%v", err)
+	}
 
 	if p.peek().typ != itemSemicolon {
 		p.errorf("expected semicolon, got %s", p.next())
@@ -394,12 +491,15 @@ func (p *program) parseTypeDeclarationPart(b *block) {
 	p.next()
 
 	for {
-		typeDecl, ok := p.parseTypeDefinition(b)
+		typeDef, ok := p.parseTypeDefinition(b)
 		if !ok {
 			break
 		}
 
-		b.typeDefinitions = append(b.typeDefinitions, typeDecl)
+		if err := b.addTypeDefinition(typeDef); err != nil {
+			p.errorf("%v", err)
+		}
+
 		if p.peek().typ != itemSemicolon {
 			p.errorf("expected semicolon, got %s", p.next())
 		}
@@ -573,7 +673,9 @@ func (p *program) parseVarDeclarationPart(b *block) {
 		p.next()
 
 		for _, varName := range variableNames {
-			b.variables = append(b.variables, &variable{Name: varName, Type: dataType})
+			if err := b.addVariable(&variable{Name: varName, Type: dataType}); err != nil {
+				p.errorf("%v", err)
+			}
 		}
 
 		if p.peek().typ != itemIdentifier {
@@ -636,7 +738,9 @@ func (p *program) parseProcedureDeclaration(b *block) {
 
 	proc.Block = p.parseBlock(b, proc)
 
-	b.procedures = append(b.procedures, proc)
+	if err := b.addProcedure(proc); err != nil {
+		p.errorf("%v", err)
+	}
 }
 
 type formalParameter struct {
@@ -735,7 +839,9 @@ func (p *program) parseFunctionDeclaration(b *block) {
 
 	proc.Block = p.parseBlock(b, proc)
 
-	b.functions = append(b.functions, proc)
+	if err := b.addFunction(proc); err != nil {
+		p.errorf("%v", err)
+	}
 }
 
 func (p *program) parseStatementSequence(b *block) []statement {

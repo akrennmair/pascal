@@ -602,6 +602,43 @@ func TestParserErrors(t *testing.T) {
 			`expected ;, got "."`,
 			"program test; function foo : integer; begin end.",
 		},
+		{
+			"duplicate label declaration",
+			`duplicate label identifier "123"`,
+			`program test;
+			label 123, 123;
+			begin end.
+			`,
+		},
+		{
+			"duplicate const declaration",
+			`duplicate const identifier "foo"`,
+			`program test;
+			const
+				foo = 123;
+				foo = 234;
+			begin end.
+			`,
+		},
+		{
+			"duplicate type definition",
+			`duplicate type name "foo"`,
+			`program test;
+			type
+				foo = integer;
+				foo = array[1..10] of integer;
+			begin end.
+			`,
+		},
+		{
+			"type definition that's already in use for a const",
+			`duplicate type name "foo"`,
+			`program test;
+			const foo = 123;
+			type foo = integer;
+			begin end.
+			`,
+		},
 	}
 
 	for idx, tt := range testData {
