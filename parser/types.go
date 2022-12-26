@@ -76,6 +76,9 @@ func (t *arrayType) Equals(dt dataType) bool {
 	if !ok {
 		return false
 	}
+	if t.packed != o.packed {
+		return false
+	}
 	if t.elementType.Type() != o.elementType.Type() {
 		return false
 	}
@@ -125,7 +128,7 @@ func (t *recordType) Equals(dt dataType) bool {
 		return false
 	}
 
-	if len(t.fields) != len(o.fields) {
+	if t.packed != o.packed || len(t.fields) != len(o.fields) {
 		return false
 	}
 
@@ -149,7 +152,7 @@ func (t *setType) Type() string {
 
 func (t *setType) Equals(dt dataType) bool {
 	o, ok := dt.(*setType)
-	return ok && t.elementType.Equals(o.elementType)
+	return ok && t.elementType.Equals(o.elementType) && t.packed == o.packed
 }
 
 type integerType struct{}
@@ -194,6 +197,19 @@ func (t *realType) Type() string {
 func (t *realType) Equals(dt dataType) bool {
 	_, ok := dt.(*realType)
 	return ok
+}
+
+type fileType struct {
+	elementType dataType
+}
+
+func (t *fileType) Type() string {
+	return fmt.Sprintf("file of %s", t.elementType.Type())
+}
+
+func (t *fileType) Equals(dt dataType) bool {
+	o, ok := dt.(*fileType)
+	return ok && t.elementType.Equals(o.elementType)
 }
 
 type constantLiteral interface {

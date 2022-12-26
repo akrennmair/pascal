@@ -510,6 +510,19 @@ func TestParserSuccesses(t *testing.T) {
 					writeln('bar is indeed smaller than foo')
 			end.`,
 		},
+		{
+			"type and variable declaration with file type",
+			`program test;
+
+			type foo = file of real;
+
+			var bar : file of record
+								a, b : integer;
+								c, d : real
+							end;
+			begin
+			end.`,
+		},
 	}
 
 	for idx, testEntry := range testData {

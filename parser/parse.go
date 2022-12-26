@@ -597,8 +597,7 @@ restartParseDataType:
 		}
 		p.next()
 		fileDataType := p.parseDataType(b)
-		_ = fileDataType
-		return nil // TODO: implement file type, including packed
+		return &fileType{elementType: fileDataType}
 	default:
 		p.errorf("unknown type %s", p.next().val)
 	}
