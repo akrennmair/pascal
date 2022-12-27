@@ -668,6 +668,42 @@ func TestParserSuccesses(t *testing.T) {
 				end
 			end.`,
 		},
+		{
+			"with statement",
+			`program test;
+
+			var x : record
+				a : integer;
+				b : real;
+			end;
+
+			begin
+				with x do
+				begin
+					a := 23;
+					b := 23.5
+				end
+			end.`,
+		},
+		{
+			"with statement that also uses other variables",
+			`program test;
+
+			var x : record
+					a : integer;
+					b : real;
+				end;
+				y : integer;
+
+			begin
+				with x do
+				begin
+					a := 23;
+					b := 23.5;
+					y := 42
+				end
+			end.`,
+		},
 	}
 
 	for idx, testEntry := range testData {

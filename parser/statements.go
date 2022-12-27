@@ -124,3 +124,16 @@ type caseLimb struct {
 	labels []constantLiteral
 	stmt   statement
 }
+
+type withStatement struct {
+	recordVariables []string
+	stmt            statement
+}
+
+func (s *withStatement) Type() statementType {
+	return stmtWith
+}
+
+func (s *withStatement) Label() *string {
+	return nil
+}
