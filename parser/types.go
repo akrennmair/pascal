@@ -94,8 +94,9 @@ func (t *arrayType) Equals(dt dataType) bool {
 }
 
 type recordType struct {
-	fields []*recordField
-	packed bool
+	fields       []*recordField
+	variantField *recordVariantField
+	packed       bool
 }
 
 func (t *recordType) findField(name string) *recordField {
@@ -112,14 +113,43 @@ func (t *recordType) findField(name string) *recordField {
 func (t *recordType) Type() string {
 	var buf strings.Builder
 	fmt.Fprintf(&buf, "record ")
-	for idx, f := range t.fields {
-		if idx > 0 {
-			fmt.Fprint(&buf, "; ")
-		}
-		fmt.Fprintf(&buf, "%s", f)
-	}
+	t.printFieldList(&buf, t)
 	fmt.Fprint(&buf, "end")
 	return buf.String()
+}
+
+func (tt *recordType) printFieldList(buf *strings.Builder, r *recordType) {
+	for idx, f := range r.fields {
+		if idx > 0 {
+			buf.WriteString("; ")
+		}
+		buf.WriteString(f.String())
+	}
+	if r.variantField != nil {
+		if len(r.fields) > 0 {
+			buf.WriteString("; ")
+		}
+		buf.WriteString("case ")
+		if r.variantField.tagField != "" {
+			buf.WriteString(r.variantField.tagField + ": ")
+		}
+		buf.WriteString(r.variantField.typeName)
+		buf.WriteString(" of ")
+		for idx, variant := range r.variantField.variants {
+			if idx > 0 {
+				buf.WriteString(", ")
+				for jdx, label := range variant.caseLabels {
+					if jdx > 0 {
+						buf.WriteString(", ")
+					}
+					buf.WriteString(label.String())
+				}
+				buf.WriteString(": (")
+				r.printFieldList(buf, variant.fields)
+				buf.WriteString(")")
+			}
+		}
+	}
 }
 
 func (t *recordType) Equals(dt dataType) bool {
@@ -215,6 +245,7 @@ func (t *fileType) Equals(dt dataType) bool {
 type constantLiteral interface {
 	ConstantType() dataType
 	Negate() (constantLiteral, error)
+	String() string
 }
 
 type integerLiteral struct {
@@ -227,6 +258,10 @@ func (l *integerLiteral) ConstantType() dataType {
 
 func (l *integerLiteral) Negate() (constantLiteral, error) {
 	return &integerLiteral{Value: -l.Value}, nil
+}
+
+func (l *integerLiteral) String() string {
+	return fmt.Sprintf("%d", l.Value)
 }
 
 type floatLiteral struct {
@@ -247,6 +282,21 @@ func (l *floatLiteral) Negate() (constantLiteral, error) {
 	return nl, nil
 }
 
+func (l *floatLiteral) String() string {
+	var buf strings.Builder
+	if l.minus {
+		buf.WriteByte('-')
+	}
+	buf.WriteString(l.beforeComma)
+	buf.WriteByte('.')
+	buf.WriteString(l.afterComma)
+	if l.scaleFactor != 0 {
+		buf.WriteString("e ")
+		fmt.Fprintf(&buf, "%d", l.scaleFactor)
+	}
+	return buf.String()
+}
+
 type stringLiteral struct {
 	Value string
 }
@@ -257,4 +307,21 @@ func (l *stringLiteral) ConstantType() dataType {
 
 func (l *stringLiteral) Negate() (constantLiteral, error) {
 	return nil, errors.New("can't negate string literal")
+}
+
+func (l *stringLiteral) String() string {
+	var buf strings.Builder
+
+	buf.WriteString("'")
+
+	for _, r := range l.Value {
+		buf.WriteRune(r)
+		if r == '\'' {
+			buf.WriteRune(r)
+		}
+	}
+
+	buf.WriteString("'")
+
+	return buf.String()
 }

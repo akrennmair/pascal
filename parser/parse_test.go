@@ -564,6 +564,58 @@ func TestParserSuccesses(t *testing.T) {
 			begin
 			end.`,
 		},
+		{
+			"record type with only variant part",
+			`program test;
+
+			type foo = record
+			case xxx : integer of
+			1 : (a : string);
+			2 : (b : integer);
+			3, 4 : (c : real; d : string)
+			end;
+
+			begin
+			end.`,
+		},
+		{
+			"record type with fixed part and variant part",
+			`program test;
+
+			type foo = record
+				quux : integer;
+				case xxx : integer of
+				1 : (a : string);
+				2 : (b : integer);
+				3, 4 : (c : real; d : string)
+			end;
+
+			begin
+			end.`,
+		},
+		{
+			"record type with variant parts with empty field list and nested variant part",
+			`program test;
+
+			type foo = record
+				quux : integer;
+				case xxx : integer of
+				1 : ();
+				2 : (case yyy : integer of
+					3: (a : integer);
+					4: (b : real)
+				);
+				3 : (
+					bla : real;
+					case zzz : integer of
+					5: (c : integer);
+					6: (d : string)
+				)
+			end;
+
+			begin
+			end.`,
+		},
 	}
 
 	for idx, testEntry := range testData {

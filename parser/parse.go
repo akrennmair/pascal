@@ -552,6 +552,18 @@ func (f *recordField) String() string {
 	return buf.String()
 }
 
+type recordVariantField struct {
+	tagField string
+	typ      dataType
+	typeName string
+	variants []*recordVariant
+}
+
+type recordVariant struct {
+	caseLabels []constantLiteral
+	fields     *recordType
+}
+
 func (p *program) parseDataType(b *block) dataType {
 	packed := false
 
@@ -1680,22 +1692,41 @@ func (p *program) parseRecordType(b *block, packed bool) *recordType {
 	}
 	p.next()
 
-	fieldList := p.parseFieldList(b)
+	record := p.parseFieldList(b, packed)
 
 	if p.peek().typ != itemEnd {
 		p.errorf("expected end, got %s instead.", p.peek())
 	}
 	p.next()
 
-	return &recordType{
-		fields: fieldList,
-		packed: packed,
-	}
+	return record
 }
 
-func (p *program) parseFieldList(b *block) (fields []*recordField) {
-	field := p.parseRecordSection(b)
+func (p *program) parseFieldList(b *block, packed bool) *recordType {
+	record := &recordType{packed: packed}
 
+	if p.peek().typ != itemCase && p.peek().typ != itemIdentifier {
+		// if it's neither a case nor an identifier, we probably have an empty field list
+		return record
+	}
+
+	if p.peek().typ != itemCase {
+		record.fields = p.parsedFixedPart(b)
+	}
+
+	if p.peek().typ == itemCase {
+		record.variantField = p.parseVariantField(b, packed)
+	}
+
+	if p.peek().typ == itemSemicolon {
+		p.next()
+	}
+
+	return record
+}
+
+func (p *program) parsedFixedPart(b *block) (fields []*recordField) {
+	field := p.parseRecordSection(b)
 	fields = append(fields, field)
 
 	for {
@@ -1704,12 +1735,107 @@ func (p *program) parseFieldList(b *block) (fields []*recordField) {
 		}
 		p.next()
 
+		if p.peek().typ != itemIdentifier {
+			break
+		}
+
 		field := p.parseRecordSection(b)
 		fields = append(fields, field)
-
 	}
 
 	return fields
+}
+
+func (p *program) parseVariantField(b *block, packed bool) (field *recordVariantField) {
+	if p.peek().typ != itemCase {
+		p.errorf("expected case, got %s instead", p.peek())
+	}
+	p.next()
+
+	if p.peek().typ != itemIdentifier {
+		p.errorf("expected identifier, got %s instead", p.peek())
+	}
+
+	typeIdentifier := p.next().val
+
+	tag := ""
+
+	if p.peek().typ == itemColon {
+		p.next()
+		tag = typeIdentifier
+		if p.peek().typ != itemIdentifier {
+			p.errorf("expected identifier, got %s instead", p.peek())
+		}
+		typeIdentifier = p.next().val
+	}
+
+	typeDef := b.findType(typeIdentifier)
+	if typeDef == nil {
+		p.errorf("unknown type identifier %s", typeIdentifier)
+	}
+
+	if p.peek().typ != itemOf {
+		p.errorf("expected of, got %s instead", p.peek())
+	}
+	p.next()
+
+	field = &recordVariantField{
+		tagField: tag,
+		typ:      typeDef,
+		typeName: typeIdentifier,
+	}
+
+	for {
+		variant := p.parseVariant(b, packed)
+		field.variants = append(field.variants, variant)
+
+		if p.peek().typ != itemSemicolon {
+			break
+		}
+		p.next()
+	}
+
+	return field
+}
+
+func (p *program) parseVariant(b *block, packed bool) *recordVariant {
+	labels := p.parseCaseLabelList(b)
+
+	if p.peek().typ != itemColon {
+		p.errorf("expected :, got %s instead", p.peek())
+	}
+	p.next()
+
+	if p.peek().typ != itemOpenParen {
+		p.errorf("expected (, got %s instead", p.peek())
+	}
+	p.next()
+
+	fieldList := p.parseFieldList(b, packed)
+
+	if p.peek().typ != itemCloseParen {
+		p.errorf("expected ), got %s instead", p.peek())
+	}
+	p.next()
+
+	return &recordVariant{
+		caseLabels: labels,
+		fields:     fieldList,
+	}
+}
+
+func (p *program) parseCaseLabelList(b *block) (labels []constantLiteral) {
+	label := p.parseConstant(b)
+	labels = append(labels, label)
+
+	for p.peek().typ == itemComma {
+		p.next()
+
+		label := p.parseConstant(b)
+		labels = append(labels, label)
+	}
+
+	return labels
 }
 
 func (p *program) parseRecordSection(b *block) *recordField {
