@@ -905,6 +905,8 @@ const (
 	stmtRepeat
 	stmtFor
 	stmtIf
+	stmtCase
+	stmtWith
 )
 
 type statement interface {
@@ -959,7 +961,8 @@ func (p *program) parseStatement(b *block) statement {
 		return p.parseIfStatement(b)
 	case itemCase:
 		return p.parseCaseStatement(b)
-		// TODO: implement with statement.
+	case itemWith:
+		return p.parseWithStatement(b)
 	}
 	p.errorf("unsupported %s as statement", p.next())
 	return nil
@@ -1168,8 +1171,64 @@ func (p *program) parseIfStatement(b *block) *ifStatement {
 }
 
 func (p *program) parseCaseStatement(b *block) statement {
-	p.errorf("TODO: case not implemented")
-	// TODO: implement.
+	if p.peek().typ != itemCase {
+		p.errorf("expected case, got %s instead", p.peek())
+	}
+	p.next()
+
+	expr := p.parseExpression(b)
+
+	if p.peek().typ != itemOf {
+		p.errorf("expected of, got %s instead", p.peek())
+	}
+	p.next()
+
+	var caseLimbs []*caseLimb
+
+	limb := p.parseCaseLimb(b)
+	caseLimbs = append(caseLimbs, limb)
+
+	for {
+		if p.peek().typ != itemSemicolon {
+			break
+		}
+		p.next()
+
+		if !isPossiblyConstant(b, p.peek()) {
+			break
+		}
+
+		limb := p.parseCaseLimb(b)
+		caseLimbs = append(caseLimbs, limb)
+	}
+
+	if p.peek().typ != itemEnd {
+		p.errorf("expected end, got %s instead", p.peek())
+	}
+	p.next()
+
+	return &caseStatement{expr: expr, caseLimbs: caseLimbs}
+}
+
+func (p *program) parseCaseLimb(b *block) *caseLimb {
+	labels := p.parseCaseLabelList(b)
+
+	if p.peek().typ != itemColon {
+		p.errorf("expected :, got %s instead", p.peek())
+	}
+	p.next()
+
+	stmt := p.parseStatement(b)
+
+	return &caseLimb{
+		labels: labels,
+		stmt:   stmt,
+	}
+}
+
+func (p *program) parseWithStatement(b *block) statement {
+	p.errorf("TODO: with not implemented")
+	// TODO: implement
 	return nil
 }
 

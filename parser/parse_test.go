@@ -642,6 +642,32 @@ func TestParserSuccesses(t *testing.T) {
 			begin
 			end.`,
 		},
+		{
+			"case statement",
+			`program test;
+
+			var x : integer;
+
+			begin
+				case x of
+				1 : writeln('hello world');
+				2 : writeln('goodbye world')
+				end
+			end.`,
+		},
+		{
+			"case statement with optional semicolon after last case limb",
+			`program test;
+
+			var x : integer;
+
+			begin
+				case x of
+				1 : writeln('hello world');
+				2 : writeln('goodbye world');
+				end
+			end.`,
+		},
 	}
 
 	for idx, testEntry := range testData {

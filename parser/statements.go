@@ -106,3 +106,21 @@ func (s *procedureCallStatement) Type() statementType {
 func (s *procedureCallStatement) Label() *string {
 	return nil
 }
+
+type caseStatement struct {
+	expr      expression
+	caseLimbs []*caseLimb
+}
+
+func (s *caseStatement) Type() statementType {
+	return stmtCase
+}
+
+func (s *caseStatement) Label() *string {
+	return nil
+}
+
+type caseLimb struct {
+	labels []constantLiteral
+	stmt   statement
+}
