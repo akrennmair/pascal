@@ -558,10 +558,19 @@ func (p *program) parseDataType(b *block) dataType {
 restartParseDataType:
 	switch p.peek().typ {
 	case itemIdentifier:
-		ident := p.next().val
+		ident := p.peek().val
+		// if identifier is an already existing type name, it's an alias.
 		if typ := b.findType(ident); typ != nil {
+			p.next()
 			return typ
 		}
+
+		// if the identifier is an already existing constant, it can only be a constant being used in a subrange type.
+		if constDecl := b.findConstantDeclaration(ident); constDecl != nil {
+			return p.parseSubrangeType(b)
+		}
+
+		// otherwise, we don't know.
 		p.errorf("unknown type %s", ident)
 	case itemCaret:
 		p.next() // skip ^ token.
@@ -598,6 +607,9 @@ restartParseDataType:
 		p.next()
 		fileDataType := p.parseDataType(b)
 		return &fileType{elementType: fileDataType}
+	case itemSign, itemUnsignedDigitSequence:
+		// if the type definition is a sign or digits, it can only be a subrange type.
+		return p.parseSubrangeType(b)
 	default:
 		p.errorf("unknown type %s", p.next().val)
 	}
@@ -1590,6 +1602,10 @@ func (p *program) parseSimpleType(b *block) dataType {
 		return p.parseEnumType(b)
 	}
 
+	return p.parseSubrangeType(b)
+}
+
+func (p *program) parseSubrangeType(b *block) dataType {
 	lowerBound := p.parseConstant(b)
 
 	lb, ok := lowerBound.(*integerLiteral)
@@ -1620,7 +1636,10 @@ func (p *program) parseConstant(b *block) constantLiteral {
 	if p.peek().typ == itemSign {
 		minus = p.next().val == "-"
 	}
+	return p.parseConstantWithoutSign(b, minus)
+}
 
+func (p *program) parseConstantWithoutSign(b *block, minus bool) constantLiteral {
 	var v constantLiteral
 
 	if p.peek().typ == itemIdentifier {

@@ -523,6 +523,47 @@ func TestParserSuccesses(t *testing.T) {
 			begin
 			end.`,
 		},
+		{
+			"subrange type of two positive integers",
+			`program test;
+
+			type foo = 1..100;
+
+			begin
+			end.`,
+		},
+		{
+			"subrange type of two constants",
+			`program test;
+
+			const min = 1;
+				max = 100;
+
+			type foo = min..max;
+
+			begin
+			end.`,
+		},
+		{
+			"subrange type of negative and positive integers",
+			`program test;
+
+			type foo = -1..+3;
+
+			begin
+			end.`,
+		},
+		{
+			"subrange type of negative and positive constant",
+			`program test;
+
+			const x = 23;
+
+			type foo = -x..x;
+
+			begin
+			end.`,
+		},
 	}
 
 	for idx, testEntry := range testData {
@@ -600,7 +641,7 @@ func TestParserErrors(t *testing.T) {
 		},
 		{
 			"integer literal as type in type definition",
-			`unknown type 234`,
+			`expected .., got ";"`,
 			"program test; type foo = 234; begin end.",
 		},
 		{
