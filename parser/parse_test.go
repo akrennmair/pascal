@@ -616,6 +616,32 @@ func TestParserSuccesses(t *testing.T) {
 			begin
 			end.`,
 		},
+		{
+			"record type with fixed parts and semicolon after last field",
+			`program test;
+
+			type foo = record
+				quux : integer;
+				bla: string;
+			end;
+
+			begin
+			end.`,
+		},
+		{
+			"record type with only variant part and semicolon after last field",
+			`program test;
+
+			type foo = record
+			case xxx : integer of
+			1 : (a : string);
+			2 : (b : integer);
+			3, 4 : (c : real; d : string);
+			end;
+
+			begin
+			end.`,
+		},
 	}
 
 	for idx, testEntry := range testData {
@@ -777,6 +803,72 @@ func TestParserErrors(t *testing.T) {
 			type foo = integer;
 			begin end.
 			`,
+		},
+		{
+			"record type with only fixed part and duplicate field names",
+			"duplicate field name a",
+			`program test;
+
+			type foo = record
+				a : integer;
+				a : string
+			end;
+
+			begin
+			end.`,
+		},
+		{
+			"record type with only variant part and duplicate field names",
+			"duplicate variant field name a",
+			`program test;
+
+			type foo = record
+			case xxx : integer of
+			1 : (a : string);
+			2 : (a : integer)
+			end;
+
+			begin
+			end.`,
+		},
+		{
+			"record type with fixed part and variant part and duplicate field names",
+			"duplicate variant field name quux",
+			`program test;
+
+			type foo = record
+				quux : integer;
+				case xxx : integer of
+				1 : (quux : string);
+				2 : (b : integer)
+			end;
+
+			begin
+			end.`,
+		},
+		{
+			"record type with variant parts with empty field list and nested variant part and duplicate field names",
+			"duplicate variant field name bla",
+			`program test;
+
+			type foo = record
+				quux : integer;
+				case xxx : integer of
+				1 : ();
+				2 : (case yyy : integer of
+					3: (a : integer);
+					4: (b : real)
+				);
+				3 : (
+					bla : real;
+					case zzz : integer of
+					5: (bla : integer);
+					6: (d : string)
+				)
+			end;
+
+			begin
+			end.`,
 		},
 	}
 

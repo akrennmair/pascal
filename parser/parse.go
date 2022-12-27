@@ -1651,6 +1651,16 @@ func (p *program) parseConstant(b *block) constantLiteral {
 	return p.parseConstantWithoutSign(b, minus)
 }
 
+func isPossiblyConstant(b *block, it item) bool {
+	if it.typ == itemIdentifier {
+		if b.findConstantDeclaration(it.val) == nil {
+			return false
+		}
+	}
+
+	return it.typ == itemSign || it.typ == itemUnsignedDigitSequence || it.typ == itemStringLiteral
+}
+
 func (p *program) parseConstantWithoutSign(b *block, minus bool) constantLiteral {
 	var v constantLiteral
 
@@ -1722,6 +1732,30 @@ func (p *program) parseFieldList(b *block, packed bool) *recordType {
 		p.next()
 	}
 
+	fieldNames := map[string]bool{}
+
+	for _, f := range record.fields {
+		for _, ident := range f.Identifiers {
+			if fieldNames[ident] {
+				p.errorf("duplicate field name %s", ident)
+			}
+			fieldNames[ident] = true
+		}
+	}
+
+	if record.variantField != nil {
+		for _, v := range record.variantField.variants {
+			for _, f := range v.fields.fields {
+				for _, ident := range f.Identifiers {
+					if fieldNames[ident] {
+						p.errorf("duplicate variant field name %s", ident)
+					}
+					fieldNames[ident] = true
+				}
+			}
+		}
+	}
+
 	return record
 }
 
@@ -1786,6 +1820,10 @@ func (p *program) parseVariantField(b *block, packed bool) (field *recordVariant
 	}
 
 	for {
+		if !isPossiblyConstant(b, p.peek()) { // variant always starts with constant.
+			break
+		}
+
 		variant := p.parseVariant(b, packed)
 		field.variants = append(field.variants, variant)
 
