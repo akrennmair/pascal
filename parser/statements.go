@@ -127,7 +127,7 @@ type caseLimb struct {
 
 type withStatement struct {
 	recordVariables []string
-	stmt            statement
+	block           *block
 }
 
 func (s *withStatement) Type() statementType {

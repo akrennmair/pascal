@@ -129,7 +129,6 @@ type block struct {
 	procedures           []*procedure
 	functions            []*procedure
 	statements           []statement
-	recordVariables      []string // if non-empty, this is a block for a with statement
 }
 
 func (b *block) findConstantDeclaration(name string) *constDeclaration {
@@ -151,30 +150,6 @@ func (b *block) findVariable(name string) *variable {
 		return nil
 	}
 
-	for _, recVarName := range b.recordVariables {
-		v := b.findNonRecordVariable(recVarName)
-		if v == nil {
-			continue
-		}
-
-		recType, ok := v.Type.(*recordType)
-		if !ok {
-			continue
-		}
-
-		field := recType.findField(name)
-		if field == nil {
-			continue
-		}
-
-		return &variable{
-			Name:          name,
-			Type:          field.Type,
-			BelongsTo:     recVarName,
-			BelongsToType: v.Type,
-		}
-	}
-
 	for _, variable := range b.variables {
 		if variable.Name == name {
 			return variable
@@ -182,20 +157,6 @@ func (b *block) findVariable(name string) *variable {
 	}
 
 	return b.parent.findVariable(name)
-}
-
-func (b *block) findNonRecordVariable(name string) *variable {
-	if b == nil {
-		return nil
-	}
-
-	for _, variable := range b.variables {
-		if variable.Name == name {
-			return variable
-		}
-	}
-
-	return b.parent.findNonRecordVariable(name)
 }
 
 func (b *block) findFormalParameter(name string) *formalParameter {
@@ -1282,6 +1243,11 @@ func (p *program) parseWithStatement(b *block) statement {
 	}
 	p.next()
 
+	withBlock := &block{
+		parent:    b,
+		procedure: b.procedure,
+	}
+
 	var recordVariables []string
 
 	for {
@@ -1295,12 +1261,25 @@ func (p *program) parseWithStatement(b *block) statement {
 		if varDecl == nil {
 			p.errorf("unknown variable %s", ident)
 		}
-		_, ok := varDecl.Type.(*recordType)
+		recType, ok := varDecl.Type.(*recordType)
 		if !ok {
 			p.errorf("variable %s is not a record variable", ident)
 		}
 
 		recordVariables = append(recordVariables, ident)
+
+		for _, field := range recType.fields {
+			for _, fieldIdent := range field.Identifiers {
+				fieldVar := &variable{
+					Name:          fieldIdent,
+					Type:          field.Type,
+					BelongsTo:     ident,
+					BelongsToType: recType,
+				}
+
+				withBlock.variables = append(withBlock.variables, fieldVar)
+			}
+		}
 
 		if p.peek().typ != itemComma {
 			break
@@ -1312,17 +1291,13 @@ func (p *program) parseWithStatement(b *block) statement {
 	}
 	p.next()
 
-	withBlock := &block{
-		parent:          b,
-		procedure:       b.procedure,
-		recordVariables: recordVariables,
-	}
-
 	stmt := p.parseStatement(withBlock)
+
+	withBlock.statements = append(withBlock.statements, stmt)
 
 	return &withStatement{
 		recordVariables: recordVariables,
-		stmt:            stmt,
+		block:           withBlock,
 	}
 }
 

@@ -704,6 +704,30 @@ func TestParserSuccesses(t *testing.T) {
 				end
 			end.`,
 		},
+		{
+			"nested with statements and record-identifier.field-identifier syntax of nested records",
+			`program test;
+
+			var y : record
+					a : integer;
+					b : record
+						c : real;
+						d : string;
+					end;
+				end;
+
+			begin
+				with y do
+				begin
+					a := 23; { addresses y.a }
+					b.c := 23.5; { addresses y.b.c }
+					with b do
+					begin
+						d := 'hello' { addresses y.b.d }
+					end
+				end
+			end.`,
+		},
 	}
 
 	for idx, testEntry := range testData {
