@@ -2060,25 +2060,36 @@ func (p *program) parseIndexVariableExpr(b *block, identifier string) *indexedVa
 	}
 	p.next()
 
-	var elemType dataType
+	var (
+		arrType *arrayType
+		ok      bool
+	)
 
 	if varDecl := b.findVariable(identifier); varDecl != nil {
-		at, ok := varDecl.Type.(*arrayType) // TODO: support string
+		arrType, ok = varDecl.Type.(*arrayType) // TODO: support string
 		if !ok {
 			p.errorf("variable %s is not an array", identifier)
 		}
-		elemType = at.elementType
 	} else if paramDecl := b.findFormalParameter(identifier); paramDecl != nil {
-		at, ok := paramDecl.Type.(*arrayType) // TODO: support string
+		arrType, ok = paramDecl.Type.(*arrayType) // TODO: support string
 		if !ok {
 			p.errorf("formal paramter %s is not an array", identifier)
 		}
-		elemType = at.elementType
 	} else {
 		p.errorf("unknown variable %s", identifier)
 	}
 
-	// TODO: check whether dimensions of array fit.
+	// TODO: support situation where fewer index expressions mean that an array of fewer dimensions is returned.
 
-	return &indexedVariableExpr{name: identifier, exprs: indexes, typ: elemType}
+	if len(arrType.indexTypes) != len(indexes) {
+		p.errorf("array %s has %d dimensions but %d index expressions were provided", identifier, len(arrType.indexTypes), len(indexes))
+	}
+
+	for idx, idxType := range arrType.indexTypes {
+		if !typesCompatible(idxType, indexes[idx].Type()) {
+			p.errorf("array %s dimension %d is of type %s, but index expression type %s was provided", identifier, idx, idxType.Type(), indexes[idx].Type().Type())
+		}
+	}
+
+	return &indexedVariableExpr{name: identifier, exprs: indexes, typ: arrType.elementType}
 }

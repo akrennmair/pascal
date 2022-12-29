@@ -30,7 +30,7 @@ func TestParseExpressions(t *testing.T) {
 		{Name: "condition with floating point literal with scale factor", Expr: "result >= 2e-9", ExpectErr: false},
 		{Name: "condition with floating point literal with scale factor and dot", Expr: "result >= 1.234e 5", ExpectErr: false},
 		{Name: "set literal", Expr: "x in [ 5, 10, 23 ]", ExpectErr: false},
-		{Name: "indexed variable with multiple dimensions", Expr: "data[i, j] = 23", ExpectErr: false},
+		{Name: "indexed variable with multiple dimensions", Expr: "matrix[i, j] = 23", ExpectErr: false},
 		{Name: "pointer comparison with nil", Expr: "ptr <> nil", ExpectErr: false},
 		{Name: "addition of two literals with one negative number", Expr: "5 + -3", ExpectErr: false},
 	}
@@ -68,6 +68,13 @@ func TestParseExpressions(t *testing.T) {
 				Name: "data",
 				Type: &arrayType{
 					indexTypes:  []dataType{&subrangeType{1, 10}},
+					elementType: &integerType{},
+				},
+			},
+			{
+				Name: "matrix",
+				Type: &arrayType{
+					indexTypes:  []dataType{&subrangeType{1, 3}, &subrangeType{1, 3}},
 					elementType: &integerType{},
 				},
 			},

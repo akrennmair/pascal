@@ -343,3 +343,28 @@ func (l *enumValueLiteral) Negate() (constantLiteral, error) {
 func (l *enumValueLiteral) String() string {
 	return l.Symbol
 }
+
+func typesCompatible(t1, t2 dataType) bool {
+	if t1.Equals(t2) {
+		return true
+	}
+
+	if isIntegerType(t1) && isIntegerType(t2) {
+		return true
+	}
+
+	// TODO: implement more cases of compatibility
+
+	return false
+}
+
+func isIntegerType(dt dataType) bool {
+	switch dt.(type) {
+	case *integerType:
+		return true
+	case *subrangeType:
+		return true
+	}
+
+	return false
+}
