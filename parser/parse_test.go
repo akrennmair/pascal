@@ -739,6 +739,85 @@ func TestParserSuccesses(t *testing.T) {
 					writeln(hello)
 			end.`,
 		},
+		{
+			"enum type and symbols being used",
+			`program test;
+
+			type cards = (clubs, diamonds, hearts, spades);
+
+			var a : cards;
+
+			begin
+				a := clubs;
+				if a <> diamonds then
+					writeln('a is not diamonds')
+			end.`,
+		},
+		{
+			"variable of enum type directly used",
+			`program test;
+
+			var a : (clubs, diamonds, hearts, spades);
+
+			begin
+				a := clubs;
+				if a <> diamonds then
+					writeln('a is not diamonds')
+			end.`,
+		},
+		{
+			"variable of enum type directly used",
+			`program test;
+
+			var a : (clubs, diamonds, hearts, spades);
+
+			procedure foo;
+			begin
+				if a <> diamonds then
+					writeln('a is not diamonds')
+			end;
+
+			begin
+				a := clubs;
+				foo
+			end.`,
+		},
+		{
+			"more complex data structures with enum types",
+			`program test;
+
+			const king = 13;
+				queen = 12;
+				jack = 11;
+
+			type cardType = (clubs, diamonds, hearts, spades);
+				allCards = array [2..king] of cardType;
+
+			var myCards : allCards;
+
+			procedure printCard(card : cardType);
+			begin
+				case card of
+				clubs : writeln('clubs');
+				diamonds : writeln('diamonds');
+				hearts : writeln('hearts');
+				spades : writeln('spades');
+				end
+			end;
+
+			procedure printCards(cardSet : allCards);
+			var i : integer;
+			begin
+				for i := 2 to king do
+					printCard(cardSet[i])
+			end;
+
+			begin
+				myCards[king] := spades;
+				myCards[3] := hearts;
+				printCards(myCards)
+			end.`,
+		},
 	}
 
 	for idx, testEntry := range testData {

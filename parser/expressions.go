@@ -374,3 +374,17 @@ func (e *fieldDesignatorExpr) String() string {
 func (e *fieldDesignatorExpr) Type() dataType {
 	return e.typ
 }
+
+type enumValueExpr struct {
+	symbol string
+	value  int
+	typ    dataType
+}
+
+func (e *enumValueExpr) String() string {
+	return fmt.Sprintf("enum-value-expr:<%s %d of type %s>", e.symbol, e.value, e.typ.Type())
+}
+
+func (e *enumValueExpr) Type() dataType {
+	return e.typ
+}

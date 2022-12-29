@@ -243,6 +243,34 @@ func (b *block) findType(name string) dataType {
 	return foundType
 }
 
+func (b *block) findEnumValue(ident string) (idx int, typ dataType) {
+	if b == nil {
+		return 0, nil
+	}
+
+	for _, v := range b.variables {
+		if et, ok := v.Type.(*enumType); ok {
+			for idx, enumIdent := range et.identifiers {
+				if ident == enumIdent {
+					return idx, v.Type
+				}
+			}
+		}
+	}
+
+	for _, td := range b.typeDefinitions {
+		if et, ok := td.Type.(*enumType); ok {
+			for idx, enumIdent := range et.identifiers {
+				if ident == enumIdent {
+					return idx, td.Type
+				}
+			}
+		}
+	}
+
+	return b.parent.findEnumValue(ident)
+}
+
 func (b *block) isValidLabel(label string) bool {
 	for _, l := range b.labels {
 		if l == label {
@@ -985,22 +1013,7 @@ func (p *program) parseAssignmentOrProcedureStatement(b *block) statement {
 
 	switch p.peek().typ {
 	case itemOpenBracket:
-		p.next()
-		indexes := p.parseExpressionList(b) // TODO: validate that all expressions are of the right type for indexing an array.
-		if p.peek().typ != itemCloseBracket {
-			p.errorf("expected ], got %s instead", p.peek())
-		}
-		p.next()
-		varDecl := b.findVariable(identifier)
-		if varDecl == nil {
-			p.errorf("unknown variable %s", identifier)
-		}
-		at, ok := varDecl.Type.(*arrayType) // TODO: support string
-		if !ok {
-			p.errorf("variable %s is not an array", identifier)
-		}
-		// TODO: check whether variable is an array, and whether dimensions fit.
-		lexpr = &indexedVariableExpr{name: identifier, exprs: indexes, typ: at.elementType}
+		lexpr = p.parseIndexVariableExpr(b, identifier)
 	case itemDot:
 		varDecl := b.findVariable(identifier)
 		if varDecl == nil {
@@ -1482,21 +1495,7 @@ func (p *program) parseFactor(b *block) factorExpr {
 		ident := p.next().val
 		switch p.peek().typ {
 		case itemOpenBracket:
-			varDecl := b.findVariable(ident)
-			if varDecl == nil {
-				p.errorf("unknown variable %s", ident)
-			}
-			p.next()
-			expressions := p.parseExpressionList(b) // TODO: validate that all expressions are of the right type for indexing an array.
-			if p.peek().typ != itemCloseBracket {
-				p.errorf("expected ], got %s instead", p.peek())
-			}
-			p.next()
-			at, ok := varDecl.Type.(*arrayType)
-			if !ok {
-				p.errorf("variable %s is not an array", ident)
-			}
-			return &indexedVariableExpr{name: ident, exprs: expressions, typ: at.elementType}
+			return p.parseIndexVariableExpr(b, ident)
 		case itemOpenParen:
 			funcDecl := b.findFunction(ident)
 			if funcDecl == nil {
@@ -1538,6 +1537,9 @@ func (p *program) parseFactor(b *block) factorExpr {
 		}
 		if varDecl := b.findVariable(ident); varDecl != nil {
 			return &variableExpr{name: ident, typ: varDecl.Type}
+		}
+		if idx, typ := b.findEnumValue(ident); typ != nil {
+			return &enumValueExpr{symbol: ident, value: idx, typ: typ}
 		}
 		if paramDecl := b.findFormalParameter(ident); paramDecl != nil {
 			return &variableExpr{name: ident, typ: paramDecl.Type} // TODO: do we need a separate formal parameter expression here?
@@ -1781,9 +1783,15 @@ func (p *program) parseConstant(b *block) constantLiteral {
 
 func isPossiblyConstant(b *block, it item) bool {
 	if it.typ == itemIdentifier {
-		if b.findConstantDeclaration(it.val) == nil {
+		if b.findConstantDeclaration(it.val) != nil {
+			return true
+		}
+
+		if _, typ := b.findEnumValue(it.val); typ == nil {
 			return false
 		}
+
+		return true
 	}
 
 	return it.typ == itemSign || it.typ == itemUnsignedDigitSequence || it.typ == itemStringLiteral
@@ -1795,10 +1803,16 @@ func (p *program) parseConstantWithoutSign(b *block, minus bool) constantLiteral
 	if p.peek().typ == itemIdentifier {
 		constantName := p.next().val
 		decl := b.findConstantDeclaration(constantName)
-		if decl == nil {
-			p.errorf("undeclared constant %s", constantName)
+		if decl != nil {
+			v = decl.Value
+		} else {
+			idx, typ := b.findEnumValue(constantName)
+			if typ == nil {
+				p.errorf("undeclared constant %s", constantName)
+			}
+
+			v = &enumValueLiteral{Symbol: constantName, Value: idx, Type: typ} // TODO: do we need to preserve the enum symbol name or the specific enum type?
 		}
-		v = decl.Value
 	} else if p.peek().typ == itemUnsignedDigitSequence {
 		number := p.parseNumber(false) // negation will be done later on.
 		switch n := number.(type) {
@@ -2036,4 +2050,35 @@ func (p *program) validateParameters(varargs bool, formalParams []*formalParamet
 	// TODO: check var parameters whether actual parameter is var expression.
 
 	return nil
+}
+
+func (p *program) parseIndexVariableExpr(b *block, identifier string) *indexedVariableExpr {
+	p.next()
+	indexes := p.parseExpressionList(b) // TODO: validate that all expressions are of the right type for indexing an array.
+	if p.peek().typ != itemCloseBracket {
+		p.errorf("expected ], got %s instead", p.peek())
+	}
+	p.next()
+
+	var elemType dataType
+
+	if varDecl := b.findVariable(identifier); varDecl != nil {
+		at, ok := varDecl.Type.(*arrayType) // TODO: support string
+		if !ok {
+			p.errorf("variable %s is not an array", identifier)
+		}
+		elemType = at.elementType
+	} else if paramDecl := b.findFormalParameter(identifier); paramDecl != nil {
+		at, ok := paramDecl.Type.(*arrayType) // TODO: support string
+		if !ok {
+			p.errorf("formal paramter %s is not an array", identifier)
+		}
+		elemType = at.elementType
+	} else {
+		p.errorf("unknown variable %s", identifier)
+	}
+
+	// TODO: check whether dimensions of array fit.
+
+	return &indexedVariableExpr{name: identifier, exprs: indexes, typ: elemType}
 }

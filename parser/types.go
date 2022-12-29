@@ -325,3 +325,21 @@ func (l *stringLiteral) String() string {
 
 	return buf.String()
 }
+
+type enumValueLiteral struct {
+	Symbol string
+	Value  int
+	Type   dataType
+}
+
+func (l *enumValueLiteral) ConstantType() dataType {
+	return l.Type
+}
+
+func (l *enumValueLiteral) Negate() (constantLiteral, error) {
+	return nil, errors.New("can't negate enum value")
+}
+
+func (l *enumValueLiteral) String() string {
+	return l.Symbol
+}
