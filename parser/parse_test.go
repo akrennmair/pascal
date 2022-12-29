@@ -818,6 +818,55 @@ func TestParserSuccesses(t *testing.T) {
 				printCards(myCards)
 			end.`,
 		},
+		{
+			"with statement of formal parameter",
+			`program test;
+
+			type foo = record
+					a : integer;
+					b : real;
+				end;
+
+			var x : foo;
+
+			procedure quux(my : foo);
+			begin
+				with my do
+				begin
+					a := 23;
+					b := 3.1415
+				end
+			end;
+
+			begin
+				quux(x)
+			end.`,
+		},
+		{
+			"with statement of formal parameter that also uses variable used in with",
+			`program test;
+
+			type foo = record
+					a : integer;
+					b : real;
+				end;
+
+			var x : foo;
+
+			procedure quux(my : foo);
+			begin
+				with my do
+				begin
+					a := 23;
+					b := 3.1415;
+					my.a := 42
+				end
+			end;
+
+			begin
+				quux(x)
+			end.`,
+		},
 	}
 
 	for idx, testEntry := range testData {

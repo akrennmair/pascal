@@ -1015,16 +1015,24 @@ func (p *program) parseAssignmentOrProcedureStatement(b *block) statement {
 	case itemOpenBracket:
 		lexpr = p.parseIndexVariableExpr(b, identifier)
 	case itemDot:
-		varDecl := b.findVariable(identifier)
-		if varDecl == nil {
+		p.next()
+
+		var typ dataType
+
+		if varDecl := b.findVariable(identifier); varDecl != nil {
+			typ = varDecl.Type
+		} else if paramDecl := b.findFormalParameter(identifier); paramDecl != nil {
+			typ = paramDecl.Type
+		} else {
 			p.errorf("unknown variable %s", identifier)
 		}
-		p.next()
+
 		if p.peek().typ != itemIdentifier {
 			p.errorf("expected field identifier, got %s instead", p.peek())
 		}
 		fieldIdentifier := p.next().val
-		rt, ok := varDecl.Type.(*recordType)
+
+		rt, ok := typ.(*recordType)
 		if !ok {
 			p.errorf("variable %s is not a record", identifier)
 		}
@@ -1270,11 +1278,17 @@ func (p *program) parseWithStatement(b *block) statement {
 		}
 		ident := p.next().val
 
-		varDecl := b.findVariable(ident) // TODO: do we need to take into account formal parameters as well?
-		if varDecl == nil {
-			p.errorf("unknown variable %s", ident)
+		var typ dataType
+
+		if varDecl := b.findVariable(ident); varDecl != nil {
+			typ = varDecl.Type
+		} else if paramDecl := b.findFormalParameter(ident); paramDecl != nil {
+			typ = paramDecl.Type
+		} else {
+			p.errorf("unknown variable %s x", ident)
 		}
-		recType, ok := varDecl.Type.(*recordType)
+
+		recType, ok := typ.(*recordType)
 		if !ok {
 			p.errorf("variable %s is not a record variable", ident)
 		}
@@ -1511,7 +1525,7 @@ func (p *program) parseFactor(b *block) factorExpr {
 
 			varDecl := b.findVariable(ident)
 			if varDecl == nil {
-				p.errorf("unknown variable %s", ident)
+				p.errorf("unknown variable %s y", ident)
 			}
 			rt, ok := varDecl.Type.(*recordType)
 			if !ok {
@@ -2076,7 +2090,7 @@ func (p *program) parseIndexVariableExpr(b *block, identifier string) *indexedVa
 			p.errorf("formal paramter %s is not an array", identifier)
 		}
 	} else {
-		p.errorf("unknown variable %s", identifier)
+		p.errorf("unknown variable %s z", identifier)
 	}
 
 	// TODO: support situation where fewer index expressions mean that an array of fewer dimensions is returned.
