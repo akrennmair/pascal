@@ -620,12 +620,12 @@ restartParseDataType:
 		return &pointerType{name: p.next().val}
 	case itemOpenParen:
 		return p.parseEnumType(b)
-	case itemPacked: // TODO: ensure that packed only appears before structured types (array, record, set, file)
-		if packed {
-			p.errorf("expected type after packed, got %s", p.next())
-		}
+	case itemPacked:
 		p.next()
 		packed = true
+		if typ := p.peek().typ; typ != itemArray && typ != itemRecord && typ != itemSet && typ != itemFile {
+			p.errorf("packed can only be used with array, record, set or file, found %s instead", p.peek())
+		}
 		goto restartParseDataType
 	case itemArray:
 		return p.parseArrayType(b, packed)
@@ -646,7 +646,7 @@ restartParseDataType:
 		}
 		p.next()
 		fileDataType := p.parseDataType(b)
-		return &fileType{elementType: fileDataType}
+		return &fileType{elementType: fileDataType, packed: packed}
 	case itemSign, itemUnsignedDigitSequence:
 		// if the type definition is a sign or digits, it can only be a subrange type.
 		return p.parseSubrangeType(b)

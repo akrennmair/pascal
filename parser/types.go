@@ -64,11 +64,24 @@ type arrayType struct {
 }
 
 func (t *arrayType) Type() string {
-	var indexTypes []string
-	for _, it := range t.indexTypes {
-		indexTypes = append(indexTypes, it.Type())
+	var buf strings.Builder
+
+	if t.packed {
+		buf.WriteString("packed ")
 	}
-	return fmt.Sprintf("array [%s] of %s", strings.Join(indexTypes, ", "), t.elementType.Type())
+
+	buf.WriteString("array [")
+
+	for idx, it := range t.indexTypes {
+		if idx > 0 {
+			buf.WriteString(", ")
+		}
+		buf.WriteString(it.Type())
+	}
+
+	buf.WriteString("] of ")
+	buf.WriteString(t.elementType.Type())
+	return buf.String()
 }
 
 func (t *arrayType) Equals(dt dataType) bool {
@@ -112,9 +125,12 @@ func (t *recordType) findField(name string) *recordField {
 
 func (t *recordType) Type() string {
 	var buf strings.Builder
-	fmt.Fprintf(&buf, "record ")
+	if t.packed {
+		buf.WriteString("packed ")
+	}
+	buf.WriteString("record ")
 	t.printFieldList(&buf, t)
-	fmt.Fprint(&buf, "end")
+	buf.WriteString("end")
 	return buf.String()
 }
 
@@ -177,7 +193,11 @@ type setType struct {
 }
 
 func (t *setType) Type() string {
-	return fmt.Sprintf("set of %s", t.elementType.Type())
+	packed := ""
+	if t.packed {
+		packed = "packed "
+	}
+	return fmt.Sprintf("%sset of %s", packed, t.elementType.Type())
 }
 
 func (t *setType) Equals(dt dataType) bool {
@@ -231,10 +251,17 @@ func (t *realType) Equals(dt dataType) bool {
 
 type fileType struct {
 	elementType dataType
+	packed      bool
 }
 
 func (t *fileType) Type() string {
-	return fmt.Sprintf("file of %s", t.elementType.Type())
+	var buf strings.Builder
+	if t.packed {
+		buf.WriteString("packed ")
+	}
+	buf.WriteString("file of ")
+	buf.WriteString(t.elementType.Type())
+	return buf.String()
 }
 
 func (t *fileType) Equals(dt dataType) bool {

@@ -885,7 +885,7 @@ func TestParserErrors(t *testing.T) {
 		},
 		{
 			"type declaration with two packed keywords",
-			`expected type after packed, got "packed"`,
+			`packed can only be used with array, record, set or file, found "packed" instead`,
 			"program test; type foo = packed packed array[1..10] of integer; begin end.",
 		},
 		{
