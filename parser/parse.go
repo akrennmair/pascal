@@ -1825,7 +1825,7 @@ func (p *program) parseConstantWithoutSign(b *block, minus bool) constantLiteral
 				p.errorf("undeclared constant %s", constantName)
 			}
 
-			v = &enumValueLiteral{Symbol: constantName, Value: idx, Type: typ} // TODO: do we need to preserve the enum symbol name or the specific enum type?
+			v = &enumValueLiteral{Symbol: constantName, Value: idx, Type: typ}
 		}
 	} else if p.peek().typ == itemUnsignedDigitSequence {
 		number := p.parseNumber(false) // negation will be done later on.
@@ -2068,7 +2068,7 @@ func (p *program) validateParameters(varargs bool, formalParams []*formalParamet
 
 func (p *program) parseIndexVariableExpr(b *block, identifier string) *indexedVariableExpr {
 	p.next()
-	indexes := p.parseExpressionList(b) // TODO: validate that all expressions are of the right type for indexing an array.
+	indexes := p.parseExpressionList(b)
 	if p.peek().typ != itemCloseBracket {
 		p.errorf("expected ], got %s instead", p.peek())
 	}
