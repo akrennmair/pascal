@@ -728,6 +728,17 @@ func TestParserSuccesses(t *testing.T) {
 				end
 			end.`,
 		},
+		{
+			"string constant",
+			`program test;
+
+			const hello = 'hello world';
+
+			begin
+				if hello = 'goodbye' then
+					writeln(hello)
+			end.`,
+		},
 	}
 
 	for idx, testEntry := range testData {

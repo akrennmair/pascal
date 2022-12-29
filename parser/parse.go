@@ -1534,7 +1534,7 @@ func (p *program) parseFactor(b *block) factorExpr {
 			return &functionCallExpr{name: ident, typ: funcDecl.ReturnType}
 		}
 		if constDecl := b.findConstantDeclaration(ident); constDecl != nil {
-			return &constantExpr{ident, &integerType{} /* TODO: constDecl.Type */}
+			return &constantExpr{ident, constDecl.Value.ConstantType()}
 		}
 		if varDecl := b.findVariable(ident); varDecl != nil {
 			return &variableExpr{name: ident, typ: varDecl.Type}
