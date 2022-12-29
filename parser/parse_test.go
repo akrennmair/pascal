@@ -1095,6 +1095,16 @@ func TestParserErrors(t *testing.T) {
 			begin
 			end.`,
 		},
+
+		{
+			"left expression not followed by assignment",
+			"got left expression variable:<x> that was not followed by assignment operator",
+			`program test;
+			var x : integer;
+			begin
+				x writeln('hello world')
+			end.`,
+		},
 	}
 
 	for idx, tt := range testData {

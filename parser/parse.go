@@ -1068,7 +1068,11 @@ func (p *program) parseAssignmentOrProcedureStatement(b *block) statement {
 		rexpr := p.parseExpression(b)
 		return &assignmentStatement{lexpr: lexpr, rexpr: rexpr}
 	default:
-		// TODO: improve handling if we hit this branch, but previously had an indexed-variable or field-designator.
+
+		if lexpr != nil {
+			p.errorf("got left expression %s that was not followed by assignment operator", lexpr)
+		}
+
 		proc := b.findProcedure(identifier)
 		if proc == nil {
 			p.errorf("unknown procedure %s", identifier)
