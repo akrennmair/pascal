@@ -1438,12 +1438,14 @@ func (p *program) parseSimpleExpression(b *block) *simpleExpression {
 				p.errorf("can't use or with %s", simpleExpr.first.Type().Type())
 			}
 		} else {
-			// TODO: validate whether type is suitable for addition
+			if !isIntegerType(simpleExpr.first.Type()) && !isRealType(simpleExpr.first.Type()) {
+				p.errorf("can only use %s operator with integer or real types, got %s instead", operator, simpleExpr.first.Type().Type())
+			}
 		}
 
 		nextTerm := p.parseTerm(b)
 
-		if !simpleExpr.first.Type().Equals(nextTerm.Type()) {
+		if !typesCompatible(simpleExpr.first.Type(), nextTerm.Type()) {
 			p.errorf("can't %s %s %s", simpleExpr.first.Type().Type(), operator, nextTerm.Type().Type())
 		}
 
@@ -1476,18 +1478,29 @@ func (p *program) parseTerm(b *block) *termExpr {
 		operator := itemTypeToMultiplicationOperator(p.next().typ)
 		p.logger.Printf("parseTerm: got operator %s", operator)
 
-		if operator == opAnd {
+		switch operator {
+		case opAnd:
 			_, ok := term.first.Type().(*booleanType)
 			if !ok {
 				p.errorf("can't use and with %s", term.first.Type().Type())
 			}
-		} else {
-			// TODO: validate whether type is suitable for multiplication
+		case opMultiply:
+			if !isIntegerType(term.first.Type()) && !isRealType(term.first.Type()) {
+				p.errorf("can only use %s operator with integer or real types, got %s instead", operator, term.first.Type().Type())
+			}
+		case opFloatDivide:
+			if !isRealType(term.first.Type()) {
+				p.errorf("can only use %s operator with real types, got %s instead", operator, term.first.Type().Type())
+			}
+		case opDivide, opModulo:
+			if !isIntegerType(term.first.Type()) {
+				p.errorf("can only use %s operator with integer types, got %s intead", operator, term.first.Type().Type())
+			}
 		}
 
 		nextFactor := p.parseFactor(b)
 
-		if !term.first.Type().Equals(nextFactor.Type()) {
+		if !typesCompatible(term.first.Type(), nextFactor.Type()) {
 			p.errorf("can't %s %s %s", term.first.Type().Type(), operator, nextFactor.Type().Type())
 		}
 

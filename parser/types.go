@@ -395,3 +395,11 @@ func isIntegerType(dt dataType) bool {
 
 	return false
 }
+
+func isRealType(dt dataType) bool {
+	if _, ok := dt.(*realType); ok {
+		return true
+	}
+
+	return false
+}

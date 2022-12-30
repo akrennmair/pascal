@@ -19,7 +19,10 @@ func TestParseExpressions(t *testing.T) {
 		{Name: "two ANDed comparisons", Expr: "(a = 1) and (b = 2)", ExpectErr: false},
 		{Name: "two ORed comparisons", Expr: "(a = 1) or (b = 2)", ExpectErr: false},
 		{Name: "addition expression", Expr: "a + b - c", ExpectErr: false},
-		{Name: "multiplication expression", Expr: "a * b / c", ExpectErr: false},
+		{Name: "integer multiplication expression", Expr: "a * b div c", ExpectErr: false},
+		{Name: "integer multiplication expression with float divide", Expr: "a * b / c", ExpectErr: true},
+		{Name: "real multiplication expression", Expr: "l * m / o", ExpectErr: false},
+		{Name: "real multiplication expression with integer divide", Expr: "l * m div o", ExpectErr: true},
 		{Name: "subexpressions", Expr: "(a = 2) or (b <> 3)", ExpectErr: false},
 		{Name: "more complex logical expression", Expr: "d and e or (d and not e)", ExpectErr: false},
 		{Name: "more complex logical expression with comparisons", Expr: "(a <= 3) and (b > -23) or ((a <= -3) and not (b >= 400))", ExpectErr: false},
@@ -108,6 +111,18 @@ func TestParseExpressions(t *testing.T) {
 						},
 					},
 				},
+			},
+			{
+				Name: "l",
+				Type: &realType{},
+			},
+			{
+				Name: "m",
+				Type: &realType{},
+			},
+			{
+				Name: "o",
+				Type: &realType{},
 			},
 		},
 		functions: []*procedure{
