@@ -867,6 +867,42 @@ func TestParserSuccesses(t *testing.T) {
 				quux(x)
 			end.`,
 		},
+		{
+			"procedure with variable parameter",
+			`program test;
+
+			var x : integer;
+
+			procedure quux(var y : integer);
+			begin
+				y := 3
+			end;
+
+			begin
+				x := 2;
+				writeln('before: ', x);
+				quux(x);
+				writeln('after: ', x)
+			end.`,
+		},
+		{
+			"procedure with variable parameter inside sub expression",
+			`program test;
+
+			var x : integer;
+
+			procedure quux(var y : integer);
+			begin
+				y := 3
+			end;
+
+			begin
+				x := 2;
+				writeln('before: ', x);
+				quux((x));
+				writeln('after: ', x)
+			end.`,
+		},
 	}
 
 	for idx, testEntry := range testData {
@@ -1103,6 +1139,25 @@ func TestParserErrors(t *testing.T) {
 			var x : integer;
 			begin
 				x writeln('hello world')
+			end.`,
+		},
+		{
+			"procedure with variable parameter inside sub expression",
+			"parameter y is a variable parameter, but an actual parameter other than variable was provided",
+			`program test;
+
+			var x : integer;
+
+			procedure quux(var y : integer);
+			begin
+				y := 3
+			end;
+
+			begin
+				x := 2;
+				writeln('before: ', x);
+				quux(x * x);
+				writeln('after: ', x)
 			end.`,
 		},
 	}

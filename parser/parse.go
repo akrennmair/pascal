@@ -1054,6 +1054,8 @@ func (p *program) parseAssignmentOrProcedureStatement(b *block) statement {
 	default:
 		if varDecl := b.findVariable(identifier); varDecl != nil {
 			lexpr = &variableExpr{name: identifier, typ: varDecl.Type}
+		} else if paramDecl := b.findFormalParameter(identifier); paramDecl != nil {
+			lexpr = &variableExpr{name: identifier, typ: paramDecl.Type}
 		} else if funcDecl := b.findFunctionForAssignment(identifier); funcDecl != nil {
 			lexpr = &variableExpr{name: identifier, typ: funcDecl.ReturnType} // TODO: do we need a separate expression type for this?
 		}
@@ -2076,9 +2078,14 @@ func (p *program) validateParameters(varargs bool, formalParams []*formalParamet
 			return fmt.Errorf("parameter %s expects type %s, but %s was provided",
 				formalParams[idx].Name, formalParams[idx].Type.Type(), actualParams[idx].Type().Type())
 		}
-	}
 
-	// TODO: check var parameters whether actual parameter is var expression.
+		if formalParams[idx].ValueParameter {
+			if !actualParams[idx].IsVariableExpr() {
+				return fmt.Errorf("parameter %s is a variable parameter, but an actual parameter other than variable was provided",
+					formalParams[idx].Name)
+			}
+		}
+	}
 
 	return nil
 }

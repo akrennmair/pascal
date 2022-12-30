@@ -8,6 +8,7 @@ import (
 type expression interface {
 	String() string
 	Type() dataType
+	IsVariableExpr() bool
 	// TODO
 }
 
@@ -65,6 +66,10 @@ func (e *relationalExpr) Type() dataType {
 	return &booleanType{}
 }
 
+func (e *relationalExpr) IsVariableExpr() bool {
+	return false
+}
+
 type minusExpr struct {
 	expr *termExpr
 }
@@ -75,6 +80,10 @@ func (e *minusExpr) String() string {
 
 func (e *minusExpr) Type() dataType {
 	return e.expr.Type()
+}
+
+func (e *minusExpr) IsVariableExpr() bool {
+	return false
 }
 
 func isAdditionOperator(typ itemType) bool {
@@ -99,6 +108,14 @@ func (e *simpleExpression) String() string {
 
 func (e *simpleExpression) Type() dataType {
 	return e.first.Type()
+}
+
+func (e *simpleExpression) IsVariableExpr() bool {
+	if e.sign != "" || len(e.next) > 0 {
+		return false
+	}
+
+	return e.first.IsVariableExpr()
 }
 
 type additionOperator string
@@ -141,6 +158,14 @@ func (e *termExpr) String() string {
 
 func (e *termExpr) Type() dataType {
 	return e.first.Type()
+}
+
+func (e *termExpr) IsVariableExpr() bool {
+	if len(e.next) > 0 {
+		return false
+	}
+
+	return e.first.IsVariableExpr()
 }
 
 type multiplication struct {
@@ -199,6 +224,10 @@ func (e *constantExpr) Type() dataType {
 	return e.typ
 }
 
+func (e *constantExpr) IsVariableExpr() bool {
+	return false
+}
+
 type variableExpr struct {
 	name string
 	typ  dataType
@@ -212,6 +241,10 @@ func (e *variableExpr) Type() dataType {
 	return e.typ
 }
 
+func (e *variableExpr) IsVariableExpr() bool {
+	return true
+}
+
 type integerExpr struct {
 	val int64
 }
@@ -222,6 +255,10 @@ func (e *integerExpr) String() string {
 
 func (e *integerExpr) Type() dataType {
 	return &integerType{}
+}
+
+func (e *integerExpr) IsVariableExpr() bool {
+	return false
 }
 
 type floatExpr struct {
@@ -243,6 +280,10 @@ func (e *floatExpr) Type() dataType {
 	return &realType{}
 }
 
+func (e *floatExpr) IsVariableExpr() bool {
+	return false
+}
+
 type stringExpr struct {
 	str string
 }
@@ -253,6 +294,10 @@ func (e *stringExpr) String() string {
 
 func (e *stringExpr) Type() dataType {
 	return &stringType{}
+}
+
+func (e *stringExpr) IsVariableExpr() bool {
+	return false
 }
 
 type nilExpr struct{}
@@ -267,6 +312,10 @@ func (e *nilExpr) Type() dataType {
 	}
 }
 
+func (e *nilExpr) IsVariableExpr() bool {
+	return false
+}
+
 type notExpr struct {
 	expr factorExpr
 }
@@ -277,6 +326,10 @@ func (e *notExpr) String() string {
 
 func (e *notExpr) Type() dataType {
 	return e.expr.Type()
+}
+
+func (e *notExpr) IsVariableExpr() bool {
+	return false
 }
 
 type setExpr struct {
@@ -302,6 +355,10 @@ func (e *setExpr) Type() dataType {
 	}
 }
 
+func (e *setExpr) IsVariableExpr() bool {
+	return false
+}
+
 type subExpr struct {
 	expr expression
 }
@@ -312,6 +369,10 @@ func (e *subExpr) String() string {
 
 func (e *subExpr) Type() dataType {
 	return e.expr.Type()
+}
+
+func (e *subExpr) IsVariableExpr() bool {
+	return e.expr.IsVariableExpr() // TODO: check whether this is correct.
 }
 
 type indexedVariableExpr struct {
@@ -335,6 +396,10 @@ func (e *indexedVariableExpr) String() string {
 
 func (e *indexedVariableExpr) Type() dataType {
 	return e.typ
+}
+
+func (e *indexedVariableExpr) IsVariableExpr() bool {
+	return true
 }
 
 type functionCallExpr struct {
@@ -361,6 +426,10 @@ func (e *functionCallExpr) Type() dataType {
 	return e.typ
 }
 
+func (e *functionCallExpr) IsVariableExpr() bool {
+	return false
+}
+
 type fieldDesignatorExpr struct {
 	name  string
 	field string
@@ -375,6 +444,10 @@ func (e *fieldDesignatorExpr) Type() dataType {
 	return e.typ
 }
 
+func (e *fieldDesignatorExpr) IsVariableExpr() bool {
+	return true
+}
+
 type enumValueExpr struct {
 	symbol string
 	value  int
@@ -387,4 +460,8 @@ func (e *enumValueExpr) String() string {
 
 func (e *enumValueExpr) Type() dataType {
 	return e.typ
+}
+
+func (e *enumValueExpr) IsVariableExpr() bool {
+	return true
 }
