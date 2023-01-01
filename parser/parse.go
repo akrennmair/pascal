@@ -85,7 +85,7 @@ func (p *program) next() item {
 }
 
 func (p *program) errorf(fmtstr string, args ...interface{}) {
-	err := errors.New(fmt.Sprintf("%s:%d: ", p.lexer.name, p.lexer.lineNumber()) + fmt.Sprintf(fmtstr, args...))
+	err := errors.New(fmt.Sprintf("%s:%d:%d: ", p.lexer.name, p.lexer.lineNumber(), p.lexer.columnInLine()) + fmt.Sprintf(fmtstr, args...))
 	panic(err)
 }
 
@@ -656,7 +656,15 @@ restartParseDataType:
 		if p.peek().typ != itemIdentifier {
 			p.errorf("expected type after ^, got %s", p.next())
 		}
-		return &pointerType{name: p.next().val}
+
+		ident := p.next().val
+
+		typeDecl := b.findType(ident)
+		if typeDecl == nil {
+			p.errorf("unknown type %s", ident)
+		}
+
+		return &pointerType{typ: typeDecl}
 	case itemOpenParen:
 		return p.parseEnumType(b)
 	case itemPacked:
@@ -1115,39 +1123,7 @@ func (p *program) parseAssignmentOrProcedureStatement(b *block) statement {
 
 	identifier := p.next().val
 
-	var lexpr expression
-
-	switch p.peek().typ {
-	case itemOpenBracket:
-		lexpr = p.parseIndexVariableExpr(b, identifier)
-	case itemDot:
-		p.next()
-
-		var typ dataType
-
-		if varDecl := b.findVariable(identifier); varDecl != nil {
-			typ = varDecl.Type
-		} else if paramDecl := b.findFormalParameter(identifier); paramDecl != nil {
-			typ = paramDecl.Type
-		} else {
-			p.errorf("unknown variable %s", identifier)
-		}
-
-		if p.peek().typ != itemIdentifier {
-			p.errorf("expected field identifier, got %s instead", p.peek())
-		}
-		fieldIdentifier := p.next().val
-
-		rt, ok := typ.(*recordType)
-		if !ok {
-			p.errorf("variable %s is not a record", identifier)
-		}
-		field := rt.findField(fieldIdentifier)
-		if field == nil {
-			p.errorf("field %s.%s does not exist", identifier, fieldIdentifier)
-		}
-		lexpr = &fieldDesignatorExpr{name: identifier, field: fieldIdentifier, typ: field.Type}
-	case itemOpenParen:
+	if p.peek().typ == itemOpenParen {
 		proc := b.findProcedure(identifier)
 		if proc == nil {
 			p.errorf("unknown procedure %s", identifier)
@@ -1157,39 +1133,36 @@ func (p *program) parseAssignmentOrProcedureStatement(b *block) statement {
 			p.errorf("procedure %s: %v", identifier, err)
 		}
 		return &procedureCallStatement{name: identifier, parameterList: actualParameterList}
-	default:
-		if varDecl := b.findVariable(identifier); varDecl != nil {
-			lexpr = &variableExpr{name: identifier, typ: varDecl.Type}
-		} else if paramDecl := b.findFormalParameter(identifier); paramDecl != nil {
-			lexpr = &variableExpr{name: identifier, typ: paramDecl.Type}
-		} else if funcDecl := b.findFunctionForAssignment(identifier); funcDecl != nil {
-			lexpr = &variableExpr{name: identifier, typ: funcDecl.ReturnType} // TODO: do we need a separate expression type for this?
-		}
 	}
 
-	switch p.peek().typ {
-	case itemAssignment:
+	proc := b.findProcedure(identifier)
+	if proc != nil {
+		if err := p.validateParameters(proc.varargs, proc.FormalParameters, []expression{}); err != nil {
+			p.errorf("procedure %s: %v", identifier, err)
+		}
+		return &procedureCallStatement{name: identifier}
+	}
+
+	var lexpr expression
+
+	if funcDecl := b.findFunctionForAssignment(identifier); funcDecl != nil {
+		lexpr = &variableExpr{name: identifier, typ: funcDecl.ReturnType} // TODO: do we need a separate expression type for this?
+	} else {
+		lexpr = p.parseVariable(b, identifier)
+	}
+
+	if p.peek().typ == itemAssignment {
 		p.next()
 		if lexpr == nil {
 			p.errorf("assignment: unknown left expression %s", identifier)
 		}
 		rexpr := p.parseExpression(b)
 		return &assignmentStatement{lexpr: lexpr, rexpr: rexpr}
-	default:
-
-		if lexpr != nil {
-			p.errorf("got left expression %s that was not followed by assignment operator", lexpr)
-		}
-
-		proc := b.findProcedure(identifier)
-		if proc == nil {
-			p.errorf("unknown procedure %s", identifier)
-		}
-		if err := p.validateParameters(proc.varargs, proc.FormalParameters, []expression{}); err != nil {
-			p.errorf("procedure %s: %v", identifier, err)
-		}
-		return &procedureCallStatement{name: identifier}
 	}
+
+	p.errorf("unexpected token %s in statement", p.peek())
+	// unreachable
+	return nil
 }
 
 func (p *program) parseWhileStatement(b *block) *whileStatement {
@@ -1632,40 +1605,16 @@ func (p *program) parseFactor(b *block) factorExpr {
 	case itemIdentifier:
 		p.logger.Printf("parseFactor: got identifier %s", p.peek().val)
 		ident := p.next().val
-		switch p.peek().typ {
-		case itemOpenBracket:
-			return p.parseIndexVariableExpr(b, ident)
-		case itemOpenParen:
-			funcDecl := b.findFunction(ident)
-			if funcDecl == nil {
-				p.errorf("unknown function %s", ident)
-			}
-			params := p.parseActualParameterList(b)
-			if err := p.validateParameters(funcDecl.varargs, funcDecl.FormalParameters, params); err != nil {
-				p.errorf("function %s: %v", ident, err)
-			}
-			return &functionCallExpr{name: ident, params: params, typ: funcDecl.ReturnType}
-		case itemDot:
-			p.next()
 
-			varDecl := b.findVariable(ident)
-			if varDecl == nil {
-				p.errorf("unknown variable %s y", ident)
-			}
-			rt, ok := varDecl.Type.(*recordType)
-			if !ok {
-				p.errorf("variable %s is not of a record type", ident)
-			}
-
-			if p.peek().typ != itemIdentifier {
-				p.errorf("expected identifier, got %s instead", p.peek())
-			}
-			fieldIdentifier := p.next().val
-			field := rt.findField(fieldIdentifier)
-
-			return &fieldDesignatorExpr{name: ident, field: fieldIdentifier, typ: field.Type}
-		}
 		if funcDecl := b.findFunction(ident); funcDecl != nil {
+			if p.peek().typ == itemOpenParen {
+				params := p.parseActualParameterList(b)
+				if err := p.validateParameters(funcDecl.varargs, funcDecl.FormalParameters, params); err != nil {
+					p.errorf("function %s: %v", ident, err)
+				}
+				return &functionCallExpr{name: ident, params: params, typ: funcDecl.ReturnType}
+			}
+
 			if len(funcDecl.FormalParameters) > 0 { // function has formal parameter which are not provided -> it's a functional-parameter
 				return &variableExpr{name: ident, typ: &functionType{params: funcDecl.FormalParameters, returnType: funcDecl.ReturnType}}
 			}
@@ -1674,23 +1623,16 @@ func (p *program) parseFactor(b *block) factorExpr {
 				p.errorf("function %s: %v", ident, err)
 			}
 			return &functionCallExpr{name: ident, typ: funcDecl.ReturnType}
+
 		}
 		if constDecl := b.findConstantDeclaration(ident); constDecl != nil {
 			return &constantExpr{ident, constDecl.Value.ConstantType()}
 		}
-		if varDecl := b.findVariable(ident); varDecl != nil {
-			return &variableExpr{name: ident, typ: varDecl.Type}
-		}
 		if idx, typ := b.findEnumValue(ident); typ != nil {
 			return &enumValueExpr{symbol: ident, value: idx, typ: typ}
 		}
-		if paramDecl := b.findFormalParameter(ident); paramDecl != nil {
-			return &variableExpr{name: ident, typ: paramDecl.Type} // TODO: do we need a separate formal parameter expression here?
-		}
-		if procDecl := b.findProcedure(ident); procDecl != nil { // TODO: do we need a separate procedural parameter expression here?
-			return &variableExpr{name: ident, typ: &procedureType{params: procDecl.FormalParameters}}
-		}
-		p.errorf("unknown identifier %s x", ident)
+
+		return p.parseVariable(b, ident)
 	case itemSign:
 		sign := p.next().val
 		return p.parseNumber(sign == "-")
@@ -1718,6 +1660,57 @@ func (p *program) parseFactor(b *block) factorExpr {
 	}
 	// unreachable
 	return nil
+}
+
+func (p *program) parseVariable(b *block, ident string) expression {
+	var expr expression
+
+	if paramDecl := b.findFormalParameter(ident); paramDecl != nil {
+		expr = &variableExpr{name: ident, typ: paramDecl.Type} // TODO: do we need a separate formal parameter expression here?
+	} else if procDecl := b.findProcedure(ident); procDecl != nil { // TODO: do we need a separate procedural parameter expression here?
+		expr = &variableExpr{name: ident, typ: &procedureType{params: procDecl.FormalParameters}}
+	} else if varDecl := b.findVariable(ident); varDecl != nil {
+		expr = &variableExpr{name: ident, typ: varDecl.Type}
+	}
+
+	if expr == nil {
+		p.errorf("unknown identifier %s", ident)
+	}
+
+	cont := true
+
+	for cont {
+		switch p.peek().typ {
+		case itemCaret:
+			_, ok := expr.Type().(*pointerType)
+			if !ok {
+				p.errorf("attempting to ^ but expression is not a pointer type")
+			}
+			p.next()
+			expr = &derefExpr{expr: expr}
+		case itemOpenBracket:
+			expr = p.parseIndexVariableExpr(b, expr)
+		case itemDot:
+			p.next()
+
+			rt, ok := expr.Type().(*recordType)
+			if !ok {
+				p.errorf("expression is a record type")
+			}
+
+			if p.peek().typ != itemIdentifier {
+				p.errorf("expected identifier, got %s instead", p.peek())
+			}
+			fieldIdentifier := p.next().val
+			field := rt.findField(fieldIdentifier)
+
+			expr = &fieldDesignatorExpr{expr: expr, field: fieldIdentifier, typ: field.Type}
+		default:
+			cont = false
+		}
+	}
+
+	return expr
 }
 
 func (p *program) parseNumber(minus bool) factorExpr {
@@ -2203,7 +2196,7 @@ func (p *program) validateParameters(varargs bool, formalParams []*formalParamet
 	return nil
 }
 
-func (p *program) parseIndexVariableExpr(b *block, identifier string) *indexedVariableExpr {
+func (p *program) parseIndexVariableExpr(b *block, expr expression) *indexedVariableExpr {
 	p.next()
 	indexes := p.parseExpressionList(b)
 	if p.peek().typ != itemCloseBracket {
@@ -2211,36 +2204,22 @@ func (p *program) parseIndexVariableExpr(b *block, identifier string) *indexedVa
 	}
 	p.next()
 
-	var (
-		arrType *arrayType
-		ok      bool
-	)
-
-	if varDecl := b.findVariable(identifier); varDecl != nil {
-		arrType, ok = varDecl.Type.(*arrayType) // TODO: support string
-		if !ok {
-			p.errorf("variable %s is not an array", identifier)
-		}
-	} else if paramDecl := b.findFormalParameter(identifier); paramDecl != nil {
-		arrType, ok = paramDecl.Type.(*arrayType) // TODO: support string
-		if !ok {
-			p.errorf("formal paramter %s is not an array", identifier)
-		}
-	} else {
-		p.errorf("unknown variable %s z", identifier)
+	arrType, ok := expr.Type().(*arrayType)
+	if !ok {
+		p.errorf("expression is not array")
 	}
 
 	// TODO: support situation where fewer index expressions mean that an array of fewer dimensions is returned.
 
 	if len(arrType.indexTypes) != len(indexes) {
-		p.errorf("array %s has %d dimensions but %d index expressions were provided", identifier, len(arrType.indexTypes), len(indexes))
+		p.errorf("array has %d dimensions but %d index expressions were provided", len(arrType.indexTypes), len(indexes))
 	}
 
 	for idx, idxType := range arrType.indexTypes {
 		if !typesCompatible(idxType, indexes[idx].Type()) {
-			p.errorf("array %s dimension %d is of type %s, but index expression type %s was provided", identifier, idx, idxType.Type(), indexes[idx].Type().Type())
+			p.errorf("array dimension %d is of type %s, but index expression type %s was provided", idx, idxType.Type(), indexes[idx].Type().Type())
 		}
 	}
 
-	return &indexedVariableExpr{name: identifier, exprs: indexes, typ: arrType.elementType}
+	return &indexedVariableExpr{expr: expr, exprs: indexes, typ: arrType.elementType}
 }

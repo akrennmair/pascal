@@ -91,7 +91,7 @@ func TestParseExpressions(t *testing.T) {
 			},
 			{
 				Name: "ptr",
-				Type: &pointerType{name: "integer"},
+				Type: &pointerType{&integerType{}},
 			},
 			{
 				Name: "d",

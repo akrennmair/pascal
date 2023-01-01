@@ -7,16 +7,27 @@ import (
 )
 
 type pointerType struct {
-	name string
+	typ dataType
 }
 
 func (t *pointerType) Type() string {
-	return fmt.Sprintf("^%s", t.name)
+	if t.typ == nil {
+		return fmt.Sprintf("nil") // compatible with any type; strictly speaking, this is not syntactically correct in Pascal as a type.
+	}
+	return fmt.Sprintf("^%s", t.typ.Type())
 }
 
 func (t *pointerType) Equals(dt dataType) bool {
 	o, ok := dt.(*pointerType)
-	return ok && (t.name == "" || o.name == "" || t.name == o.name)
+	if !ok {
+		return false
+	}
+
+	if t.typ == nil || o.typ == nil { // means at least one of them is a nil pointer, and nil is compatible with any type.
+		return true
+	}
+
+	return t.typ.Equals(o.typ)
 }
 
 type subrangeType struct {

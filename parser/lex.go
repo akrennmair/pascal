@@ -192,6 +192,11 @@ func (l *lexer) lineNumber() int {
 	return 1 + strings.Count(l.input[:l.lastPos], "\n")
 }
 
+func (l *lexer) columnInLine() int {
+	bolPos := strings.LastIndex(l.input[:l.lastPos], "\n")
+	return int(l.lastPos) - bolPos + 1
+}
+
 func (l *lexer) errorf(format string, args ...interface{}) stateFn {
 	l.items <- item{itemError, l.start, fmt.Sprintf(format, args...)}
 	return nil

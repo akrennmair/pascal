@@ -947,6 +947,59 @@ func TestParserSuccesses(t *testing.T) {
 				a(times2, 42)
 			end.`,
 		},
+		{
+			"dereferencing a pointer",
+			`program test;
+
+			type tint = ^integer;
+
+			var y : tint;
+			
+			begin
+				y^ := 23
+			end.`,
+		},
+		{
+			"dereferencing a record and using a field",
+			`program test;
+
+			type foo = record
+						a : integer;
+						b : integer
+					end;
+				pfoo = ^foo;
+
+
+			var y : pfoo;
+			
+			begin
+				y^.a := y^.b
+			end.`,
+		},
+		{
+			"dereferencing a record and using a field, nested",
+			`program test;
+
+			type foo = record
+						a : integer;
+						b : ^integer
+					end;
+				pfoo = ^foo;
+				fooarray = array[1..10] of pfoo;
+				pfooarray = ^fooarray;
+				bar = record
+						q : pfooarray;
+						r : ^integer
+					end;
+				pbar = ^bar;
+
+			var y : pbar;
+
+			begin
+				y^.q^[1]^.a := y^.r^;
+				y^.q^[1]^.b^ := y^.r^
+			end.`,
+		},
 	}
 
 	for idx, testEntry := range testData {
@@ -1178,7 +1231,7 @@ func TestParserErrors(t *testing.T) {
 
 		{
 			"left expression not followed by assignment",
-			"got left expression variable:<x> that was not followed by assignment operator",
+			`unexpected token "writeln" in statement`,
 			`program test;
 			var x : integer;
 			begin
@@ -1204,6 +1257,30 @@ func TestParserErrors(t *testing.T) {
 				writeln('after: ', x)
 			end.`,
 		},
+		{
+			"dereferencing a record and using a field, nested, but it's attempting to dereference an integer field",
+			"attempting to ^ but expression is not a pointer type",
+			`program test;
+
+			type foo = record
+						a : integer;
+						b : ^integer
+					end;
+				pfoo = ^foo;
+				fooarray = array[1..10] of pfoo;
+				pfooarray = ^fooarray;
+				bar = record
+						q : pfooarray;
+						r : ^integer
+					end;
+				pbar = ^bar;
+
+			var y : pbar;
+
+			begin
+				y^.q^[1]^.a^ := y^.r^
+			end.`,
+		},
 	}
 
 	for idx, tt := range testData {
@@ -1212,11 +1289,11 @@ func TestParserErrors(t *testing.T) {
 			if err == nil {
 				t.Errorf("Parsing code unexpectedly didn't return error")
 			} else if !strings.Contains(err.Error(), tt.ExpectedError) {
-				t.Logf("error = %v", err)
 				t.Logf("expected error = %s", tt.ExpectedError)
 				t.Errorf("Parsing returned error, but didn't contain expected error message")
 			}
 			_ = p
+			t.Logf("error = %v", err)
 		})
 	}
 }

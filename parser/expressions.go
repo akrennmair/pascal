@@ -307,9 +307,7 @@ func (e *nilExpr) String() string {
 }
 
 func (e *nilExpr) Type() dataType {
-	return &pointerType{
-		name: "", // empty name indicates that it's compatible with any pointer type
-	}
+	return &pointerType{typ: nil} // nil means it's compatible with any type
 }
 
 func (e *nilExpr) IsVariableExpr() bool {
@@ -376,14 +374,14 @@ func (e *subExpr) IsVariableExpr() bool {
 }
 
 type indexedVariableExpr struct {
-	name  string
+	expr  expression // and expression of type *arrayType
 	typ   dataType
 	exprs []expression
 }
 
 func (e *indexedVariableExpr) String() string {
 	var buf strings.Builder
-	fmt.Fprintf(&buf, "indexed-variable-expr:<%s[", e.name)
+	fmt.Fprintf(&buf, "indexed-variable-expr:<(%s)[", e.expr.String())
 	for idx, expr := range e.exprs {
 		if idx > 0 {
 			fmt.Fprint(&buf, ", ")
@@ -431,13 +429,13 @@ func (e *functionCallExpr) IsVariableExpr() bool {
 }
 
 type fieldDesignatorExpr struct {
-	name  string
+	expr  expression
 	field string
 	typ   dataType
 }
 
 func (e *fieldDesignatorExpr) String() string {
-	return fmt.Sprintf("field-designator-expr:<%s.%s>", e.name, e.field)
+	return fmt.Sprintf("field-designator-expr:<%s.%s>", e.expr, e.field)
 }
 
 func (e *fieldDesignatorExpr) Type() dataType {
@@ -464,4 +462,24 @@ func (e *enumValueExpr) Type() dataType {
 
 func (e *enumValueExpr) IsVariableExpr() bool {
 	return true
+}
+
+type derefExpr struct {
+	expr expression
+}
+
+func (e *derefExpr) String() string {
+	return fmt.Sprintf("deref-expr:<%s>", e.expr)
+}
+
+func (e *derefExpr) Type() dataType {
+	t, ok := e.expr.Type().(*pointerType)
+	if !ok {
+		panic("derefExpr was created with expression not of pointer type")
+	}
+	return t.typ
+}
+
+func (e *derefExpr) IsVariableExpr() bool {
+	return e.expr.IsVariableExpr()
 }
