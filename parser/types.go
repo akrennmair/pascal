@@ -269,6 +269,91 @@ func (t *fileType) Equals(dt dataType) bool {
 	return ok && t.elementType.Equals(o.elementType)
 }
 
+type procedureType struct {
+	params []*formalParameter
+}
+
+func (t *procedureType) Type() string {
+	var buf strings.Builder
+	buf.WriteString("(")
+
+	for idx, param := range t.params {
+		if idx > 0 {
+			buf.WriteString("; ")
+			buf.WriteString(param.String())
+		}
+	}
+
+	buf.WriteString(")")
+
+	return buf.String()
+}
+
+func (t *procedureType) Equals(dt dataType) bool {
+	o, ok := dt.(*procedureType)
+	if !ok {
+		return false
+	}
+
+	if len(t.params) != len(o.params) {
+		return false
+	}
+
+	for idx := range t.params {
+		if !t.params[idx].Type.Equals(o.params[idx].Type) {
+			return false
+		}
+	}
+
+	return true
+}
+
+type functionType struct {
+	params     []*formalParameter
+	returnType dataType
+}
+
+func (t *functionType) Type() string {
+	var buf strings.Builder
+	buf.WriteString("(")
+
+	for idx, param := range t.params {
+		if idx > 0 {
+			buf.WriteString("; ")
+			buf.WriteString(param.String())
+		}
+	}
+
+	buf.WriteString(") : ")
+
+	buf.WriteString(t.returnType.Type())
+
+	return buf.String()
+}
+
+func (t *functionType) Equals(dt dataType) bool {
+	o, ok := dt.(*functionType)
+	if !ok {
+		return false
+	}
+
+	if !t.returnType.Equals(o.returnType) {
+		return false
+	}
+
+	if len(t.params) != len(o.params) {
+		return false
+	}
+
+	for idx := range t.params {
+		if !t.params[idx].Type.Equals(o.params[idx].Type) {
+			return false
+		}
+	}
+
+	return true
+}
+
 type constantLiteral interface {
 	ConstantType() dataType
 	Negate() (constantLiteral, error)

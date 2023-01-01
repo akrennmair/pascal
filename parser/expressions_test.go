@@ -125,7 +125,7 @@ func TestParseExpressions(t *testing.T) {
 				Type: &realType{},
 			},
 		},
-		functions: []*procedure{
+		functions: []*routine{
 			{
 				Name: "length",
 				FormalParameters: []*formalParameter{

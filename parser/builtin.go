@@ -1,6 +1,6 @@
 package parser
 
-func findBuiltinProcedure(name string) *procedure {
+func findBuiltinProcedure(name string) *routine {
 	for _, proc := range builtinProcedures {
 		if proc.Name == name {
 			return proc
@@ -10,7 +10,7 @@ func findBuiltinProcedure(name string) *procedure {
 	return nil
 }
 
-var builtinProcedures = []*procedure{
+var builtinProcedures = []*routine{
 	{Name: "writeln", varargs: true},
 }
 

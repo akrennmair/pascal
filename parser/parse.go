@@ -120,14 +120,14 @@ func (p *program) parseProgramHeading() {
 }
 
 type block struct {
-	parent               *block     // the parent block this block belongs to.
-	procedure            *procedure // the procedure or function this block belongs to. nil if topmost program.
+	parent               *block   // the parent block this block belongs to.
+	routine              *routine // the procedure or function this block belongs to. nil if topmost program.
 	labels               []string
 	constantDeclarations []*constDeclaration
 	typeDefinitions      []*typeDefinition
 	variables            []*variable
-	procedures           []*procedure
-	functions            []*procedure
+	procedures           []*routine
+	functions            []*routine
 	statements           []statement
 }
 
@@ -164,11 +164,11 @@ func (b *block) findFormalParameter(name string) *formalParameter {
 		return nil
 	}
 
-	if b.procedure == nil {
+	if b.routine == nil {
 		return b.parent.findFormalParameter(name)
 	}
 
-	for _, param := range b.procedure.FormalParameters {
+	for _, param := range b.routine.FormalParameters {
 		if param.Name == name {
 			return param
 		}
@@ -177,9 +177,28 @@ func (b *block) findFormalParameter(name string) *formalParameter {
 	return b.parent.findFormalParameter(name)
 }
 
-func (b *block) findProcedure(name string) *procedure {
+func (b *block) findProcedure(name string) *routine {
 	if b == nil {
 		return findBuiltinProcedure(name)
+	}
+
+	if b.routine != nil {
+		for _, param := range b.routine.FormalParameters {
+			if param.Name != name {
+				continue
+			}
+
+			pt, ok := param.Type.(*procedureType)
+			if !ok {
+				continue
+			}
+
+			return &routine{
+				Name:             param.Name,
+				FormalParameters: pt.params,
+				isParameter:      true,
+			}
+		}
 	}
 
 	for _, proc := range b.procedures {
@@ -191,9 +210,29 @@ func (b *block) findProcedure(name string) *procedure {
 	return b.parent.findProcedure(name)
 }
 
-func (b *block) findFunction(name string) *procedure {
+func (b *block) findFunction(name string) *routine {
 	if b == nil {
 		return nil
+	}
+
+	if b.routine != nil {
+		for _, param := range b.routine.FormalParameters {
+			if param.Name != name {
+				continue
+			}
+
+			ft, ok := param.Type.(*functionType)
+			if !ok {
+				continue
+			}
+
+			return &routine{
+				Name:             param.Name,
+				FormalParameters: ft.params,
+				ReturnType:       ft.returnType,
+				isParameter:      true,
+			}
+		}
 	}
 
 	for _, proc := range b.functions {
@@ -205,13 +244,13 @@ func (b *block) findFunction(name string) *procedure {
 	return b.parent.findFunction(name)
 }
 
-func (b *block) findFunctionForAssignment(name string) *procedure {
-	if b == nil || b.procedure == nil {
+func (b *block) findFunctionForAssignment(name string) *routine {
+	if b == nil || b.routine == nil {
 		return nil
 	}
 
-	if b.procedure.Name == name {
-		return b.procedure
+	if b.routine.Name == name {
+		return b.routine
 	}
 
 	return b.parent.findFunctionForAssignment(name)
@@ -350,7 +389,7 @@ func (b *block) addVariable(varDecl *variable) error {
 	return nil
 }
 
-func (b *block) addProcedure(proc *procedure) error {
+func (b *block) addProcedure(proc *routine) error {
 	if b.isIdentifierUsed(proc.Name) {
 		return fmt.Errorf("duplicate procedure name %q", proc.Name)
 	}
@@ -359,19 +398,19 @@ func (b *block) addProcedure(proc *procedure) error {
 	return nil
 }
 
-func (b *block) addFunction(funcDecl *procedure) error {
+func (b *block) addFunction(funcDecl *routine) error {
 	if b.isIdentifierUsed(funcDecl.Name) {
 		return fmt.Errorf("duplicate function name %q", funcDecl.Name)
 	}
 
-	b.functions = append(b.procedures, funcDecl)
+	b.functions = append(b.functions, funcDecl)
 	return nil
 }
 
-func (p *program) parseBlock(parent *block, proc *procedure) *block {
+func (p *program) parseBlock(parent *block, proc *routine) *block {
 	b := &block{
-		parent:    parent,
-		procedure: proc,
+		parent:  parent,
+		routine: proc,
 	}
 	p.parseDeclarationPart(b)
 	p.parseStatementPart(b)
@@ -762,12 +801,13 @@ func (p *program) parseProcedureAndFunctionDeclarationPart(b *block) {
 	}
 }
 
-type procedure struct {
+type routine struct {
 	Name             string
 	Block            *block
 	FormalParameters []*formalParameter
 	ReturnType       dataType
 	varargs          bool // for builtin functions with variable arguments.
+	isParameter      bool // if true, indicates that this refers to a procedural or functional parameter
 }
 
 func (p *program) parseProcedureDeclaration(b *block) {
@@ -791,7 +831,7 @@ func (p *program) parseProcedureDeclaration(b *block) {
 	}
 	p.next()
 
-	proc := &procedure{Name: procedureName, FormalParameters: parameterList}
+	proc := &routine{Name: procedureName, FormalParameters: parameterList}
 
 	proc.Block = p.parseBlock(b, proc)
 
@@ -801,9 +841,34 @@ func (p *program) parseProcedureDeclaration(b *block) {
 }
 
 type formalParameter struct {
-	Name           string
-	Type           dataType
-	ValueParameter bool
+	Name              string
+	Type              dataType
+	VariableParameter bool
+}
+
+func (p *formalParameter) String() string {
+	var buf strings.Builder
+
+	if p.VariableParameter {
+		buf.WriteString("var ")
+	}
+
+	switch p.Type.(type) {
+	case *functionType:
+		buf.WriteString("function ")
+		buf.WriteString(p.Name)
+		buf.WriteString(p.Type.Type())
+	case *procedureType:
+		buf.WriteString("procedure ")
+		buf.WriteString(p.Name)
+		buf.WriteString(p.Type.Type())
+	default:
+		buf.WriteString(p.Name)
+		buf.WriteString(" : ")
+		buf.WriteString(p.Type.Type())
+	}
+
+	return buf.String()
 }
 
 func (p *program) parseFormalParameterList(b *block) []*formalParameter {
@@ -837,28 +902,69 @@ parameterListLoop:
 }
 
 func (p *program) parseFormalParameter(b *block) []*formalParameter {
-	valueParameter := false
-	if p.peek().typ == itemVar {
-		valueParameter = true
+	variableParam := false
+
+	var formalParameters []*formalParameter
+
+	switch p.peek().typ {
+	case itemProcedure:
 		p.next()
-	}
 
-	if p.peek().typ != itemIdentifier {
-		p.errorf("expected identifier, got %s", p.next())
-	}
+		if p.peek().typ != itemIdentifier {
+			p.errorf("expected procedure name, got %s instead", p.peek())
+		}
 
-	parameterNames := p.parseIdentifierList(b)
+		name := p.next().val
 
-	if p.peek().typ != itemColon {
-		p.errorf("expected :, got %s", p.next())
-	}
-	p.next()
+		params := p.parseFormalParameterList(b)
 
-	parameterType := p.parseDataType(b)
+		formalParameters = append(formalParameters, &formalParameter{
+			Name: name,
+			Type: &procedureType{params: params},
+		})
+	case itemFunction:
+		p.next()
 
-	formalParameters := make([]*formalParameter, 0, len(parameterNames))
-	for _, name := range parameterNames {
-		formalParameters = append(formalParameters, &formalParameter{Name: name, Type: parameterType, ValueParameter: valueParameter})
+		if p.peek().typ != itemIdentifier {
+			p.errorf("expected function name, got %s instead", p.peek())
+		}
+
+		name := p.next().val
+
+		params := p.parseFormalParameterList(b)
+
+		if p.peek().typ != itemColon {
+			p.errorf("expected : after formal parameter list, got %s instead", p.peek())
+		}
+
+		p.next()
+
+		returnType := p.parseDataType(b)
+
+		formalParameters = append(formalParameters, &formalParameter{
+			Name: name,
+			Type: &functionType{params: params, returnType: returnType},
+		})
+	case itemVar:
+		variableParam = true
+		p.next()
+		fallthrough
+	case itemIdentifier:
+		parameterNames := p.parseIdentifierList(b)
+
+		if p.peek().typ != itemColon {
+			p.errorf("expected :, got %s", p.next())
+		}
+		p.next()
+
+		parameterType := p.parseDataType(b)
+
+		formalParameters = make([]*formalParameter, 0, len(parameterNames))
+		for _, name := range parameterNames {
+			formalParameters = append(formalParameters, &formalParameter{Name: name, Type: parameterType, VariableParameter: variableParam})
+		}
+	default:
+		p.errorf("expected var, procedure, function or identifier, got %s", p.peek())
 	}
 
 	return formalParameters
@@ -892,7 +998,7 @@ func (p *program) parseFunctionDeclaration(b *block) {
 	}
 	p.next()
 
-	proc := &procedure{Name: procedureName, FormalParameters: parameterList, ReturnType: returnType}
+	proc := &routine{Name: procedureName, FormalParameters: parameterList, ReturnType: returnType}
 
 	proc.Block = p.parseBlock(b, proc)
 
@@ -1271,8 +1377,8 @@ func (p *program) parseWithStatement(b *block) statement {
 	p.next()
 
 	withBlock := &block{
-		parent:    b,
-		procedure: b.procedure,
+		parent:  b,
+		routine: b.routine,
 	}
 
 	var recordVariables []string
@@ -1560,6 +1666,10 @@ func (p *program) parseFactor(b *block) factorExpr {
 			return &fieldDesignatorExpr{name: ident, field: fieldIdentifier, typ: field.Type}
 		}
 		if funcDecl := b.findFunction(ident); funcDecl != nil {
+			if len(funcDecl.FormalParameters) > 0 { // function has formal parameter which are not provided -> it's a functional-parameter
+				return &variableExpr{name: ident, typ: &functionType{params: funcDecl.FormalParameters, returnType: funcDecl.ReturnType}}
+			}
+			// TODO: what if function has no formal parameters? is it a functional parameter or a function call? needs resolved later, probably.
 			if err := p.validateParameters(funcDecl.varargs, funcDecl.FormalParameters, []expression{}); err != nil {
 				p.errorf("function %s: %v", ident, err)
 			}
@@ -1577,7 +1687,10 @@ func (p *program) parseFactor(b *block) factorExpr {
 		if paramDecl := b.findFormalParameter(ident); paramDecl != nil {
 			return &variableExpr{name: ident, typ: paramDecl.Type} // TODO: do we need a separate formal parameter expression here?
 		}
-		p.errorf("unknown identifier %s", ident)
+		if procDecl := b.findProcedure(ident); procDecl != nil { // TODO: do we need a separate procedural parameter expression here?
+			return &variableExpr{name: ident, typ: &procedureType{params: procDecl.FormalParameters}}
+		}
+		p.errorf("unknown identifier %s x", ident)
 	case itemSign:
 		sign := p.next().val
 		return p.parseNumber(sign == "-")
@@ -2079,7 +2192,7 @@ func (p *program) validateParameters(varargs bool, formalParams []*formalParamet
 				formalParams[idx].Name, formalParams[idx].Type.Type(), actualParams[idx].Type().Type())
 		}
 
-		if formalParams[idx].ValueParameter {
+		if formalParams[idx].VariableParameter {
 			if !actualParams[idx].IsVariableExpr() {
 				return fmt.Errorf("parameter %s is a variable parameter, but an actual parameter other than variable was provided",
 					formalParams[idx].Name)

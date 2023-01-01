@@ -903,6 +903,50 @@ func TestParserSuccesses(t *testing.T) {
 				writeln('after: ', x)
 			end.`,
 		},
+		{
+			"procedural parameter",
+			`program test;
+
+			procedure a(procedure b(c : integer); i : integer);
+			begin
+				writeln('foo');
+				b(i);
+				writeln('bar')
+			end;
+			
+			procedure printInt(i : integer);
+			begin
+				writeln('i = ', i)
+			end;
+			
+			begin
+				a(printInt, 23)
+			end.`,
+		},
+		{
+			"functional parameter",
+			`program test;
+
+			procedure a(function transform(c : integer) : integer; i : integer);
+			begin
+				writeln(i, ' -> ', transform(i))
+			end;
+			
+			function square(i : integer) : integer;
+			begin
+				square := i * i
+			end;
+			
+			function times2(i : integer) : integer;
+			begin
+				times2 := i * 2
+			end;
+			
+			begin
+				a(square, 23);
+				a(times2, 42)
+			end.`,
+		},
 	}
 
 	for idx, testEntry := range testData {
