@@ -170,6 +170,11 @@ func (l *lexer) emit(t itemType) {
 	l.start = l.pos
 }
 
+func (l *lexer) emitIdentifier(s string) {
+	l.items <- item{itemIdentifier, l.start, s}
+	l.start = l.pos
+}
+
 func (l *lexer) ignore() {
 	l.start = l.pos
 }
@@ -308,10 +313,11 @@ func lexUnsignedDigitSequence(l *lexer) stateFn {
 
 func lexIdentifier(l *lexer) stateFn {
 	l.acceptRun("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-	if typ, found := key[l.input[l.start:l.pos]]; found {
+	ident := strings.ToLower(l.input[l.start:l.pos])
+	if typ, found := key[ident]; found {
 		l.emit(typ)
 	} else {
-		l.emit(itemIdentifier)
+		l.emitIdentifier(ident)
 	}
 	return lexText
 }

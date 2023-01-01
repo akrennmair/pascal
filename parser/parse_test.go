@@ -1000,6 +1000,23 @@ func TestParserSuccesses(t *testing.T) {
 				y^.q^[1]^.b^ := y^.r^
 			end.`,
 		},
+		{
+			"case-insensitive test of variable of enum type directly used",
+			`PROGRAM test;
+
+			VAR a : (Clubs, diaMonds, hearTs, spadeS);
+
+			PROCEDURE Foo;
+			BEGIN
+				IF a <> DIAMONDS THEN
+					writeln('a is not diamonds')
+			END;
+
+			BEGIN
+				a := CLUBS;
+				Foo
+			END.`,
+		},
 	}
 
 	for idx, testEntry := range testData {
