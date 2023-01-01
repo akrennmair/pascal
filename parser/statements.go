@@ -1,7 +1,19 @@
 package parser
 
+type labelledStatement struct {
+	label string
+	statement
+}
+
+func (s *labelledStatement) Type() statementType {
+	return s.Type()
+}
+
+func (s *labelledStatement) Label() *string {
+	return &s.label
+}
+
 type statementGoto struct {
-	label  *string
 	target string
 }
 
@@ -10,7 +22,7 @@ func (s *statementGoto) Type() statementType {
 }
 
 func (s *statementGoto) Label() *string {
-	return s.label
+	return nil
 }
 
 type compoundStatement struct {

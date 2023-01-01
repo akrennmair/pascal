@@ -1063,14 +1063,13 @@ type statement interface {
 }
 
 func (p *program) parseStatement(b *block) statement {
-	var label *string
+	var label string
 	if p.peek().typ == itemUnsignedDigitSequence {
-		l := p.next().val
+		label = p.next().val
 
-		if !b.isValidLabel(l) {
-			p.errorf("invalid label %s", l)
+		if !b.isValidLabel(label) {
+			p.errorf("invalid label %s", label)
 		}
-		label = &l
 
 		if p.peek().typ != itemColon {
 			p.errorf("expected : after label, got %s", p.next())
@@ -1078,6 +1077,15 @@ func (p *program) parseStatement(b *block) statement {
 		p.next()
 	}
 
+	stmt := p.parseUnlabelledStatement(b)
+	if label != "" {
+		stmt = &labelledStatement{label: label, statement: stmt}
+	}
+
+	return stmt
+}
+
+func (p *program) parseUnlabelledStatement(b *block) statement {
 	switch p.peek().typ {
 	case itemGoto:
 		p.next()
@@ -1088,7 +1096,7 @@ func (p *program) parseStatement(b *block) statement {
 		if !b.isValidLabel(tl) {
 			p.errorf("invalid goto label %s", tl)
 		}
-		return &statementGoto{label: label, target: tl}
+		return &statementGoto{target: tl}
 	case itemIdentifier:
 		return p.parseAssignmentOrProcedureStatement(b)
 	case itemBegin:
