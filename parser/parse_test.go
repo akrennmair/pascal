@@ -1416,6 +1416,42 @@ func TestParserErrors(t *testing.T) {
 				y^.q^[1]^.a^ := y^.r^
 			end.`,
 		},
+		{
+			"unterminated string",
+			`unexpected EOF while parsing factor`,
+			`program test;
+
+			begin
+				writeln('hello world)
+			end.
+
+			`,
+		},
+		{
+			"unterminated string",
+			`unexpected EOF while parsing factor`,
+			`program test;
+
+			begin
+				writeln('hello world)
+			end.
+			`,
+		},
+		{
+			"type of subtype ranges",
+			`incompatible types: got integer, expected e..f`,
+			`program test;
+
+			type foo = (a, b, c, d, e, f);
+				bar = e..f;
+
+			var x : bar;
+
+			begin
+				x := 4
+			end.
+			`,
+		},
 	}
 
 	for idx, tt := range testData {

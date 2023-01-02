@@ -710,6 +710,8 @@ restartParseDataType:
 		// if the identifier is an already existing constant, it can only be a constant being used in a subrange type.
 		if constDecl := b.findConstantDeclaration(ident); constDecl != nil {
 			return p.parseSubrangeType(b)
+		} else if _, typ := b.findEnumValue(ident); typ != nil {
+			return p.parseSubrangeType(b)
 		}
 
 		// otherwise, we don't know.
@@ -1264,6 +1266,9 @@ func (p *program) parseAssignmentOrProcedureStatement(b *block) statement {
 			p.errorf("assignment: unknown left expression %s", identifier)
 		}
 		rexpr := p.parseExpression(b)
+		if !lexpr.Type().Equals(rexpr.Type()) {
+			p.errorf("incompatible types: got %s, expected %s", rexpr.Type().Type(), lexpr.Type().Type())
+		}
 		return &assignmentStatement{lexpr: lexpr, rexpr: rexpr}
 	}
 
@@ -1995,10 +2000,22 @@ func (p *program) parseSimpleType(b *block) dataType {
 
 func (p *program) parseSubrangeType(b *block) dataType {
 	lowerBound := p.parseConstant(b)
+	var (
+		lowerValue int
+		upperValue int
+		typ        dataType
+		upperType  dataType
+	)
 
-	lb, ok := lowerBound.(*integerLiteral)
-	if !ok {
-		p.errorf("expected lower bound to be an integer, got a %s instead", lowerBound.ConstantType().Type())
+	switch lb := lowerBound.(type) {
+	case *integerLiteral:
+		lowerValue = lb.Value
+		typ = lb.ConstantType()
+	case *enumValueLiteral:
+		lowerValue = lb.Value
+		typ = lb.Type
+	default:
+		p.errorf("expected lower bound to be an integer or an enum value, got a %s instead", lb.ConstantType().Type())
 	}
 
 	if p.peek().typ != itemDoubleDot {
@@ -2008,14 +2025,25 @@ func (p *program) parseSubrangeType(b *block) dataType {
 
 	upperBound := p.parseConstant(b)
 
-	ub, ok := upperBound.(*integerLiteral)
-	if !ok {
-		p.errorf("expected upper bound to be an integer, got a %s instead", upperBound.ConstantType().Type())
+	switch ub := upperBound.(type) {
+	case *integerLiteral:
+		upperValue = ub.Value
+		upperType = ub.ConstantType()
+	case *enumValueLiteral:
+		upperValue = ub.Value
+		upperType = ub.Type
+	default:
+		p.errorf("expected upper bound to be an integer or an enum value, got a %s instead", ub.ConstantType().Type())
+	}
+
+	if !upperType.Equals(typ) {
+		p.errorf("type of lower bound differs from upper bound: %s vs %s", typ.Type(), upperType.Type())
 	}
 
 	return &subrangeType{
-		lowerBound: lb.Value,
-		upperBound: ub.Value,
+		lowerBound: lowerValue,
+		upperBound: upperValue,
+		typ:        typ,
 	}
 }
 

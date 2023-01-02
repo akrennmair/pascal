@@ -63,21 +63,21 @@ func TestParseExpressions(t *testing.T) {
 			{
 				Name: "s",
 				Type: &arrayType{
-					indexTypes:  []dataType{&subrangeType{1, 10}},
+					indexTypes:  []dataType{&subrangeType{1, 10, &integerType{}}},
 					elementType: &integerType{},
 				},
 			},
 			{
 				Name: "data",
 				Type: &arrayType{
-					indexTypes:  []dataType{&subrangeType{1, 10}},
+					indexTypes:  []dataType{&subrangeType{1, 10, &integerType{}}},
 					elementType: &integerType{},
 				},
 			},
 			{
 				Name: "matrix",
 				Type: &arrayType{
-					indexTypes:  []dataType{&subrangeType{1, 3}, &subrangeType{1, 3}},
+					indexTypes:  []dataType{&subrangeType{1, 3, &integerType{}}, &subrangeType{1, 3, &integerType{}}},
 					elementType: &integerType{},
 				},
 			},
@@ -132,7 +132,7 @@ func TestParseExpressions(t *testing.T) {
 					{
 						Name: "arr",
 						Type: &arrayType{
-							indexTypes:  []dataType{&subrangeType{lowerBound: 1, upperBound: 10}},
+							indexTypes:  []dataType{&subrangeType{lowerBound: 1, upperBound: 10, typ: &integerType{}}},
 							elementType: &integerType{},
 						},
 					},

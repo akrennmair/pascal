@@ -39,15 +39,36 @@ func (t *pointerType) Equals(dt dataType) bool {
 type subrangeType struct {
 	lowerBound int
 	upperBound int
+	typ        dataType
 }
 
 func (t *subrangeType) Type() string {
-	return fmt.Sprintf("%d..%d", t.lowerBound, t.upperBound)
+	lb := fmt.Sprint(t.lowerBound)
+	ub := fmt.Sprint(t.upperBound)
+	if et, ok := t.typ.(*enumType); ok {
+		if t.lowerBound >= 0 && t.lowerBound < len(et.identifiers) && t.upperBound >= 0 && t.upperBound < len(et.identifiers) {
+			lb = et.identifiers[t.lowerBound]
+			ub = et.identifiers[t.upperBound]
+		}
+	}
+	return fmt.Sprintf("%s..%s", lb, ub)
 }
 
 func (t *subrangeType) Equals(dt dataType) bool {
 	o, ok := dt.(*subrangeType)
-	return ok && t.lowerBound == o.lowerBound && t.upperBound == o.upperBound
+	if !ok {
+		return false
+	}
+
+	if t.typ != o.typ {
+		return false
+	}
+
+	if t.typ != nil && !t.typ.Equals(o.typ) {
+		return false
+	}
+
+	return t.lowerBound == o.lowerBound && t.upperBound == o.upperBound
 }
 
 type enumType struct {
