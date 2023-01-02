@@ -1438,7 +1438,7 @@ func TestParserErrors(t *testing.T) {
 			`,
 		},
 		{
-			"type of subtype ranges",
+			"type of subtype ranges with incompatible assignment type",
 			`incompatible types: got integer, expected e..f`,
 			`program test;
 
@@ -1449,6 +1449,700 @@ func TestParserErrors(t *testing.T) {
 
 			begin
 				x := 4
+			end.
+			`,
+		},
+		{
+			"invalid label declaration",
+			`expected number, got "foobar"`,
+			`program test;
+
+			label foobar;
+
+			begin
+			end.
+			`,
+		},
+		{
+			"undeclared label",
+			`undeclared label 321`,
+			`program test;
+
+			label 123;
+
+			begin
+				321: writeln('hello world')
+			end.
+			`,
+		},
+		{
+			"duplicate variable name",
+			`duplicate variable name "a"`,
+			`program test;
+
+			var a : integer;
+				a : real;
+
+			begin
+			end.
+			`,
+		},
+		{
+			"duplicate procedure name",
+			`duplicate procedure name "a"`,
+			`program test;
+
+			procedure a;
+			begin
+			end;
+
+			procedure a(b : integer);
+			begin
+			end;
+
+			begin
+			end.
+			`,
+		},
+		{
+			"duplicate function name with different case",
+			`duplicate function name "a"`,
+			`program test;
+
+			function a : integer;
+			begin
+			end;
+
+			function A(b : integer) : real;
+			begin
+			end;
+
+			begin
+			end.
+			`,
+		},
+		{
+			"constant definition with invalid identifier",
+			`expected constant identifier, got "end" instead`,
+			`program test;
+
+			const end = 23;
+
+			begin
+			end.
+			`,
+		},
+		{
+			"constant definition with valid and invalid identifier",
+			`expected begin, got "end" instead`,
+			`program test;
+
+			const foo = 23;
+				end = 42;
+
+			begin
+			end.
+			`,
+		},
+		{
+			"constant definition without = ",
+			`expected =, got "23"`,
+			`program test;
+
+			const foo 23;
+
+			begin
+			end.
+			`,
+		},
+		{
+			"incorrectly terminated block with no end",
+			`expected end, got "until" instead`,
+			`program test;
+
+			begin
+			until.
+			`,
+		},
+		{
+			"constant definition that doesn't end with semicolon",
+			`expected semicolon, got "^"`,
+			`program test;
+
+			const foo = 23^
+
+			begin
+			end.
+			`,
+		},
+		{
+			"constant definition where second constant doesn't end with semicolon",
+			`expected semicolon, got ":"`,
+			`program test;
+
+			const foo = 23;
+				bar = 42:
+
+			begin
+			end.
+			`,
+		},
+		{
+			"constant definition where second constant doesn't have =",
+			`expected =, got ":"`,
+			`program test;
+
+			const foo = 23;
+				bar : 42;
+
+			begin
+			end.
+			`,
+		},
+		{
+			"type definition without =",
+			`expected =, got ":"`,
+			`program test;
+
+			type foo : integer;
+
+			begin
+			end.
+			`,
+		},
+		{
+			"pointer type of nonexistent type that is not in type definition part",
+			`unknown type quux`,
+			`program test;
+
+			function a : ^quux;
+			begin
+			end;
+
+			begin
+			end.
+			`,
+		},
+		{
+			"file type without of",
+			`expected of after file, got "integer"`,
+			`program test;
+
+			type foo = file integer;
+
+			begin
+			end.
+			`,
+		},
+		{
+			"type alias of keyword",
+			`unknown type end`,
+			`program test;
+
+			type foo = end;
+
+			begin
+			end.
+			`,
+		},
+		{
+			"invalid procedure heading",
+			`expected procedure identifier, got "123"`,
+			`program test;
+
+			procedure 123;
+			begin
+			end;
+
+			begin
+			end.
+			`,
+		},
+		{
+			"invalid formal parameter list",
+			`expected ; or ), got "^"`,
+			`program test;
+
+			procedure foo(a : integer ^);
+			begin
+			end;
+
+			begin
+			end.
+			`,
+		},
+		{
+			"invalid formal parameter missing the : after the identifier list",
+			`expected :, got "integer"`,
+			`program test;
+
+			procedure foo(a, b, c integer);
+			begin
+			end;
+
+			begin
+			end.
+			`,
+		},
+		{
+			"invalid formal procedural parameter",
+			`expected procedure name, got "123" instead`,
+			`program test;
+
+			procedure foo(procedure 123);
+			begin
+			end;
+
+			begin
+			end.
+			`,
+		},
+		{
+			"invalid formal functional parameter",
+			`expected function name, got "123" instead`,
+			`program test;
+
+			procedure foo(function 123 : integer);
+			begin
+			end;
+
+			begin
+			end.
+			`,
+		},
+		{
+			"invalid formal functional parameter",
+			`expected : after formal parameter list, got ")" instead`,
+			`program test;
+
+			procedure foo(function x(a : integer));
+			begin
+			end;
+
+			begin
+			end.
+			`,
+		},
+		{
+			"function declaration missing ; after heading",
+			`expected ;, got "begin"`,
+			`program test;
+
+			function foo : integer
+			begin
+			end;
+
+			begin
+			end.
+			`,
+		},
+		{
+			"invalid function heading",
+			`expected function identifier, got "123"`,
+			`program test;
+
+			function 123 : integer;
+			begin
+			end;
+
+			begin
+			end.
+			`,
+		},
+		{
+			"label that is not followed by :",
+			`expected : after label, got "writeln"`,
+			`program test;
+
+			label 123;
+
+			begin
+			123 writeln('hello world');
+			end.
+			`,
+		},
+		{
+			"invalid label in goto",
+			`expected label after goto, got "foo"`,
+			`program test;
+
+			label 123;
+
+			begin
+				123: writeln('hello world');
+				goto foo
+			end.
+			`,
+		},
+		{
+			"while statement with non-boolean condition",
+			`condition is not boolean, but integer`,
+			`program test;
+
+			var x : integer;
+
+			begin
+				while x do
+					writeln('hello world')
+			end.
+			`,
+		},
+		{
+			"while statement with something other than do after condition",
+			`expected do, got "begin"`,
+			`program test;
+
+			var x : boolean;
+
+			begin
+				while x begin
+					writeln('hello world')
+			end.
+			`,
+		},
+		{
+			"repeat statement with non-boolean condition",
+			`condition is not boolean, but integer`,
+			`program test;
+
+			var x : integer;
+
+			begin
+				repeat
+					writeln('hello world')
+				until x
+			end.
+			`,
+		},
+		{
+			"repeat statement with no while",
+			`expected until, got "end"`,
+			`program test;
+
+			var x : boolean;
+
+			begin
+				repeat
+					writeln('hello world')
+				end until x
+			end.
+			`,
+		},
+		{
+			"for statement with no variable",
+			`expected variable-identifier, got "begin"`,
+			`program test;
+
+			var x : boolean;
+
+			begin
+				for begin := 1 to 10 do
+					writeln('hello world')
+			end.
+			`,
+		},
+		{
+			"for statement with unknown variable",
+			`unknown variable y in for statement`,
+			`program test;
+
+			var x : integer;
+
+			begin
+				for y := 1 to 10 do
+					writeln('hello world')
+			end.
+			`,
+		},
+		{
+			"for statement without assignment",
+			`expected :=, got "1"`,
+			`program test;
+
+			var x : integer;
+
+			begin
+				for x 1 to 10 do
+					writeln('hello world')
+			end.
+			`,
+		},
+		{
+			"for statement without do",
+			`expected do, got "writeln"`,
+			`program test;
+
+			var x : integer;
+
+			begin
+				for x := 1 to 10
+					writeln('hello world')
+			end.
+			`,
+		},
+		{
+			"if statement with non-boolean condition",
+			`condition is not boolean, but integer`,
+			`program test;
+
+			var x : integer;
+
+			begin
+				if x then
+					writeln('hello world')
+			end.
+			`,
+		},
+		{
+			"if statement without then",
+			`expected then, got "writeln"`,
+			`program test;
+
+			var x : boolean;
+
+			begin
+				if x
+					writeln('hello world')
+			end.
+			`,
+		},
+		{
+			"case statement without of",
+			`expected of, got "1" instead`,
+			`program test;
+
+			var x : integer;
+
+			begin
+				case x
+				1: writeln('hello world')
+				end
+			end.
+			`,
+		},
+		{
+			"case statement without of",
+			`expected of, got "1" instead`,
+			`program test;
+
+			var x : integer;
+
+			begin
+				case x
+				1: writeln('hello world')
+				end
+			end.
+			`,
+		},
+		{
+			"case statement with case label type mismatch",
+			`case label '''hello''' doesn't match case expression type integer`,
+			`program test;
+
+			var x : integer;
+
+			begin
+				case x of
+				'hello': writeln('hello world')
+				end
+			end.
+			`,
+		},
+		{
+			"case statement with case label type mismatch (2)",
+			`case label '''hello''' doesn't match case expression type integer`,
+			`program test;
+
+			var x : integer;
+
+			begin
+				case x of
+				1: writeln('1');
+				'hello': writeln('hello world')
+				end
+			end.
+			`,
+		},
+		{
+			"case statement without",
+			`expected end, got "begin" instead`,
+			`program test;
+
+			var x : integer;
+
+			begin
+				case x of
+				1, 2, 3: writeln('1..3');
+				4, 5, 6: writeln('4..6')
+				begin
+			end.
+			`,
+		},
+		{
+			"with statement with invalid record variable",
+			`expected identifier of record variable, got "123" instead`,
+			`program test;
+
+			var x : integer;
+
+			begin
+				with 123 do
+				begin
+				end
+			end.
+			`,
+		},
+		{
+			"with statement with unknown record variable",
+			`unknown variable y`,
+			`program test;
+
+			var x : integer;
+
+			begin
+				with y do
+				begin
+				end
+			end.
+			`,
+		},
+		{
+			"with statement with non-record variable",
+			`variable x is not a record variable`,
+			`program test;
+
+			var x : integer;
+
+			begin
+				with x do
+				begin
+				end
+			end.
+			`,
+		},
+		{
+			"with statement without do",
+			`expected do, got "begin" instead`,
+			`program test;
+
+			var x : record
+				a : integer
+				end;
+
+			begin
+				with x
+				begin
+				end
+			end.
+			`,
+		},
+		{
+			"in operator without set type",
+			`in: expected set type, got integer instead`,
+			`program test;
+
+			var x : boolean;
+				y : integer;
+
+			begin
+				x := 1 in y
+			end.
+			`,
+		},
+		{
+			"in operator set type of wrong type",
+			`type integer does not match set type real`,
+			`program test;
+
+			var x : boolean;
+				y : integer;
+				z : set of real;
+
+			begin
+				x := y in z
+			end.
+			`,
+		},
+		{
+			"relational expression of incompatible types",
+			`can't integer <> real`,
+			`program test;
+
+			var x : integer;
+				y : real;
+				b : boolean;
+
+			begin
+				b := x <> y
+			end.
+			`,
+		},
+		{
+			"simple expression with OR and non-boolean first term",
+			`can't use or with integer`,
+			`program test;
+
+			var a : integer;
+				b : boolean;
+
+			begin
+				if a OR b then
+					writeln('hello world')
+			end.
+			`,
+		},
+		{
+			"simple expression with OR and non-boolean second term",
+			`can't boolean or integer`,
+			`program test;
+
+			var a : integer;
+				b : boolean;
+
+			begin
+				if b OR a then
+					writeln('hello world')
+			end.
+			`,
+		},
+		{
+			"simple expression with + and incompatible types",
+			`can't integer + string`,
+			`program test;
+
+			var a : integer;
+				b : string;
+
+			begin
+				if (a + b) > 0 then
+					writeln('hello world')
+			end.
+			`,
+		},
+		{
+			"term with AND and incompatible types",
+			`can't boolean and string`,
+			`program test;
+
+			var a : boolean;
+				b : string;
+
+			begin
+				if a AND b then
+					writeln('hello world')
+			end.
+			`,
+		},
+		{
+			"NOT expression with non-boolean expression",
+			`can't NOT integer`,
+			`program test;
+
+			var a : integer;
+
+			begin
+				if NOT a then
+					writeln('hello world')
 			end.
 			`,
 		},

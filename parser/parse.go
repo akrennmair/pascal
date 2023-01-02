@@ -372,7 +372,7 @@ func (b *block) addLabel(label string) error {
 	return nil
 }
 
-func (b *block) addConstantDeclaration(constDecl *constDeclaration) error {
+func (b *block) addConstantDefinition(constDecl *constDeclaration) error {
 	if b.isIdentifierUsed(constDecl.Name) {
 		return fmt.Errorf("duplicate const identifier %q", constDecl.Name)
 	}
@@ -535,13 +535,12 @@ func (p *program) parseConstantDefinitionPart(b *block) {
 	}
 	p.next()
 
-	b.constantDeclarations = []*constDeclaration{}
-
-	constDecl, ok := p.parseConstantDefinition(b)
-	if !ok {
-		p.errorf("expected constant definition")
+	if p.peek().typ != itemIdentifier {
+		p.errorf("expected constant identifier, got %s instead", p.peek())
 	}
-	if err := b.addConstantDeclaration(constDecl); err != nil {
+
+	constDecl := p.parseConstantDefinition(b)
+	if err := b.addConstantDefinition(constDecl); err != nil {
 		p.errorf("%v", err)
 	}
 
@@ -550,13 +549,9 @@ func (p *program) parseConstantDefinitionPart(b *block) {
 	}
 	p.next()
 
-	for {
-		constDecl, ok := p.parseConstantDefinition(b)
-		if !ok {
-			break
-		}
-
-		if err := b.addConstantDeclaration(constDecl); err != nil {
+	for p.peek().typ == itemIdentifier {
+		constDecl := p.parseConstantDefinition(b)
+		if err := b.addConstantDefinition(constDecl); err != nil {
 			p.errorf("%v", err)
 		}
 
@@ -572,9 +567,9 @@ type constDeclaration struct {
 	Value constantLiteral
 }
 
-func (p *program) parseConstantDefinition(b *block) (*constDeclaration, bool) {
+func (p *program) parseConstantDefinition(b *block) *constDeclaration {
 	if p.peek().typ != itemIdentifier {
-		return nil, false
+		p.errorf("expected constant identifier, got %s instead", p.peek())
 	}
 
 	constName := p.next().val
@@ -586,7 +581,7 @@ func (p *program) parseConstantDefinition(b *block) (*constDeclaration, bool) {
 
 	constValue := p.parseConstant(b)
 
-	return &constDeclaration{Name: constName, Value: constValue}, true
+	return &constDeclaration{Name: constName, Value: constValue}
 }
 
 func (p *program) parseTypeDefinitionPart(b *block) {
@@ -921,7 +916,7 @@ func (p *program) parseProcedureHeading(b *block) (string, []*formalParameter) {
 	p.next()
 
 	if p.peek().typ != itemIdentifier {
-		p.errorf("expected identifier, got %s", p.next())
+		p.errorf("expected procedure identifier, got %s", p.next())
 	}
 	procedureName := p.next().val
 
@@ -1095,7 +1090,7 @@ func (p *program) parseFunctionHeading(b *block) (string, []*formalParameter, da
 	p.next()
 
 	if p.peek().typ != itemIdentifier {
-		p.errorf("expected identifier, got %s", p.next())
+		p.errorf("expected function identifier, got %s", p.next())
 	}
 	procedureName := p.next().val
 
@@ -1169,7 +1164,7 @@ func (p *program) parseStatement(b *block) statement {
 		label = p.next().val
 
 		if !b.isValidLabel(label) {
-			p.errorf("invalid label %s", label)
+			p.errorf("undeclared label %s", label)
 		}
 
 		if p.peek().typ != itemColon {
@@ -1333,7 +1328,7 @@ func (p *program) parseForStatement(b *block) *forStatement {
 	variable := p.next().val
 
 	if b.findVariable(variable) == nil {
-		p.errorf("unknown variable %s", variable)
+		p.errorf("unknown variable %s in for statement", variable)
 	}
 
 	if p.peek().typ != itemAssignment {
@@ -1410,6 +1405,11 @@ func (p *program) parseCaseStatement(b *block) statement {
 	var caseLimbs []*caseLimb
 
 	limb := p.parseCaseLimb(b)
+	for _, label := range limb.labels {
+		if !expr.Type().Equals(label.ConstantType()) {
+			p.errorf("case label %s doesn't match case expression type %s", label.String(), expr.Type().Type())
+		}
+	}
 	caseLimbs = append(caseLimbs, limb)
 
 	for {
@@ -1552,13 +1552,6 @@ func (p *program) parseActualParameterList(b *block) []expression {
 	return params
 }
 
-type exprType int
-
-const (
-	exprIdentifier exprType = iota
-	exprNumber
-)
-
 func (p *program) parseExpression(b *block) expression {
 	p.logger.Printf("Parsing expression")
 
@@ -1586,7 +1579,7 @@ func (p *program) parseExpression(b *block) expression {
 	if operator == opIn {
 		st, ok := rt.(*setType)
 		if !ok {
-			p.errorf("in: expected set type, got %s instead.", rt)
+			p.errorf("in: expected set type, got %s instead.", rt.Type())
 		}
 		if !lt.Equals(st.elementType) {
 			p.errorf("type %s does not match set type %s", lt.Type(), st.elementType.Type())
