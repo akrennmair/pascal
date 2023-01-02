@@ -7,13 +7,19 @@ import (
 )
 
 type pointerType struct {
-	typ dataType
+	name string
+	typ  dataType
 }
 
 func (t *pointerType) Type() string {
 	if t.typ == nil {
-		return fmt.Sprintf("nil") // compatible with any type; strictly speaking, this is not syntactically correct in Pascal as a type.
+		return "nil" // compatible with any type; strictly speaking, this is not syntactically correct in Pascal as a type.
 	}
+
+	if t.name != "" { // if there is a name, print name (even if it has been resolved) to avoid infinite recursion.
+		return fmt.Sprintf("^%s", t.name)
+	}
+
 	return fmt.Sprintf("^%s", t.typ.Type())
 }
 

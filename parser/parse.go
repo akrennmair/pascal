@@ -584,6 +584,17 @@ func (p *program) parseTypeDeclarationPart(b *block) {
 		}
 		p.next()
 	}
+
+	// resolve pointer types where the underlying type may have only been defined afterwards.
+	for _, typeDef := range b.typeDefinitions {
+		pt, ok := typeDef.Type.(*pointerType)
+		if !ok {
+			continue
+		}
+		if pt.name != "" && pt.typ == nil {
+			pt.typ = b.findType(pt.name)
+		}
+	}
 }
 
 type typeDefinition struct {
@@ -603,7 +614,7 @@ func (p *program) parseTypeDefinition(b *block) (*typeDefinition, bool) {
 	}
 	p.next()
 
-	dataType := p.parseDataType(b)
+	dataType := p.parseDataType(b, true)
 
 	return &typeDefinition{Name: typeName, Type: dataType}, true
 }
@@ -643,7 +654,7 @@ type recordVariant struct {
 	fields     *recordType
 }
 
-func (p *program) parseDataType(b *block) dataType {
+func (p *program) parseDataType(b *block, resolvePointerTypesLater bool) dataType {
 	packed := false
 
 restartParseDataType:
@@ -673,6 +684,9 @@ restartParseDataType:
 
 		typeDecl := b.findType(ident)
 		if typeDecl == nil {
+			if resolvePointerTypesLater {
+				return &pointerType{name: ident}
+			}
 			p.errorf("unknown type %s", ident)
 		}
 
@@ -696,7 +710,7 @@ restartParseDataType:
 			p.errorf("expected of after set, got %s", p.next())
 		}
 		p.next()
-		setDataType := p.parseDataType(b)
+		setDataType := p.parseDataType(b, resolvePointerTypesLater)
 		return &setType{elementType: setDataType, packed: packed}
 	case itemFile:
 		p.next()
@@ -704,7 +718,7 @@ restartParseDataType:
 			p.errorf("expected of after file, got %s", p.next())
 		}
 		p.next()
-		fileDataType := p.parseDataType(b)
+		fileDataType := p.parseDataType(b, resolvePointerTypesLater)
 		return &fileType{elementType: fileDataType, packed: packed}
 	case itemSign, itemUnsignedDigitSequence:
 		// if the type definition is a sign or digits, it can only be a subrange type.
@@ -781,7 +795,7 @@ func (p *program) parseVarDeclarationPart(b *block) {
 		}
 		p.next()
 
-		dataType := p.parseDataType(b)
+		dataType := p.parseDataType(b, false)
 
 		if p.peek().typ != itemSemicolon {
 			p.errorf("expected ;, got %s", p.next())
@@ -959,7 +973,7 @@ func (p *program) parseFormalParameter(b *block) []*formalParameter {
 
 		p.next()
 
-		returnType := p.parseDataType(b)
+		returnType := p.parseDataType(b, false)
 
 		formalParameters = append(formalParameters, &formalParameter{
 			Name: name,
@@ -977,7 +991,7 @@ func (p *program) parseFormalParameter(b *block) []*formalParameter {
 		}
 		p.next()
 
-		parameterType := p.parseDataType(b)
+		parameterType := p.parseDataType(b, false)
 
 		formalParameters = make([]*formalParameter, 0, len(parameterNames))
 		for _, name := range parameterNames {
@@ -1011,7 +1025,7 @@ func (p *program) parseFunctionDeclaration(b *block) {
 	}
 	p.next()
 
-	returnType := p.parseDataType(b)
+	returnType := p.parseDataType(b, false)
 
 	if p.peek().typ != itemSemicolon {
 		p.errorf("expected ;, got %s", p.next())
@@ -1889,7 +1903,7 @@ func (p *program) parseArrayType(b *block, packed bool) *arrayType {
 	}
 	p.next()
 
-	elementType := p.parseDataType(b)
+	elementType := p.parseDataType(b, false)
 
 	return &arrayType{
 		indexTypes:  indexTypes,
@@ -2185,7 +2199,7 @@ func (p *program) parseRecordSection(b *block) *recordField {
 	}
 	p.next()
 
-	typ := p.parseDataType(b)
+	typ := p.parseDataType(b, false)
 
 	return &recordField{Identifiers: identifierList, Type: typ}
 }

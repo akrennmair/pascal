@@ -1023,6 +1023,22 @@ func TestParserSuccesses(t *testing.T) {
 			begin
 			end.`,
 		},
+		{
+			"allow forward declarations of pointer types",
+			`program test;
+
+			type
+				pelem = ^elem;
+				elem = record
+					a : integer;
+					next : pelem;
+				end;
+
+			var first : pelem;
+
+			begin
+			end.`,
+		},
 	}
 
 	for idx, testEntry := range testData {
