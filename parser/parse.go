@@ -332,9 +332,7 @@ func (b *block) isValidLabel(label string) bool {
 }
 
 func (b *block) getIdentifiersInRegion() (identifiers []string) {
-	for _, l := range b.labels {
-		identifiers = append(identifiers, l)
-	}
+	identifiers = append(identifiers, b.labels...)
 
 	for _, decl := range b.constantDeclarations {
 		identifiers = append(identifiers, decl.Name)
@@ -402,6 +400,17 @@ func (b *block) addVariable(varDecl *variable) error {
 }
 
 func (b *block) addProcedure(proc *routine) error {
+	for idx := range b.procedures {
+		if b.procedures[idx].Name == proc.Name && b.procedures[idx].Forward && !proc.Forward {
+			// we don't just overwrite the whole routine but instead assign the block and make it non-forward
+			// as ISO Pascal allows to forward-declare procedures and functions and then
+			// not have to declare the full procedure heading when actually declaring it afterwards.
+			b.procedures[idx].Forward = false
+			b.procedures[idx].Block = proc.Block
+			return nil
+		}
+	}
+
 	if b.isIdentifierUsed(proc.Name) {
 		return fmt.Errorf("duplicate procedure name %q", proc.Name)
 	}
@@ -411,11 +420,42 @@ func (b *block) addProcedure(proc *routine) error {
 }
 
 func (b *block) addFunction(funcDecl *routine) error {
+	for idx := range b.functions {
+		if b.functions[idx].Name == funcDecl.Name && b.functions[idx].Forward && !funcDecl.Forward {
+			// we don't just overwrite the whole routine but instead assign the block and make it non-forward
+			// as ISO Pascal allows to forward-declare procedures and functions and then
+			// not have to declare the full procedure heading when actually declaring it afterwards.
+			b.functions[idx].Forward = false
+			b.functions[idx].Block = funcDecl.Block
+			return nil
+		}
+	}
+
 	if b.isIdentifierUsed(funcDecl.Name) {
 		return fmt.Errorf("duplicate function name %q", funcDecl.Name)
 	}
 
 	b.functions = append(b.functions, funcDecl)
+	return nil
+}
+
+func (b *block) findForwardDeclaredProcedure(name string) *routine {
+	for _, proc := range b.procedures {
+		if proc.Name == name && proc.Forward {
+			return proc
+		}
+	}
+
+	return nil
+}
+
+func (b *block) findForwardDeclaredFunction(name string) *routine {
+	for _, proc := range b.functions {
+		if proc.Name == name && proc.Forward {
+			return proc
+		}
+	}
+
 	return nil
 }
 
@@ -434,10 +474,10 @@ func (p *program) parseDeclarationPart(b *block) {
 		p.parseLabelDeclarationPart(b)
 	}
 	if p.peek().typ == itemConst {
-		p.parseConstDeclarationPart(b)
+		p.parseConstantDefinitionPart(b)
 	}
 	if p.peek().typ == itemTyp {
-		p.parseTypeDeclarationPart(b)
+		p.parseTypeDefinitionPart(b)
 	}
 	if p.peek().typ == itemVar {
 		p.parseVarDeclarationPart(b)
@@ -489,7 +529,7 @@ labelDeclarationLoop:
 	}
 }
 
-func (p *program) parseConstDeclarationPart(b *block) {
+func (p *program) parseConstantDefinitionPart(b *block) {
 	if p.peek().typ != itemConst {
 		p.errorf("expected const, got %s", p.next())
 	}
@@ -497,7 +537,7 @@ func (p *program) parseConstDeclarationPart(b *block) {
 
 	b.constantDeclarations = []*constDeclaration{}
 
-	constDecl, ok := p.parseConstantDeclaration(b)
+	constDecl, ok := p.parseConstantDefinition(b)
 	if !ok {
 		p.errorf("expected constant definition")
 	}
@@ -511,7 +551,7 @@ func (p *program) parseConstDeclarationPart(b *block) {
 	p.next()
 
 	for {
-		constDecl, ok := p.parseConstantDeclaration(b)
+		constDecl, ok := p.parseConstantDefinition(b)
 		if !ok {
 			break
 		}
@@ -532,7 +572,7 @@ type constDeclaration struct {
 	Value constantLiteral
 }
 
-func (p *program) parseConstantDeclaration(b *block) (*constDeclaration, bool) {
+func (p *program) parseConstantDefinition(b *block) (*constDeclaration, bool) {
 	if p.peek().typ != itemIdentifier {
 		return nil, false
 	}
@@ -549,7 +589,7 @@ func (p *program) parseConstantDeclaration(b *block) (*constDeclaration, bool) {
 	return &constDeclaration{Name: constName, Value: constValue}, true
 }
 
-func (p *program) parseTypeDeclarationPart(b *block) {
+func (p *program) parseTypeDefinitionPart(b *block) {
 	if p.peek().typ != itemTyp {
 		p.errorf("expected type, got %s", p.next())
 	}
@@ -614,7 +654,7 @@ func (p *program) parseTypeDefinition(b *block) (*typeDefinition, bool) {
 	}
 	p.next()
 
-	dataType := p.parseDataType(b, true)
+	dataType := p.parseType(b, true)
 
 	return &typeDefinition{Name: typeName, Type: dataType}, true
 }
@@ -654,7 +694,7 @@ type recordVariant struct {
 	fields     *recordType
 }
 
-func (p *program) parseDataType(b *block, resolvePointerTypesLater bool) dataType {
+func (p *program) parseType(b *block, resolvePointerTypesLater bool) dataType {
 	packed := false
 
 restartParseDataType:
@@ -710,7 +750,7 @@ restartParseDataType:
 			p.errorf("expected of after set, got %s", p.next())
 		}
 		p.next()
-		setDataType := p.parseDataType(b, resolvePointerTypesLater)
+		setDataType := p.parseType(b, resolvePointerTypesLater)
 		return &setType{elementType: setDataType, packed: packed}
 	case itemFile:
 		p.next()
@@ -718,7 +758,7 @@ restartParseDataType:
 			p.errorf("expected of after file, got %s", p.next())
 		}
 		p.next()
-		fileDataType := p.parseDataType(b, resolvePointerTypesLater)
+		fileDataType := p.parseType(b, resolvePointerTypesLater)
 		return &fileType{elementType: fileDataType, packed: packed}
 	case itemSign, itemUnsignedDigitSequence:
 		// if the type definition is a sign or digits, it can only be a subrange type.
@@ -742,6 +782,8 @@ func (p *program) parseEnumType(b *block) *enumType {
 		p.errorf("expected ), got %s", p.next())
 	}
 	p.next()
+
+	// TODO: ensure that identifiers in identifier list are indeed unique.
 
 	return &enumType{identifiers: identifierList}
 }
@@ -787,29 +829,32 @@ func (p *program) parseVarDeclarationPart(b *block) {
 	p.next()
 
 	for {
-
-		variableNames := p.parseIdentifierList(b)
-
-		if p.peek().typ != itemColon {
-			p.errorf("expected :, got %s", p.next())
-		}
-		p.next()
-
-		dataType := p.parseDataType(b, false)
-
-		if p.peek().typ != itemSemicolon {
-			p.errorf("expected ;, got %s", p.next())
-		}
-		p.next()
-
-		for _, varName := range variableNames {
-			if err := b.addVariable(&variable{Name: varName, Type: dataType}); err != nil {
-				p.errorf("%v", err)
-			}
-		}
+		p.parseVariableDeclaration(b)
 
 		if p.peek().typ != itemIdentifier {
 			break
+		}
+	}
+}
+
+func (p *program) parseVariableDeclaration(b *block) {
+	variableNames := p.parseIdentifierList(b)
+
+	if p.peek().typ != itemColon {
+		p.errorf("expected :, got %s", p.next())
+	}
+	p.next()
+
+	dataType := p.parseType(b, false)
+
+	if p.peek().typ != itemSemicolon {
+		p.errorf("expected ;, got %s", p.next())
+	}
+	p.next()
+
+	for _, varName := range variableNames {
+		if err := b.addVariable(&variable{Name: varName, Type: dataType}); err != nil {
+			p.errorf("%v", err)
 		}
 	}
 }
@@ -819,19 +864,15 @@ func (p *program) parseProcedureAndFunctionDeclarationPart(b *block) {
 		switch p.peek().typ {
 		case itemProcedure:
 			p.parseProcedureDeclaration(b)
-			if p.peek().typ != itemSemicolon {
-				p.errorf("expected ;, got %s", p.next())
-			}
-			p.next()
 		case itemFunction:
 			p.parseFunctionDeclaration(b)
-			if p.peek().typ != itemSemicolon {
-				p.errorf("expected ;, got %s", p.next())
-			}
-			p.next()
 		default:
 			return
 		}
+		if p.peek().typ != itemSemicolon {
+			p.errorf("expected ;, got %s", p.next())
+		}
+		p.next()
 	}
 }
 
@@ -840,11 +881,38 @@ type routine struct {
 	Block            *block
 	FormalParameters []*formalParameter
 	ReturnType       dataType
+	Forward          bool // if true, routine is only forward-declared.
 	varargs          bool // for builtin functions with variable arguments.
 	isParameter      bool // if true, indicates that this refers to a procedural or functional parameter
 }
 
 func (p *program) parseProcedureDeclaration(b *block) {
+	procedureName, parameterList := p.parseProcedureHeading(b)
+
+	if p.peek().typ != itemSemicolon {
+		p.errorf("expected ;, got %s", p.next())
+	}
+	p.next()
+
+	proc := &routine{Name: procedureName, FormalParameters: parameterList}
+
+	if p.peek().typ == itemForward {
+		p.next()
+		proc.Forward = true
+	} else {
+		procForParsing := proc
+		if fwdProc := b.findForwardDeclaredProcedure(procedureName); fwdProc != nil {
+			procForParsing = fwdProc
+		}
+		proc.Block = p.parseBlock(b, procForParsing)
+	}
+
+	if err := b.addProcedure(proc); err != nil {
+		p.errorf("%v", err)
+	}
+}
+
+func (p *program) parseProcedureHeading(b *block) (string, []*formalParameter) {
 	if p.peek().typ != itemProcedure {
 		p.errorf("expected procedure, got %s", p.next())
 	}
@@ -859,19 +927,7 @@ func (p *program) parseProcedureDeclaration(b *block) {
 	if p.peek().typ == itemOpenParen {
 		parameterList = p.parseFormalParameterList(b)
 	}
-
-	if p.peek().typ != itemSemicolon {
-		p.errorf("expected ;, got %s", p.next())
-	}
-	p.next()
-
-	proc := &routine{Name: procedureName, FormalParameters: parameterList}
-
-	proc.Block = p.parseBlock(b, proc)
-
-	if err := b.addProcedure(proc); err != nil {
-		p.errorf("%v", err)
-	}
+	return procedureName, parameterList
 }
 
 type formalParameter struct {
@@ -973,7 +1029,7 @@ func (p *program) parseFormalParameter(b *block) []*formalParameter {
 
 		p.next()
 
-		returnType := p.parseDataType(b, false)
+		returnType := p.parseType(b, false)
 
 		formalParameters = append(formalParameters, &formalParameter{
 			Name: name,
@@ -991,7 +1047,7 @@ func (p *program) parseFormalParameter(b *block) []*formalParameter {
 		}
 		p.next()
 
-		parameterType := p.parseDataType(b, false)
+		parameterType := p.parseType(b, false)
 
 		formalParameters = make([]*formalParameter, 0, len(parameterNames))
 		for _, name := range parameterNames {
@@ -1005,6 +1061,32 @@ func (p *program) parseFormalParameter(b *block) []*formalParameter {
 }
 
 func (p *program) parseFunctionDeclaration(b *block) {
+	funcName, parameterList, returnType := p.parseFunctionHeading(b)
+
+	if p.peek().typ != itemSemicolon {
+		p.errorf("expected ;, got %s", p.next())
+	}
+	p.next()
+
+	proc := &routine{Name: funcName, FormalParameters: parameterList, ReturnType: returnType}
+
+	if p.peek().typ == itemForward {
+		p.next()
+		proc.Forward = true
+	} else {
+		procForParsing := proc
+		if fwdProc := b.findForwardDeclaredFunction(funcName); fwdProc != nil {
+			procForParsing = fwdProc
+		}
+		proc.Block = p.parseBlock(b, procForParsing)
+	}
+
+	if err := b.addFunction(proc); err != nil {
+		p.errorf("%v", err)
+	}
+}
+
+func (p *program) parseFunctionHeading(b *block) (string, []*formalParameter, dataType) {
 	if p.peek().typ != itemFunction {
 		p.errorf("expected function, got %s", p.next())
 	}
@@ -1015,30 +1097,21 @@ func (p *program) parseFunctionDeclaration(b *block) {
 	}
 	procedureName := p.next().val
 
-	var parameterList []*formalParameter
+	var (
+		parameterList []*formalParameter
+		returnType    dataType
+	)
+
 	if p.peek().typ == itemOpenParen {
 		parameterList = p.parseFormalParameterList(b)
 	}
 
-	if p.peek().typ != itemColon {
-		p.errorf("expected :, got %s", p.next())
+	if p.peek().typ == itemColon {
+		p.next()
+		returnType = p.parseType(b, false)
 	}
-	p.next()
 
-	returnType := p.parseDataType(b, false)
-
-	if p.peek().typ != itemSemicolon {
-		p.errorf("expected ;, got %s", p.next())
-	}
-	p.next()
-
-	proc := &routine{Name: procedureName, FormalParameters: parameterList, ReturnType: returnType}
-
-	proc.Block = p.parseBlock(b, proc)
-
-	if err := b.addFunction(proc); err != nil {
-		p.errorf("%v", err)
-	}
+	return procedureName, parameterList, returnType
 }
 
 func (p *program) parseStatementSequence(b *block) []statement {
@@ -1903,7 +1976,7 @@ func (p *program) parseArrayType(b *block, packed bool) *arrayType {
 	}
 	p.next()
 
-	elementType := p.parseDataType(b, false)
+	elementType := p.parseType(b, false)
 
 	return &arrayType{
 		indexTypes:  indexTypes,
@@ -2199,7 +2272,7 @@ func (p *program) parseRecordSection(b *block) *recordField {
 	}
 	p.next()
 
-	typ := p.parseDataType(b, false)
+	typ := p.parseType(b, false)
 
 	return &recordField{Identifiers: identifierList, Type: typ}
 }

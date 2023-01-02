@@ -88,6 +88,7 @@ const (
 	itemCaret
 	itemMultiply
 	itemFloatDivide
+	itemForward
 )
 
 var key = map[string]itemType{
@@ -126,6 +127,7 @@ var key = map[string]itemType{
 	"var":       itemVar,
 	"while":     itemWhile,
 	"with":      itemWith,
+	"forward":   itemForward,
 }
 
 const eof = -1

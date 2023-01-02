@@ -1039,6 +1039,102 @@ func TestParserSuccesses(t *testing.T) {
 			begin
 			end.`,
 		},
+		{
+			"forward declaration of procedures",
+			`program test;
+
+			procedure x(a : integer); forward;
+
+			procedure y(a : integer);
+			begin
+				if a > 0 then
+					x(a - 1)
+			end;
+
+			procedure x(a : integer);
+			begin
+				if a > 0 then
+					y(a - 1)
+			end;
+
+			begin
+				y(23)
+			end.`,
+		},
+		{
+			"forward declaration of function",
+			`program test;
+
+			function x(a : integer) : integer; forward;
+
+			function y(a : integer) : integer;
+			begin
+				if a > 0 then
+					y := a + x(a - 1)
+				else
+					y := 1
+			end;
+
+			function x(a : integer) : integer;
+			begin
+				if a > 0 then
+					x := a * y(a - 1)
+				else
+					x := 1
+			end;
+
+			begin
+				writeln(y(10))
+			end.`,
+		},
+		{
+			"forward declaration of procedures with declaration that then only has identifier but no parameters",
+			`program test;
+
+			procedure x(a : integer); forward;
+
+			procedure y(a : integer);
+			begin
+				if a > 0 then
+					x(a - 1)
+			end;
+
+			procedure x;
+			begin
+				if a > 0 then
+					y(a - 1)
+			end;
+
+			begin
+				y(23)
+			end.`,
+		},
+		{
+			"forward declaration of function than then only has identifier but no parameters or return type",
+			`program test;
+
+			function x(a : integer) : integer; forward;
+
+			function y(a : integer) : integer;
+			begin
+				if a > 0 then
+					y := a + x(a - 1)
+				else
+					y := 1
+			end;
+
+			function x;
+			begin
+				if a > 0 then
+					x := a * y(a - 1)
+				else
+					x := 1
+			end;
+
+			begin
+				writeln(y(10))
+			end.`,
+		},
 	}
 
 	for idx, testEntry := range testData {
