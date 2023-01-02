@@ -48,6 +48,7 @@ type program struct {
 	peekCount int
 
 	name  string
+	files []string
 	block *block
 }
 
@@ -112,6 +113,17 @@ func (p *program) parseProgramHeading() {
 		p.errorf("expected identifier, got %s", p.next())
 	}
 	p.name = p.next().val
+
+	if p.peek().typ == itemOpenParen {
+		p.next()
+
+		p.files = p.parseIdentifierList(nil)
+
+		if p.peek().typ != itemCloseParen {
+			p.errorf("expected ), got %s instead", p.peek())
+		}
+		p.next()
+	}
 
 	if p.peek().typ != itemSemicolon {
 		p.errorf("expected semicolon, got %s", p.next())

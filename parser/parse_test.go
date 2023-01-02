@@ -1017,6 +1017,12 @@ func TestParserSuccesses(t *testing.T) {
 				Foo
 			END.`,
 		},
+		{
+			"program with file list in program heading",
+			`program test (input, output);
+			begin
+			end.`,
+		},
 	}
 
 	for idx, testEntry := range testData {
