@@ -149,3 +149,17 @@ func (s *withStatement) Type() statementType {
 func (s *withStatement) Label() *string {
 	return nil
 }
+
+type writeStatement struct {
+	ln            bool
+	fileVar       expression
+	parameterList []expression
+}
+
+func (s *writeStatement) Type() statementType {
+	return statementWrite
+}
+
+func (s *writeStatement) Label() *string {
+	return nil
+}

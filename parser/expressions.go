@@ -483,3 +483,34 @@ func (e *derefExpr) Type() dataType {
 func (e *derefExpr) IsVariableExpr() bool {
 	return e.expr.IsVariableExpr()
 }
+
+type formatExpr struct {
+	expr          expression
+	width         expression // TODO: find out what param1 and param2 stand for and rename them
+	decimalPlaces expression
+}
+
+func (e *formatExpr) String() string {
+	var buf strings.Builder
+
+	buf.WriteString("format-expr:<")
+	buf.WriteString(e.expr.String())
+	if e.width != nil {
+		buf.WriteString(":")
+		buf.WriteString(e.width.String())
+	}
+	if e.decimalPlaces != nil {
+		buf.WriteString(":")
+		buf.WriteString(e.decimalPlaces.String())
+	}
+	buf.WriteString(">")
+	return buf.String()
+}
+
+func (e *formatExpr) Type() dataType {
+	return e.expr.Type()
+}
+
+func (e *formatExpr) IsVariableExpr() bool {
+	return e.expr.IsVariableExpr()
+}

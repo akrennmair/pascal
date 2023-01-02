@@ -1151,6 +1151,7 @@ const (
 	stmtIf
 	stmtCase
 	stmtWith
+	statementWrite
 )
 
 type statement interface {
@@ -1228,6 +1229,11 @@ func (p *program) parseAssignmentOrProcedureStatement(b *block) statement {
 	identifier := p.next().val
 
 	if p.peek().typ == itemOpenParen {
+		if identifier == "writeln" {
+			return p.parseWrite(b, true)
+		} else if identifier == "write" {
+			return p.parseWrite(b, false)
+		}
 		proc := b.findProcedure(identifier)
 		if proc == nil {
 			p.errorf("unknown procedure %s", identifier)
@@ -1237,6 +1243,12 @@ func (p *program) parseAssignmentOrProcedureStatement(b *block) statement {
 			p.errorf("procedure %s: %v", identifier, err)
 		}
 		return &procedureCallStatement{name: identifier, parameterList: actualParameterList}
+	}
+
+	if identifier == "writeln" {
+		return &writeStatement{ln: true}
+	} else if identifier == "write" {
+		p.errorf("write needs at least one parameter")
 	}
 
 	proc := b.findProcedure(identifier)
@@ -2350,4 +2362,76 @@ func (p *program) parseIndexVariableExpr(b *block, expr expression) *indexedVari
 	}
 
 	return &indexedVariableExpr{expr: expr, exprs: indexes, typ: arrType.elementType}
+}
+
+func (p *program) parseWrite(b *block, ln bool) *writeStatement {
+	if p.peek().typ != itemOpenParen {
+		p.errorf("expected (, got %s instead", p.peek())
+	}
+	p.next()
+
+	stmt := &writeStatement{ln: ln}
+
+	first := p.parseExpression(b)
+
+	_, isFileType := first.Type().(*fileType)
+
+	if first.IsVariableExpr() && isFileType {
+		stmt.fileVar = first
+	} else {
+		p.verifyWriteType(first.Type(), ln)
+		width, decimalPlaces := p.parseWritelnFormat(first, b)
+		stmt.parameterList = append(stmt.parameterList, &formatExpr{expr: first, width: width, decimalPlaces: decimalPlaces})
+	}
+
+	for p.peek().typ == itemComma {
+		p.next()
+
+		param := p.parseExpression(b)
+		p.verifyWriteType(param.Type(), ln)
+
+		width, decimalPlaces := p.parseWritelnFormat(param, b)
+		stmt.parameterList = append(stmt.parameterList, &formatExpr{expr: param, width: width, decimalPlaces: decimalPlaces})
+	}
+
+	if p.peek().typ != itemCloseParen {
+		p.errorf("expected ), got %s instead", p.peek())
+	}
+	p.next()
+
+	return stmt
+}
+
+func (p *program) parseWritelnFormat(expr expression, b *block) (widthExpr expression, decimalPlacesExpr expression) {
+	if p.peek().typ == itemColon {
+		p.next()
+		widthExpr = p.parseExpression(b)
+		if p.peek().typ == itemColon {
+			p.next()
+			decimalPlacesExpr = p.parseExpression(b)
+		}
+	}
+
+	if decimalPlacesExpr != nil && !expr.Type().Equals(&realType{}) {
+		p.errorf("decimal places format is not allowed for type %s", expr.Type().Type())
+	}
+
+	return widthExpr, decimalPlacesExpr
+}
+
+func (p *program) verifyWriteType(typ dataType, ln bool) {
+	funcName := "write"
+	if ln {
+		funcName += "ln"
+	}
+
+	allowedWriteTypes := []dataType{&integerType{}, &realType{}, &stringType{}}
+
+	for _, at := range allowedWriteTypes {
+		if at.Equals(typ) {
+			return
+		}
+	}
+
+	p.errorf("can't use variables of type %s with %s", typ.Type(), funcName)
 }

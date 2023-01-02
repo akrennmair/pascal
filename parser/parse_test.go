@@ -1135,6 +1135,47 @@ func TestParserSuccesses(t *testing.T) {
 				writeln(y(10))
 			end.`,
 		},
+		{
+			"writeln with integer format",
+			`program test;
+
+			var x : integer;
+			
+			begin
+				writeln(x:10)
+			end.`,
+		},
+		{
+			"writeln with real width format",
+			`program test;
+
+			var x : real;
+			
+			begin
+				writeln(x:10)
+			end.`,
+		},
+		{
+			"writeln with real width and decimal format",
+			`program test;
+
+			var x : real;
+			
+			begin
+				writeln(x:10:5)
+			end.`,
+		},
+		{
+			"writeln with file variable as first parameter",
+			`program test;
+
+			var x : real;
+				f : file of real;
+			
+			begin
+				writeln(f, x)
+			end.`,
+		},
 	}
 
 	for idx, testEntry := range testData {
@@ -2145,6 +2186,41 @@ func TestParserErrors(t *testing.T) {
 					writeln('hello world')
 			end.
 			`,
+		},
+		{
+			"writeln with integer width and decimal format",
+			`decimal places format is not allowed for type integer`,
+			`program test;
+
+			var x : integer;
+			
+			begin
+				writeln(x:10:5)
+			end.`,
+		},
+		{
+			"writeln with too many formats",
+			`expected ), got ":" instead`,
+			`program test;
+
+			var x : real;
+			
+			begin
+				writeln(x:10:5:3)
+			end.`,
+		},
+		{
+			"writeln of disallowed type",
+			`can't use variables of type array [1..10] of integer with writeln`,
+			`program test;
+
+			type foo = array [1..10] of integer;
+			
+			var x : foo;
+			
+			begin
+				writeln('x = ', x)
+			end.`,
 		},
 	}
 
