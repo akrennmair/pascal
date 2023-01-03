@@ -1,19 +1,7 @@
 package parser
 
-type LabelledStatement struct {
-	label string
-	Statement
-}
-
-func (s *LabelledStatement) Type() StatementType {
-	return s.Type()
-}
-
-func (s *LabelledStatement) Label() *string {
-	return &s.label
-}
-
 type GotoStatement struct {
+	label  *string
 	Target string
 }
 
@@ -22,10 +10,11 @@ func (s *GotoStatement) Type() StatementType {
 }
 
 func (s *GotoStatement) Label() *string {
-	return nil
+	return s.label
 }
 
 type CompoundStatement struct {
+	label      *string
 	Statements []Statement
 }
 
@@ -34,10 +23,11 @@ func (s *CompoundStatement) Type() StatementType {
 }
 
 func (s *CompoundStatement) Label() *string {
-	return nil
+	return s.label
 }
 
 type WhileStatement struct {
+	label     *string
 	Condition Expression
 	Statement Statement
 }
@@ -47,10 +37,11 @@ func (s *WhileStatement) Type() StatementType {
 }
 
 func (s *WhileStatement) Label() *string {
-	return nil
+	return s.label
 }
 
 type RepeatStatement struct {
+	label      *string
 	Condition  Expression
 	Statements []Statement
 }
@@ -60,10 +51,11 @@ func (s *RepeatStatement) Type() StatementType {
 }
 
 func (s *RepeatStatement) Label() *string {
-	return nil
+	return s.label
 }
 
 type ForStatement struct {
+	label       *string
 	Name        string
 	InitialExpr Expression
 	FinalExpr   Expression
@@ -76,10 +68,11 @@ func (s *ForStatement) Type() StatementType {
 }
 
 func (s *ForStatement) Label() *string {
-	return nil
+	return s.label
 }
 
 type IfStatement struct {
+	label         *string
 	Condition     Expression
 	Statement     Statement
 	ElseStatement Statement
@@ -90,10 +83,11 @@ func (s *IfStatement) Type() StatementType {
 }
 
 func (s *IfStatement) Label() *string {
-	return nil
+	return s.label
 }
 
 type AssignmentStatement struct {
+	label     *string
 	LeftExpr  Expression
 	RightExpr Expression
 }
@@ -103,10 +97,11 @@ func (s *AssignmentStatement) Type() StatementType {
 }
 
 func (s *AssignmentStatement) Label() *string {
-	return nil
+	return s.label
 }
 
 type ProcedureCallStatement struct {
+	label        *string
 	Name         string
 	ActualParams []Expression
 }
@@ -116,10 +111,11 @@ func (s *ProcedureCallStatement) Type() StatementType {
 }
 
 func (s *ProcedureCallStatement) Label() *string {
-	return nil
+	return s.label
 }
 
 type CaseStatement struct {
+	label     *string
 	Expr      Expression
 	CaseLimbs []*CaseLimb
 }
@@ -129,7 +125,7 @@ func (s *CaseStatement) Type() StatementType {
 }
 
 func (s *CaseStatement) Label() *string {
-	return nil
+	return s.label
 }
 
 type CaseLimb struct {
@@ -138,6 +134,7 @@ type CaseLimb struct {
 }
 
 type WithStatement struct {
+	label           *string
 	RecordVariables []string
 	Block           *Block
 }
@@ -147,10 +144,11 @@ func (s *WithStatement) Type() StatementType {
 }
 
 func (s *WithStatement) Label() *string {
-	return nil
+	return s.label
 }
 
 type WriteStatement struct {
+	label         *string
 	AppendNewLine bool       // if true, writeln instead of write is meant.
 	FileVar       Expression // file variable; can be nil.
 	ActualParams  []Expression
@@ -161,5 +159,5 @@ func (s *WriteStatement) Type() StatementType {
 }
 
 func (s *WriteStatement) Label() *string {
-	return nil
+	return s.label
 }

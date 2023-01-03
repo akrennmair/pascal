@@ -1197,12 +1197,13 @@ type Statement interface {
 }
 
 func (p *parser) parseStatement(b *Block) Statement {
-	var label string
+	var label *string
 	if p.peek().typ == itemUnsignedDigitSequence {
-		label = p.next().val
+		labelStr := p.next().val
+		label = &labelStr
 
-		if !b.isValidLabel(label) {
-			p.errorf("undeclared label %s", label)
+		if !b.isValidLabel(labelStr) {
+			p.errorf("undeclared label %s", labelStr)
 		}
 
 		if p.peek().typ != itemColon {
@@ -1211,15 +1212,12 @@ func (p *parser) parseStatement(b *Block) Statement {
 		p.next()
 	}
 
-	stmt := p.parseUnlabelledStatement(b)
-	if label != "" {
-		stmt = &LabelledStatement{label: label, Statement: stmt}
-	}
+	stmt := p.parseUnlabelledStatement(b, label)
 
 	return stmt
 }
 
-func (p *parser) parseUnlabelledStatement(b *Block) Statement {
+func (p *parser) parseUnlabelledStatement(b *Block, label *string) Statement {
 	switch p.peek().typ {
 	case itemGoto:
 		p.next()
@@ -1230,9 +1228,9 @@ func (p *parser) parseUnlabelledStatement(b *Block) Statement {
 		if !b.isValidLabel(tl) {
 			p.errorf("invalid goto label %s", tl)
 		}
-		return &GotoStatement{Target: tl}
+		return &GotoStatement{label: label, Target: tl}
 	case itemIdentifier:
-		return p.parseAssignmentOrProcedureStatement(b)
+		return p.parseAssignmentOrProcedureStatement(b, label)
 	case itemBegin:
 		p.next()
 		statements := p.parseStatementSequence(b)
@@ -1240,25 +1238,25 @@ func (p *parser) parseUnlabelledStatement(b *Block) Statement {
 			p.errorf("expected end, got %s", p.next())
 		}
 		p.next()
-		return &CompoundStatement{Statements: statements}
+		return &CompoundStatement{label: label, Statements: statements}
 	case itemWhile:
-		return p.parseWhileStatement(b)
+		return p.parseWhileStatement(b, label)
 	case itemRepeat:
-		return p.parseRepeatStatement(b)
+		return p.parseRepeatStatement(b, label)
 	case itemFor:
-		return p.parseForStatement(b)
+		return p.parseForStatement(b, label)
 	case itemIf:
-		return p.parseIfStatement(b)
+		return p.parseIfStatement(b, label)
 	case itemCase:
-		return p.parseCaseStatement(b)
+		return p.parseCaseStatement(b, label)
 	case itemWith:
-		return p.parseWithStatement(b)
+		return p.parseWithStatement(b, label)
 	}
 	p.errorf("unsupported %s as statement", p.next())
 	return nil
 }
 
-func (p *parser) parseAssignmentOrProcedureStatement(b *Block) Statement {
+func (p *parser) parseAssignmentOrProcedureStatement(b *Block, label *string) Statement {
 	if p.peek().typ != itemIdentifier {
 		p.errorf("expected identifier, got %s", p.next())
 	}
@@ -1267,9 +1265,9 @@ func (p *parser) parseAssignmentOrProcedureStatement(b *Block) Statement {
 
 	if p.peek().typ == itemOpenParen {
 		if identifier == "writeln" {
-			return p.parseWrite(b, true)
+			return p.parseWrite(b, true, label)
 		} else if identifier == "write" {
-			return p.parseWrite(b, false)
+			return p.parseWrite(b, false, label)
 		}
 		proc := b.findProcedure(identifier)
 		if proc == nil {
@@ -1279,11 +1277,11 @@ func (p *parser) parseAssignmentOrProcedureStatement(b *Block) Statement {
 		if err := p.validateParameters(proc.varargs, proc.FormalParameters, actualParameterList); err != nil {
 			p.errorf("procedure %s: %v", identifier, err)
 		}
-		return &ProcedureCallStatement{Name: identifier, ActualParams: actualParameterList}
+		return &ProcedureCallStatement{label: label, Name: identifier, ActualParams: actualParameterList}
 	}
 
 	if identifier == "writeln" {
-		return &WriteStatement{AppendNewLine: true}
+		return &WriteStatement{label: label, AppendNewLine: true}
 	} else if identifier == "write" {
 		p.errorf("write needs at least one parameter")
 	}
@@ -1293,7 +1291,7 @@ func (p *parser) parseAssignmentOrProcedureStatement(b *Block) Statement {
 		if err := p.validateParameters(proc.varargs, proc.FormalParameters, []Expression{}); err != nil {
 			p.errorf("procedure %s: %v", identifier, err)
 		}
-		return &ProcedureCallStatement{Name: identifier}
+		return &ProcedureCallStatement{label: label, Name: identifier}
 	}
 
 	var lexpr Expression
@@ -1313,7 +1311,7 @@ func (p *parser) parseAssignmentOrProcedureStatement(b *Block) Statement {
 		if !lexpr.Type().Equals(rexpr.Type()) && !isCharStringLiteralAssignment(b, lexpr, rexpr) {
 			p.errorf("incompatible types: got %s, expected %s", rexpr.Type().Type(), lexpr.Type().Type())
 		}
-		return &AssignmentStatement{LeftExpr: lexpr, RightExpr: rexpr}
+		return &AssignmentStatement{label: label, LeftExpr: lexpr, RightExpr: rexpr}
 	}
 
 	p.errorf("unexpected token %s in statement", p.peek())
@@ -1321,7 +1319,7 @@ func (p *parser) parseAssignmentOrProcedureStatement(b *Block) Statement {
 	return nil
 }
 
-func (p *parser) parseWhileStatement(b *Block) *WhileStatement {
+func (p *parser) parseWhileStatement(b *Block, label *string) *WhileStatement {
 	if p.peek().typ != itemWhile {
 		p.errorf("expected while, got %s", p.next())
 	}
@@ -1340,10 +1338,10 @@ func (p *parser) parseWhileStatement(b *Block) *WhileStatement {
 
 	stmt := p.parseStatement(b)
 
-	return &WhileStatement{Condition: condition, Statement: stmt}
+	return &WhileStatement{label: label, Condition: condition, Statement: stmt}
 }
 
-func (p *parser) parseRepeatStatement(b *Block) *RepeatStatement {
+func (p *parser) parseRepeatStatement(b *Block, label *string) *RepeatStatement {
 	if p.peek().typ != itemRepeat {
 		p.errorf("expected repeat, got %s", p.next())
 	}
@@ -1361,10 +1359,10 @@ func (p *parser) parseRepeatStatement(b *Block) *RepeatStatement {
 		p.errorf("condition is not boolean, but %s", condition.Type().Type())
 	}
 
-	return &RepeatStatement{Condition: condition, Statements: stmts}
+	return &RepeatStatement{label: label, Condition: condition, Statements: stmts}
 }
 
-func (p *parser) parseForStatement(b *Block) *ForStatement {
+func (p *parser) parseForStatement(b *Block, label *string) *ForStatement {
 	if p.peek().typ != itemFor {
 		p.errorf("expected for, got %s", p.next())
 	}
@@ -1407,10 +1405,10 @@ func (p *parser) parseForStatement(b *Block) *ForStatement {
 
 	stmt := p.parseStatement(b)
 
-	return &ForStatement{Name: variable, InitialExpr: initialExpr, FinalExpr: finalExpr, Statement: stmt, DownTo: down}
+	return &ForStatement{label: label, Name: variable, InitialExpr: initialExpr, FinalExpr: finalExpr, Statement: stmt, DownTo: down}
 }
 
-func (p *parser) parseIfStatement(b *Block) *IfStatement {
+func (p *parser) parseIfStatement(b *Block, label *string) *IfStatement {
 	if p.peek().typ != itemIf {
 		p.errorf("expected if, got %s", p.next())
 	}
@@ -1435,10 +1433,10 @@ func (p *parser) parseIfStatement(b *Block) *IfStatement {
 		elseStmt = p.parseStatement(b)
 	}
 
-	return &IfStatement{Condition: condition, Statement: stmt, ElseStatement: elseStmt}
+	return &IfStatement{label: label, Condition: condition, Statement: stmt, ElseStatement: elseStmt}
 }
 
-func (p *parser) parseCaseStatement(b *Block) Statement {
+func (p *parser) parseCaseStatement(b *Block, label *string) Statement {
 	if p.peek().typ != itemCase {
 		p.errorf("expected case, got %s instead", p.peek())
 	}
@@ -1485,7 +1483,7 @@ func (p *parser) parseCaseStatement(b *Block) Statement {
 	}
 	p.next()
 
-	return &CaseStatement{Expr: expr, CaseLimbs: caseLimbs}
+	return &CaseStatement{label: label, Expr: expr, CaseLimbs: caseLimbs}
 }
 
 func (p *parser) parseCaseLimb(b *Block) *CaseLimb {
@@ -1504,7 +1502,7 @@ func (p *parser) parseCaseLimb(b *Block) *CaseLimb {
 	}
 }
 
-func (p *parser) parseWithStatement(b *Block) Statement {
+func (p *parser) parseWithStatement(b *Block, label *string) Statement {
 	if p.peek().typ != itemWith {
 		p.errorf("expected with, got %s instead", p.peek())
 	}
@@ -1565,6 +1563,7 @@ func (p *parser) parseWithStatement(b *Block) Statement {
 	withBlock.Statements = append(withBlock.Statements, stmt)
 
 	return &WithStatement{
+		label:           label,
 		RecordVariables: recordVariables,
 		Block:           withBlock,
 	}
@@ -2413,13 +2412,13 @@ func (p *parser) parseIndexVariableExpr(b *Block, expr Expression) *IndexedVaria
 	return &IndexedVariableExpr{Expr: expr, IndexExprs: indexes, Type_: arrType.ElementType}
 }
 
-func (p *parser) parseWrite(b *Block, ln bool) *WriteStatement {
+func (p *parser) parseWrite(b *Block, ln bool, label *string) *WriteStatement {
 	if p.peek().typ != itemOpenParen {
 		p.errorf("expected (, got %s instead", p.peek())
 	}
 	p.next()
 
-	stmt := &WriteStatement{AppendNewLine: ln}
+	stmt := &WriteStatement{label: label, AppendNewLine: ln}
 
 	first := p.parseExpression(b)
 
