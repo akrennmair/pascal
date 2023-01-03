@@ -22,8 +22,20 @@ func getBuiltinType(identifier string) dataType {
 		return &integerType{}
 	case "real":
 		return &realType{}
+	case "char":
+		return &charType{}
 	case "string":
-		return &stringType{}
+		return &arrayType{
+			indexTypes: []dataType{
+				&subrangeType{
+					lowerBound: 1,
+					upperBound: 255,
+					typ:        &integerType{},
+				},
+			},
+			elementType: &charType{},
+			packed:      true,
+		}
 	}
 	return nil
 }

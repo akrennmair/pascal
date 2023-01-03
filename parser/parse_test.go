@@ -1176,6 +1176,93 @@ func TestParserSuccesses(t *testing.T) {
 				writeln(f, x)
 			end.`,
 		},
+		{
+			"assign string literal to string variable",
+			`program test;
+			
+			var s : string;
+
+			begin
+				s := 'hello world';
+				writeln(s)
+			end.
+			`,
+		},
+		{
+			"assign char literal to char variable",
+			`program test;
+			
+			var c : char;
+
+			begin
+				c := 'X';
+				writeln('c = ', c)
+			end.
+			`,
+		},
+		{
+			"assign char literal from char constant",
+			`program test;
+
+			const thespot = 'X';
+			
+			var c : char;
+
+			begin
+				c := thespot;
+				writeln('c = ', c)
+			end.
+			`,
+		},
+		{
+			"assign char variable to string index",
+			`program test;
+			
+			var c : char;
+				s : string;
+
+			begin
+				s[1] := c
+			end.
+			`,
+		},
+		{
+			"assign char literal to string index",
+			`program test;
+			
+			var s : string;
+
+			begin
+				s[1] := 'y'
+			end.
+			`,
+		},
+		{
+			"assign char constant to string index",
+			`program test;
+
+			const foo = '@';
+			
+			var s : string;
+
+			begin
+				s[1] := foo
+			end.
+			`,
+		},
+		{
+			"assign string index to string index in loop",
+			`program test;
+			
+			var s, t : string;
+				i : integer;
+
+			begin
+				for i := 1 to 255 do
+					t[i] := s[i]
+			end.
+			`,
+		},
 	}
 
 	for idx, testEntry := range testData {

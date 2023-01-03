@@ -9,7 +9,7 @@ type expression interface {
 	String() string
 	Type() dataType
 	IsVariableExpr() bool
-	// TODO
+	Reduce() expression // reduce nested expressions to innermost single expression
 }
 
 func isRelationalOperator(typ itemType) bool {
@@ -53,9 +53,9 @@ func itemTypeToRelationalOperator(typ itemType) relationalOperator {
 }
 
 type relationalExpr struct {
-	left     *simpleExpression
+	left     expression
 	operator relationalOperator
-	right    *simpleExpression
+	right    expression
 }
 
 func (e *relationalExpr) String() string {
@@ -68,6 +68,14 @@ func (e *relationalExpr) Type() dataType {
 
 func (e *relationalExpr) IsVariableExpr() bool {
 	return false
+}
+
+func (e *relationalExpr) Reduce() expression {
+	return &relationalExpr{
+		left:     e.left.Reduce(),
+		operator: e.operator,
+		right:    e.right.Reduce(),
+	}
 }
 
 type minusExpr struct {
@@ -86,13 +94,17 @@ func (e *minusExpr) IsVariableExpr() bool {
 	return false
 }
 
+func (e *minusExpr) Reduce() expression {
+	return e
+}
+
 func isAdditionOperator(typ itemType) bool {
 	return typ == itemSign || typ == itemOr
 }
 
 type simpleExpression struct {
 	sign  string
-	first *termExpr
+	first expression
 	next  []*addition
 }
 
@@ -118,6 +130,25 @@ func (e *simpleExpression) IsVariableExpr() bool {
 	return e.first.IsVariableExpr()
 }
 
+func (e *simpleExpression) Reduce() expression {
+	if len(e.next) == 0 && (e.sign == "" || e.sign == "+") {
+		return e.first.Reduce()
+	}
+	ne := &simpleExpression{
+		sign:  e.sign,
+		first: e.first.Reduce(),
+	}
+
+	for _, add := range e.next {
+		ne.next = append(ne.next, &addition{
+			operator: add.operator,
+			term:     add.term.Reduce(),
+		})
+	}
+
+	return ne
+}
+
 type additionOperator string
 
 const (
@@ -138,7 +169,7 @@ func tokenToAdditionOperator(t item) additionOperator {
 
 type addition struct {
 	operator additionOperator
-	term     *termExpr
+	term     expression
 }
 
 type termExpr struct {
@@ -166,6 +197,24 @@ func (e *termExpr) IsVariableExpr() bool {
 	}
 
 	return e.first.IsVariableExpr()
+}
+
+func (e *termExpr) Reduce() expression {
+	if len(e.next) == 0 {
+		return e.first.Reduce()
+	}
+
+	ne := &termExpr{
+		first: e.first.Reduce(),
+	}
+
+	for _, mul := range ne.next {
+		ne.next = append(ne.next, &multiplication{
+			operator: mul.operator,
+			factor:   mul.factor.Reduce(),
+		})
+	}
+	return e
 }
 
 type multiplication struct {
@@ -217,7 +266,7 @@ type constantExpr struct {
 }
 
 func (e *constantExpr) String() string {
-	return fmt.Sprintf("constant:<%s>", e.name)
+	return fmt.Sprintf("constant:<%s : %s>", e.name, e.typ.Type())
 }
 
 func (e *constantExpr) Type() dataType {
@@ -226,6 +275,10 @@ func (e *constantExpr) Type() dataType {
 
 func (e *constantExpr) IsVariableExpr() bool {
 	return false
+}
+
+func (e *constantExpr) Reduce() expression {
+	return e
 }
 
 type variableExpr struct {
@@ -245,6 +298,10 @@ func (e *variableExpr) IsVariableExpr() bool {
 	return true
 }
 
+func (e *variableExpr) Reduce() expression {
+	return e
+}
+
 type integerExpr struct {
 	val int64
 }
@@ -259,6 +316,10 @@ func (e *integerExpr) Type() dataType {
 
 func (e *integerExpr) IsVariableExpr() bool {
 	return false
+}
+
+func (e *integerExpr) Reduce() expression {
+	return e
 }
 
 type floatExpr struct {
@@ -284,6 +345,10 @@ func (e *floatExpr) IsVariableExpr() bool {
 	return false
 }
 
+func (e *floatExpr) Reduce() expression {
+	return e
+}
+
 type stringExpr struct {
 	str string
 }
@@ -293,11 +358,22 @@ func (e *stringExpr) String() string {
 }
 
 func (e *stringExpr) Type() dataType {
-	return &stringType{}
+	return getBuiltinType("string")
 }
 
 func (e *stringExpr) IsVariableExpr() bool {
 	return false
+}
+
+func (e *stringExpr) Reduce() expression {
+	return e
+}
+
+func (e *stringExpr) IsCharLiteral() bool {
+	// TODO: solve this neater.
+	return len(e.str) == 1 ||
+		(len(e.str) == 3 && e.str[0] == '\'' && e.str[2] == '\'') ||
+		e.str == "''''"
 }
 
 type nilExpr struct{}
@@ -314,6 +390,10 @@ func (e *nilExpr) IsVariableExpr() bool {
 	return false
 }
 
+func (e *nilExpr) Reduce() expression {
+	return e
+}
+
 type notExpr struct {
 	expr factorExpr
 }
@@ -328,6 +408,10 @@ func (e *notExpr) Type() dataType {
 
 func (e *notExpr) IsVariableExpr() bool {
 	return false
+}
+
+func (e *notExpr) Reduce() expression {
+	return e
 }
 
 type setExpr struct {
@@ -357,6 +441,10 @@ func (e *setExpr) IsVariableExpr() bool {
 	return false
 }
 
+func (e *setExpr) Reduce() expression {
+	return e
+}
+
 type subExpr struct {
 	expr expression
 }
@@ -371,6 +459,10 @@ func (e *subExpr) Type() dataType {
 
 func (e *subExpr) IsVariableExpr() bool {
 	return e.expr.IsVariableExpr() // TODO: check whether this is correct.
+}
+
+func (e *subExpr) Reduce() expression {
+	return e.expr.Reduce()
 }
 
 type indexedVariableExpr struct {
@@ -398,6 +490,17 @@ func (e *indexedVariableExpr) Type() dataType {
 
 func (e *indexedVariableExpr) IsVariableExpr() bool {
 	return true
+}
+
+func (e *indexedVariableExpr) Reduce() expression {
+	ne := &indexedVariableExpr{
+		expr: e.expr.Reduce(),
+		typ:  e.typ,
+	}
+	for _, ie := range e.exprs {
+		ne.exprs = append(ne.exprs, ie.Reduce())
+	}
+	return ne
 }
 
 type functionCallExpr struct {
@@ -428,6 +531,19 @@ func (e *functionCallExpr) IsVariableExpr() bool {
 	return false
 }
 
+func (e *functionCallExpr) Reduce() expression {
+	ne := &functionCallExpr{
+		name: e.name,
+		typ:  e.typ,
+	}
+
+	for _, pe := range ne.params {
+		ne.params = append(ne.params, pe.Reduce())
+	}
+
+	return ne
+}
+
 type fieldDesignatorExpr struct {
 	expr  expression
 	field string
@@ -444,6 +560,14 @@ func (e *fieldDesignatorExpr) Type() dataType {
 
 func (e *fieldDesignatorExpr) IsVariableExpr() bool {
 	return true
+}
+
+func (e *fieldDesignatorExpr) Reduce() expression {
+	return &fieldDesignatorExpr{
+		expr:  e.expr.Reduce(),
+		field: e.field,
+		typ:   e.typ,
+	}
 }
 
 type enumValueExpr struct {
@@ -464,6 +588,10 @@ func (e *enumValueExpr) IsVariableExpr() bool {
 	return true
 }
 
+func (e *enumValueExpr) Reduce() expression {
+	return e
+}
+
 type derefExpr struct {
 	expr expression
 }
@@ -482,6 +610,12 @@ func (e *derefExpr) Type() dataType {
 
 func (e *derefExpr) IsVariableExpr() bool {
 	return e.expr.IsVariableExpr()
+}
+
+func (e *derefExpr) Reduce() expression {
+	return &derefExpr{
+		expr: e.expr.Reduce(),
+	}
 }
 
 type formatExpr struct {
@@ -513,4 +647,8 @@ func (e *formatExpr) Type() dataType {
 
 func (e *formatExpr) IsVariableExpr() bool {
 	return e.expr.IsVariableExpr()
+}
+
+func (e *formatExpr) Reduce() expression {
+	return e
 }

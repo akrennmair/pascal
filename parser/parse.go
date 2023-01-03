@@ -1273,7 +1273,7 @@ func (p *program) parseAssignmentOrProcedureStatement(b *block) statement {
 			p.errorf("assignment: unknown left expression %s", identifier)
 		}
 		rexpr := p.parseExpression(b)
-		if !lexpr.Type().Equals(rexpr.Type()) {
+		if !lexpr.Type().Equals(rexpr.Type()) && !isCharStringLiteralAssignment(b, lexpr, rexpr) {
 			p.errorf("incompatible types: got %s, expected %s", rexpr.Type().Type(), lexpr.Type().Type())
 		}
 		return &assignmentStatement{lexpr: lexpr, rexpr: rexpr}
@@ -1569,7 +1569,7 @@ func (p *program) parseExpression(b *block) expression {
 
 	expr := p.parseSimpleExpression(b)
 	if !isRelationalOperator(p.peek().typ) {
-		return expr
+		return expr.Reduce()
 	}
 
 	operator := itemTypeToRelationalOperator(p.next().typ)
@@ -1603,7 +1603,7 @@ func (p *program) parseExpression(b *block) expression {
 		}
 	}
 
-	return relExpr
+	return relExpr.Reduce()
 }
 
 func (p *program) parseSimpleExpression(b *block) *simpleExpression {
@@ -2425,7 +2425,7 @@ func (p *program) verifyWriteType(typ dataType, ln bool) {
 		funcName += "ln"
 	}
 
-	allowedWriteTypes := []dataType{&integerType{}, &realType{}, &stringType{}}
+	allowedWriteTypes := []dataType{&integerType{}, &realType{}, &charType{}, getBuiltinType("string")}
 
 	for _, at := range allowedWriteTypes {
 		if at.Equals(typ) {

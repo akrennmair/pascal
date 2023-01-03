@@ -104,6 +104,10 @@ type arrayType struct {
 func (t *arrayType) Type() string {
 	var buf strings.Builder
 
+	if t.Equals(getBuiltinType("string")) {
+		return "string"
+	}
+
 	if t.packed {
 		buf.WriteString("packed ")
 	}
@@ -265,14 +269,14 @@ func (t *booleanType) Equals(dt dataType) bool {
 	return ok
 }
 
-type stringType struct{}
+type charType struct{}
 
-func (t *stringType) Type() string {
-	return "string"
+func (t *charType) Type() string {
+	return "char"
 }
 
-func (t *stringType) Equals(dt dataType) bool {
-	_, ok := dt.(*stringType)
+func (t *charType) Equals(dt dataType) bool {
+	_, ok := dt.(*charType)
 	return ok
 }
 
@@ -452,11 +456,19 @@ type stringLiteral struct {
 }
 
 func (l *stringLiteral) ConstantType() dataType {
-	return &stringType{}
+	return getBuiltinType("string")
 }
 
 func (l *stringLiteral) Negate() (constantLiteral, error) {
 	return nil, errors.New("can't negate string literal")
+}
+
+func (l *stringLiteral) IsCharLiteral() bool {
+	// TODO: solve this neater.
+	// TODO: deduplicate, as the same code is also used in *stringExpr
+	return len(l.Value) == 1 ||
+		(len(l.Value) == 3 && l.Value[0] == '\'' && l.Value[2] == '\'') ||
+		l.Value == "''''"
 }
 
 func (l *stringLiteral) String() string {
@@ -525,4 +537,33 @@ func isRealType(dt dataType) bool {
 	}
 
 	return false
+}
+
+func isCharStringLiteralAssignment(b *block, lexpr expression, rexpr expression) bool {
+	se, isStringExpr := rexpr.(*stringExpr)
+
+	var (
+		sl              *stringLiteral
+		isStringLiteral bool
+	)
+
+	sc, isStringConstant := rexpr.(*constantExpr)
+	if isStringConstant {
+		constDecl := b.findConstantDeclaration(sc.name)
+		if constDecl != nil {
+			sl, isStringLiteral = constDecl.Value.(*stringLiteral)
+		}
+	}
+
+	/*
+		fmt.Printf("rexpr = %s sl = %s isStringLiteral = %t\n", spew.Sdump(rexpr), sl, isStringLiteral)
+		fmt.Printf("lexpr.IsVariabelExpr = %t\n", lexpr.IsVariableExpr())
+		fmt.Printf("lexpr is char = %t\n", lexpr.Type().Equals(&charType{}))
+		fmt.Printf("rexpr is string = %t\n", rexpr.Type().Equals(getBuiltinType("string")))
+	*/
+
+	return lexpr.IsVariableExpr() &&
+		lexpr.Type().Equals(&charType{}) &&
+		rexpr.Type().Equals(getBuiltinType("string")) &&
+		((isStringExpr && se.IsCharLiteral()) || isStringLiteral && sl.IsCharLiteral())
 }
