@@ -82,7 +82,8 @@ func (p *program) next() item {
 	} else {
 		p.token[0] = p.lexer.nextItem()
 	}
-	return p.token[p.peekCount]
+	i := p.token[p.peekCount]
+	return i
 }
 
 func (p *program) errorf(fmtstr string, args ...interface{}) {
@@ -1572,7 +1573,9 @@ func (p *program) parseExpression(b *block) expression {
 		return expr.Reduce()
 	}
 
-	operator := itemTypeToRelationalOperator(p.next().typ)
+	opToken := p.next()
+
+	operator := itemTypeToRelationalOperator(opToken.typ)
 
 	p.logger.Printf("Found relational operator %s after first simple expression", operator)
 
@@ -2343,6 +2346,19 @@ func (p *program) parseIndexVariableExpr(b *block, expr expression) *indexedVari
 		p.errorf("expected ], got %s instead", p.peek())
 	}
 	p.next()
+
+	_, isStringType := expr.Type().(*stringType)
+	if isStringType {
+		if len(indexes) != 1 {
+			p.errorf("strings have exactly 1 dimension, actually got %d", len(indexes))
+		}
+
+		if !isIntegerType(indexes[0].Type()) {
+			p.errorf("string index needs to be an integer type, actually got %s", indexes[0].Type().Type())
+		}
+
+		return &indexedVariableExpr{expr: expr, exprs: indexes, typ: &charType{}}
+	}
 
 	arrType, ok := expr.Type().(*arrayType)
 	if !ok {

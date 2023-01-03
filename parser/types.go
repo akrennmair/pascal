@@ -104,10 +104,6 @@ type arrayType struct {
 func (t *arrayType) Type() string {
 	var buf strings.Builder
 
-	if t.Equals(getBuiltinType("string")) {
-		return "string"
-	}
-
 	if t.packed {
 		buf.WriteString("packed ")
 	}
@@ -277,6 +273,17 @@ func (t *charType) Type() string {
 
 func (t *charType) Equals(dt dataType) bool {
 	_, ok := dt.(*charType)
+	return ok
+}
+
+type stringType struct{}
+
+func (t *stringType) Type() string {
+	return "string"
+}
+
+func (t *stringType) Equals(dt dataType) bool {
+	_, ok := dt.(*stringType)
 	return ok
 }
 
@@ -456,7 +463,7 @@ type stringLiteral struct {
 }
 
 func (l *stringLiteral) ConstantType() dataType {
-	return getBuiltinType("string")
+	return &stringType{}
 }
 
 func (l *stringLiteral) Negate() (constantLiteral, error) {
@@ -564,6 +571,6 @@ func isCharStringLiteralAssignment(b *block, lexpr expression, rexpr expression)
 
 	return lexpr.IsVariableExpr() &&
 		lexpr.Type().Equals(&charType{}) &&
-		rexpr.Type().Equals(getBuiltinType("string")) &&
+		rexpr.Type().Equals(&stringType{}) &&
 		((isStringExpr && se.IsCharLiteral()) || isStringLiteral && sl.IsCharLiteral())
 }

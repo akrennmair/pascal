@@ -36,6 +36,8 @@ func TestParseExpressions(t *testing.T) {
 		{Name: "indexed variable with multiple dimensions", Expr: "matrix[i, j] = 23", ExpectErr: false},
 		{Name: "pointer comparison with nil", Expr: "ptr <> nil", ExpectErr: false},
 		{Name: "addition of two literals with one negative number", Expr: "5 + -3", ExpectErr: false},
+		{Name: "less than comparison of string variable with string literal", Expr: "str < 'abc'", ExpectErr: false},
+		{Name: "less than comparison of string literal with string variable", Expr: "'abc' < str", ExpectErr: false},
 	}
 
 	b := &block{
@@ -123,6 +125,10 @@ func TestParseExpressions(t *testing.T) {
 			{
 				Name: "o",
 				Type: &realType{},
+			},
+			{
+				Name: "str",
+				Type: &stringType{},
 			},
 		},
 		functions: []*routine{

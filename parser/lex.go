@@ -168,7 +168,6 @@ func (l *lexer) backup() {
 
 func (l *lexer) emit(t itemType) {
 	l.items <- item{t, l.start, l.input[l.start:l.pos]}
-	//fmt.Printf("emitted %d - %q\n", t, l.input[l.start:l.pos])
 	l.start = l.pos
 }
 
@@ -367,18 +366,20 @@ func lexColonOrAssignment(l *lexer) stateFn {
 }
 
 func lexStringLiteral(l *lexer) stateFn {
+	seenFinalQuote := false // this is only there in case the closing ' is the final character in the text to parse; mostly necessary for expression parsing testing.
 	r := l.next()
 	for r = l.next(); r != eof; r = l.next() {
 		if r == '\'' { // if the current character is ', then we peek to the next one.
 			r = l.peek()
 			if r != '\'' { // if it also a ', then we just go to next one, otherwise we've hit the final ' of a string.
+				seenFinalQuote = true
 				break
 			}
 			l.next()
 		}
 	}
 
-	if r != eof {
+	if seenFinalQuote || r != eof {
 		l.emit(itemStringLiteral)
 	}
 	return lexText

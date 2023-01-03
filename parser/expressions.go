@@ -358,7 +358,7 @@ func (e *stringExpr) String() string {
 }
 
 func (e *stringExpr) Type() dataType {
-	return getBuiltinType("string")
+	return &stringType{}
 }
 
 func (e *stringExpr) IsVariableExpr() bool {
