@@ -78,27 +78,6 @@ func (e *RelationalExpr) Reduce() Expression {
 	}
 }
 
-// TODO: has this ever been used? Add test for it.
-type minusExpr struct {
-	expr *TermExpr
-}
-
-func (e *minusExpr) String() string {
-	return fmt.Sprintf("minus<%s>", e.expr)
-}
-
-func (e *minusExpr) Type() DataType {
-	return e.expr.Type()
-}
-
-func (e *minusExpr) IsVariableExpr() bool {
-	return false
-}
-
-func (e *minusExpr) Reduce() Expression {
-	return e
-}
-
 func isAdditionOperator(typ itemType) bool {
 	return typ == itemSign || typ == itemOr
 }

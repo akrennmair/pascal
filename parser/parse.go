@@ -52,14 +52,15 @@ type parser struct {
 	peekCount int
 }
 
+// AST describes the Abstract Syntax Tree of the parsed Pascal program.
 type AST struct {
-	// The program name.
+	// Program name
 	Name string
 
-	// The Files provided in the program heading.
+	// Files provided in the program heading.
 	Files []string
 
-	// The top-most block of the program that contains all global
+	// Block contains the top-most block of the program that contains all global
 	// declarations and definitions as well as the main program
 	// to be executed.
 	Block *Block

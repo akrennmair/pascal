@@ -38,6 +38,8 @@ func TestParseExpressions(t *testing.T) {
 		{Name: "addition of two literals with one negative number", Expr: "5 + -3", ExpectErr: false},
 		{Name: "less than comparison of string variable with string literal", Expr: "str < 'abc'", ExpectErr: false},
 		{Name: "less than comparison of string literal with string variable", Expr: "'abc' < str", ExpectErr: false},
+		{Name: "negated addition", Expr: "-(3+4)", ExpectErr: false},
+		{Name: "addition of negated expression", Expr: "a + (-(b+c))", ExpectErr: false},
 	}
 
 	b := &Block{
