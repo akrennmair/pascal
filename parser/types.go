@@ -6,111 +6,111 @@ import (
 	"strings"
 )
 
-type pointerType struct {
-	name string
-	typ  dataType
+type PointerType struct {
+	Name  string
+	Type_ DataType
 }
 
-func (t *pointerType) Type() string {
-	if t.typ == nil {
+func (t *PointerType) Type() string {
+	if t.Type_ == nil {
 		return "nil" // compatible with any type; strictly speaking, this is not syntactically correct in Pascal as a type.
 	}
 
-	if t.name != "" { // if there is a name, print name (even if it has been resolved) to avoid infinite recursion.
-		return fmt.Sprintf("^%s", t.name)
+	if t.Name != "" { // if there is a name, print name (even if it has been resolved) to avoid infinite recursion.
+		return fmt.Sprintf("^%s", t.Name)
 	}
 
-	return fmt.Sprintf("^%s", t.typ.Type())
+	return fmt.Sprintf("^%s", t.Type_.Type())
 }
 
-func (t *pointerType) Equals(dt dataType) bool {
-	o, ok := dt.(*pointerType)
+func (t *PointerType) Equals(dt DataType) bool {
+	o, ok := dt.(*PointerType)
 	if !ok {
 		return false
 	}
 
-	if t.typ == nil || o.typ == nil { // means at least one of them is a nil pointer, and nil is compatible with any type.
+	if t.Type_ == nil || o.Type_ == nil { // means at least one of them is a nil pointer, and nil is compatible with any type.
 		return true
 	}
 
-	return t.typ.Equals(o.typ)
+	return t.Type_.Equals(o.Type_)
 }
 
-type subrangeType struct {
-	lowerBound int
-	upperBound int
-	typ        dataType
+type SubrangeType struct {
+	LowerBound int
+	UpperBound int
+	Type_      DataType
 }
 
-func (t *subrangeType) Type() string {
-	lb := fmt.Sprint(t.lowerBound)
-	ub := fmt.Sprint(t.upperBound)
-	if et, ok := t.typ.(*enumType); ok {
-		if t.lowerBound >= 0 && t.lowerBound < len(et.identifiers) && t.upperBound >= 0 && t.upperBound < len(et.identifiers) {
-			lb = et.identifiers[t.lowerBound]
-			ub = et.identifiers[t.upperBound]
+func (t *SubrangeType) Type() string {
+	lb := fmt.Sprint(t.LowerBound)
+	ub := fmt.Sprint(t.UpperBound)
+	if et, ok := t.Type_.(*EnumType); ok {
+		if t.LowerBound >= 0 && t.LowerBound < len(et.Identifiers) && t.UpperBound >= 0 && t.UpperBound < len(et.Identifiers) {
+			lb = et.Identifiers[t.LowerBound]
+			ub = et.Identifiers[t.UpperBound]
 		}
 	}
 	return fmt.Sprintf("%s..%s", lb, ub)
 }
 
-func (t *subrangeType) Equals(dt dataType) bool {
-	o, ok := dt.(*subrangeType)
+func (t *SubrangeType) Equals(dt DataType) bool {
+	o, ok := dt.(*SubrangeType)
 	if !ok {
 		return false
 	}
 
-	if t.typ != o.typ {
+	if t.Type_ != o.Type_ {
 		return false
 	}
 
-	if t.typ != nil && !t.typ.Equals(o.typ) {
+	if t.Type_ != nil && !t.Type_.Equals(o.Type_) {
 		return false
 	}
 
-	return t.lowerBound == o.lowerBound && t.upperBound == o.upperBound
+	return t.LowerBound == o.LowerBound && t.UpperBound == o.UpperBound
 }
 
-type enumType struct {
-	identifiers []string
+type EnumType struct {
+	Identifiers []string
 }
 
-func (t *enumType) Type() string {
-	return fmt.Sprintf("(%s)", strings.Join(t.identifiers, ", "))
+func (t *EnumType) Type() string {
+	return fmt.Sprintf("(%s)", strings.Join(t.Identifiers, ", "))
 }
 
-func (t *enumType) Equals(dt dataType) bool {
-	o, ok := dt.(*enumType)
+func (t *EnumType) Equals(dt DataType) bool {
+	o, ok := dt.(*EnumType)
 	if !ok {
 		return false
 	}
-	if len(t.identifiers) != len(o.identifiers) {
+	if len(t.Identifiers) != len(o.Identifiers) {
 		return false
 	}
-	for idx := range t.identifiers {
-		if t.identifiers[idx] != o.identifiers[idx] {
+	for idx := range t.Identifiers {
+		if t.Identifiers[idx] != o.Identifiers[idx] {
 			return false
 		}
 	}
 	return true
 }
 
-type arrayType struct {
-	indexTypes  []dataType
-	elementType dataType
-	packed      bool
+type ArrayType struct {
+	IndexTypes  []DataType
+	ElementType DataType
+	Packed      bool
 }
 
-func (t *arrayType) Type() string {
+func (t *ArrayType) Type() string {
 	var buf strings.Builder
 
-	if t.packed {
+	if t.Packed {
 		buf.WriteString("packed ")
 	}
 
 	buf.WriteString("array [")
 
-	for idx, it := range t.indexTypes {
+	for idx, it := range t.IndexTypes {
 		if idx > 0 {
 			buf.WriteString(", ")
 		}
@@ -118,52 +118,50 @@ func (t *arrayType) Type() string {
 	}
 
 	buf.WriteString("] of ")
-	buf.WriteString(t.elementType.Type())
+	buf.WriteString(t.ElementType.Type())
 	return buf.String()
 }
 
-func (t *arrayType) Equals(dt dataType) bool {
-	o, ok := dt.(*arrayType)
+func (t *ArrayType) Equals(dt DataType) bool {
+	o, ok := dt.(*ArrayType)
 	if !ok {
 		return false
 	}
-	if t.packed != o.packed {
+	if t.Packed != o.Packed {
 		return false
 	}
-	if t.elementType.Type() != o.elementType.Type() {
+	if t.ElementType.Type() != o.ElementType.Type() {
 		return false
 	}
-	if len(t.indexTypes) != len(o.indexTypes) {
+	if len(t.IndexTypes) != len(o.IndexTypes) {
 		return false
 	}
-	for idx := range t.indexTypes {
-		if !t.indexTypes[idx].Equals(o.indexTypes[idx]) {
+	for idx := range t.IndexTypes {
+		if !t.IndexTypes[idx].Equals(o.IndexTypes[idx]) {
 			return false
 		}
 	}
 	return true
 }
 
-type recordType struct {
-	fields       []*recordField
-	variantField *recordVariantField
-	packed       bool
+type RecordType struct {
+	Fields       []*RecordField
+	VariantField *RecordVariantField
+	Packed       bool
 }
 
-func (t *recordType) findField(name string) *recordField {
-	for _, f := range t.fields {
-		for _, id := range f.Identifiers {
-			if id == name {
-				return f
-			}
+func (t *RecordType) findField(name string) *RecordField {
+	for _, f := range t.Fields {
+		if f.Identifier == name {
+			return f
 		}
 	}
 	return nil
 }
 
-func (t *recordType) Type() string {
+func (t *RecordType) Type() string {
 	var buf strings.Builder
-	if t.packed {
+	if t.Packed {
 		buf.WriteString("packed ")
 	}
 	buf.WriteString("record ")
@@ -172,52 +170,52 @@ func (t *recordType) Type() string {
 	return buf.String()
 }
 
-func (tt *recordType) printFieldList(buf *strings.Builder, r *recordType) {
-	for idx, f := range r.fields {
+func (tt *RecordType) printFieldList(buf *strings.Builder, r *RecordType) {
+	for idx, f := range r.Fields {
 		if idx > 0 {
 			buf.WriteString("; ")
 		}
 		buf.WriteString(f.String())
 	}
-	if r.variantField != nil {
-		if len(r.fields) > 0 {
+	if r.VariantField != nil {
+		if len(r.Fields) > 0 {
 			buf.WriteString("; ")
 		}
 		buf.WriteString("case ")
-		if r.variantField.tagField != "" {
-			buf.WriteString(r.variantField.tagField + ": ")
+		if r.VariantField.TagField != "" {
+			buf.WriteString(r.VariantField.TagField + ": ")
 		}
-		buf.WriteString(r.variantField.typeName)
+		buf.WriteString(r.VariantField.TypeName)
 		buf.WriteString(" of ")
-		for idx, variant := range r.variantField.variants {
+		for idx, variant := range r.VariantField.Variants {
 			if idx > 0 {
 				buf.WriteString(", ")
-				for jdx, label := range variant.caseLabels {
+				for jdx, label := range variant.CaseLabels {
 					if jdx > 0 {
 						buf.WriteString(", ")
 					}
 					buf.WriteString(label.String())
 				}
 				buf.WriteString(": (")
-				r.printFieldList(buf, variant.fields)
+				r.printFieldList(buf, variant.Fields)
 				buf.WriteString(")")
 			}
 		}
 	}
 }
 
-func (t *recordType) Equals(dt dataType) bool {
-	o, ok := dt.(*recordType)
+func (t *RecordType) Equals(dt DataType) bool {
+	o, ok := dt.(*RecordType)
 	if !ok {
 		return false
 	}
 
-	if t.packed != o.packed || len(t.fields) != len(o.fields) {
+	if t.Packed != o.Packed || len(t.Fields) != len(o.Fields) {
 		return false
 	}
 
-	for idx := range t.fields {
-		if t.fields[idx].String() != o.fields[idx].String() {
+	for idx := range t.Fields {
+		if t.Fields[idx].String() != o.Fields[idx].String() {
 			return false
 		}
 	}
@@ -225,108 +223,108 @@ func (t *recordType) Equals(dt dataType) bool {
 	return true
 }
 
-type setType struct {
-	elementType dataType
-	packed      bool
+type SetType struct {
+	ElementType DataType
+	Packed      bool
 }
 
-func (t *setType) Type() string {
+func (t *SetType) Type() string {
 	packed := ""
-	if t.packed {
+	if t.Packed {
 		packed = "packed "
 	}
-	return fmt.Sprintf("%sset of %s", packed, t.elementType.Type())
+	return fmt.Sprintf("%sset of %s", packed, t.ElementType.Type())
 }
 
-func (t *setType) Equals(dt dataType) bool {
-	o, ok := dt.(*setType)
-	return ok && t.elementType.Equals(o.elementType) && t.packed == o.packed
+func (t *SetType) Equals(dt DataType) bool {
+	o, ok := dt.(*SetType)
+	return ok && t.ElementType.Equals(o.ElementType) && t.Packed == o.Packed
 }
 
-type integerType struct{}
+type IntegerType struct{}
 
-func (t *integerType) Type() string {
+func (t *IntegerType) Type() string {
 	return "integer"
 }
 
-func (t *integerType) Equals(dt dataType) bool {
-	_, ok := dt.(*integerType)
+func (t *IntegerType) Equals(dt DataType) bool {
+	_, ok := dt.(*IntegerType)
 	return ok
 }
 
-type booleanType struct{}
+type BooleanType struct{}
 
-func (t *booleanType) Type() string {
+func (t *BooleanType) Type() string {
 	return "boolean"
 }
 
-func (t *booleanType) Equals(dt dataType) bool {
-	_, ok := dt.(*booleanType)
+func (t *BooleanType) Equals(dt DataType) bool {
+	_, ok := dt.(*BooleanType)
 	return ok
 }
 
-type charType struct{}
+type CharType struct{}
 
-func (t *charType) Type() string {
+func (t *CharType) Type() string {
 	return "char"
 }
 
-func (t *charType) Equals(dt dataType) bool {
-	_, ok := dt.(*charType)
+func (t *CharType) Equals(dt DataType) bool {
+	_, ok := dt.(*CharType)
 	return ok
 }
 
-type stringType struct{}
+type StringType struct{}
 
-func (t *stringType) Type() string {
+func (t *StringType) Type() string {
 	return "string"
 }
 
-func (t *stringType) Equals(dt dataType) bool {
-	_, ok := dt.(*stringType)
+func (t *StringType) Equals(dt DataType) bool {
+	_, ok := dt.(*StringType)
 	return ok
 }
 
-type realType struct{}
+type RealType struct{}
 
-func (t *realType) Type() string {
+func (t *RealType) Type() string {
 	return "real"
 }
 
-func (t *realType) Equals(dt dataType) bool {
-	_, ok := dt.(*realType)
+func (t *RealType) Equals(dt DataType) bool {
+	_, ok := dt.(*RealType)
 	return ok
 }
 
-type fileType struct {
-	elementType dataType
-	packed      bool
+type FileType struct {
+	ElementType DataType
+	Packed      bool
 }
 
-func (t *fileType) Type() string {
+func (t *FileType) Type() string {
 	var buf strings.Builder
-	if t.packed {
+	if t.Packed {
 		buf.WriteString("packed ")
 	}
 	buf.WriteString("file of ")
-	buf.WriteString(t.elementType.Type())
+	buf.WriteString(t.ElementType.Type())
 	return buf.String()
 }
 
-func (t *fileType) Equals(dt dataType) bool {
-	o, ok := dt.(*fileType)
-	return ok && t.elementType.Equals(o.elementType)
+func (t *FileType) Equals(dt DataType) bool {
+	o, ok := dt.(*FileType)
+	return ok && t.ElementType.Equals(o.ElementType)
 }
 
-type procedureType struct {
-	params []*formalParameter
+type ProcedureType struct {
+	FormalParams []*FormalParameter
 }
 
-func (t *procedureType) Type() string {
+func (t *ProcedureType) Type() string {
 	var buf strings.Builder
 	buf.WriteString("(")
 
-	for idx, param := range t.params {
+	for idx, param := range t.FormalParams {
 		if idx > 0 {
 			buf.WriteString("; ")
 			buf.WriteString(param.String())
@@ -338,18 +336,18 @@ func (t *procedureType) Type() string {
 	return buf.String()
 }
 
-func (t *procedureType) Equals(dt dataType) bool {
-	o, ok := dt.(*procedureType)
+func (t *ProcedureType) Equals(dt DataType) bool {
+	o, ok := dt.(*ProcedureType)
 	if !ok {
 		return false
 	}
 
-	if len(t.params) != len(o.params) {
+	if len(t.FormalParams) != len(o.FormalParams) {
 		return false
 	}
 
-	for idx := range t.params {
-		if !t.params[idx].Type.Equals(o.params[idx].Type) {
+	for idx := range t.FormalParams {
+		if !t.FormalParams[idx].Type.Equals(o.FormalParams[idx].Type) {
 			return false
 		}
 	}
@@ -357,16 +355,16 @@ func (t *procedureType) Equals(dt dataType) bool {
 	return true
 }
 
-type functionType struct {
-	params     []*formalParameter
-	returnType dataType
+type FunctionType struct {
+	FormalParams []*FormalParameter
+	ReturnType   DataType
 }
 
-func (t *functionType) Type() string {
+func (t *FunctionType) Type() string {
 	var buf strings.Builder
 	buf.WriteString("(")
 
-	for idx, param := range t.params {
+	for idx, param := range t.FormalParams {
 		if idx > 0 {
 			buf.WriteString("; ")
 			buf.WriteString(param.String())
@@ -375,27 +373,27 @@ func (t *functionType) Type() string {
 
 	buf.WriteString(") : ")
 
-	buf.WriteString(t.returnType.Type())
+	buf.WriteString(t.ReturnType.Type())
 
 	return buf.String()
 }
 
-func (t *functionType) Equals(dt dataType) bool {
-	o, ok := dt.(*functionType)
+func (t *FunctionType) Equals(dt DataType) bool {
+	o, ok := dt.(*FunctionType)
 	if !ok {
 		return false
 	}
 
-	if !t.returnType.Equals(o.returnType) {
+	if !t.ReturnType.Equals(o.ReturnType) {
 		return false
 	}
 
-	if len(t.params) != len(o.params) {
+	if len(t.FormalParams) != len(o.FormalParams) {
 		return false
 	}
 
-	for idx := range t.params {
-		if !t.params[idx].Type.Equals(o.params[idx].Type) {
+	for idx := range t.FormalParams {
+		if !t.FormalParams[idx].Type.Equals(o.FormalParams[idx].Type) {
 			return false
 		}
 	}
@@ -403,74 +401,74 @@ func (t *functionType) Equals(dt dataType) bool {
 	return true
 }
 
-type constantLiteral interface {
-	ConstantType() dataType
-	Negate() (constantLiteral, error)
+type ConstantLiteral interface {
+	ConstantType() DataType
+	Negate() (ConstantLiteral, error)
 	String() string
 }
 
-type integerLiteral struct {
+type IntegerLiteral struct {
 	Value int
 }
 
-func (l *integerLiteral) ConstantType() dataType {
-	return &integerType{}
+func (l *IntegerLiteral) ConstantType() DataType {
+	return &IntegerType{}
 }
 
-func (l *integerLiteral) Negate() (constantLiteral, error) {
-	return &integerLiteral{Value: -l.Value}, nil
+func (l *IntegerLiteral) Negate() (ConstantLiteral, error) {
+	return &IntegerLiteral{Value: -l.Value}, nil
 }
 
-func (l *integerLiteral) String() string {
+func (l *IntegerLiteral) String() string {
 	return fmt.Sprintf("%d", l.Value)
 }
 
-type floatLiteral struct {
-	minus       bool
-	beforeComma string
-	afterComma  string
-	scaleFactor int
+type RealLiteral struct {
+	Minus       bool
+	BeforeComma string
+	AfterComma  string
+	ScaleFactor int
 }
 
-func (l *floatLiteral) ConstantType() dataType {
-	return &realType{}
+func (l *RealLiteral) ConstantType() DataType {
+	return &RealType{}
 }
 
-func (l *floatLiteral) Negate() (constantLiteral, error) {
-	nl := &floatLiteral{}
+func (l *RealLiteral) Negate() (ConstantLiteral, error) {
+	nl := &RealLiteral{}
 	*nl = *l
-	nl.minus = !nl.minus
+	nl.Minus = !nl.Minus
 	return nl, nil
 }
 
-func (l *floatLiteral) String() string {
+func (l *RealLiteral) String() string {
 	var buf strings.Builder
-	if l.minus {
+	if l.Minus {
 		buf.WriteByte('-')
 	}
-	buf.WriteString(l.beforeComma)
+	buf.WriteString(l.BeforeComma)
 	buf.WriteByte('.')
-	buf.WriteString(l.afterComma)
-	if l.scaleFactor != 0 {
+	buf.WriteString(l.AfterComma)
+	if l.ScaleFactor != 0 {
 		buf.WriteString("e ")
-		fmt.Fprintf(&buf, "%d", l.scaleFactor)
+		fmt.Fprintf(&buf, "%d", l.ScaleFactor)
 	}
 	return buf.String()
 }
 
-type stringLiteral struct {
+type StringLiteral struct {
 	Value string
 }
 
-func (l *stringLiteral) ConstantType() dataType {
-	return &stringType{}
+func (l *StringLiteral) ConstantType() DataType {
+	return &StringType{}
 }
 
-func (l *stringLiteral) Negate() (constantLiteral, error) {
+func (l *StringLiteral) Negate() (ConstantLiteral, error) {
 	return nil, errors.New("can't negate string literal")
 }
 
-func (l *stringLiteral) IsCharLiteral() bool {
+func (l *StringLiteral) IsCharLiteral() bool {
 	// TODO: solve this neater.
 	// TODO: deduplicate, as the same code is also used in *stringExpr
 	return len(l.Value) == 1 ||
@@ -478,7 +476,7 @@ func (l *stringLiteral) IsCharLiteral() bool {
 		l.Value == "''''"
 }
 
-func (l *stringLiteral) String() string {
+func (l *StringLiteral) String() string {
 	var buf strings.Builder
 
 	buf.WriteString("'")
@@ -495,25 +493,25 @@ func (l *stringLiteral) String() string {
 	return buf.String()
 }
 
-type enumValueLiteral struct {
+type EnumValueLiteral struct {
 	Symbol string
 	Value  int
-	Type   dataType
+	Type   DataType
 }
 
-func (l *enumValueLiteral) ConstantType() dataType {
+func (l *EnumValueLiteral) ConstantType() DataType {
 	return l.Type
 }
 
-func (l *enumValueLiteral) Negate() (constantLiteral, error) {
+func (l *EnumValueLiteral) Negate() (ConstantLiteral, error) {
 	return nil, errors.New("can't negate enum value")
 }
 
-func (l *enumValueLiteral) String() string {
+func (l *EnumValueLiteral) String() string {
 	return l.Symbol
 }
 
-func typesCompatible(t1, t2 dataType) bool {
+func typesCompatible(t1, t2 DataType) bool {
 	if t1.Equals(t2) {
 		return true
 	}
@@ -527,38 +525,38 @@ func typesCompatible(t1, t2 dataType) bool {
 	return false
 }
 
-func isIntegerType(dt dataType) bool {
+func isIntegerType(dt DataType) bool {
 	switch dt.(type) {
-	case *integerType:
+	case *IntegerType:
 		return true
-	case *subrangeType:
-		return true
-	}
-
-	return false
-}
-
-func isRealType(dt dataType) bool {
-	if _, ok := dt.(*realType); ok {
+	case *SubrangeType:
 		return true
 	}
 
 	return false
 }
 
-func isCharStringLiteralAssignment(b *block, lexpr expression, rexpr expression) bool {
-	se, isStringExpr := rexpr.(*stringExpr)
+func isRealType(dt DataType) bool {
+	if _, ok := dt.(*RealType); ok {
+		return true
+	}
+
+	return false
+}
+
+func isCharStringLiteralAssignment(b *Block, lexpr Expression, rexpr Expression) bool {
+	se, isStringExpr := rexpr.(*StringExpr)
 
 	var (
-		sl              *stringLiteral
+		sl              *StringLiteral
 		isStringLiteral bool
 	)
 
-	sc, isStringConstant := rexpr.(*constantExpr)
+	sc, isStringConstant := rexpr.(*ConstantExpr)
 	if isStringConstant {
-		constDecl := b.findConstantDeclaration(sc.name)
+		constDecl := b.findConstantDeclaration(sc.Name)
 		if constDecl != nil {
-			sl, isStringLiteral = constDecl.Value.(*stringLiteral)
+			sl, isStringLiteral = constDecl.Value.(*StringLiteral)
 		}
 	}
 
@@ -570,7 +568,7 @@ func isCharStringLiteralAssignment(b *block, lexpr expression, rexpr expression)
 	*/
 
 	return lexpr.IsVariableExpr() &&
-		lexpr.Type().Equals(&charType{}) &&
-		rexpr.Type().Equals(&stringType{}) &&
+		lexpr.Type().Equals(&CharType{}) &&
+		rexpr.Type().Equals(&StringType{}) &&
 		((isStringExpr && se.IsCharLiteral()) || isStringLiteral && sl.IsCharLiteral())
 }

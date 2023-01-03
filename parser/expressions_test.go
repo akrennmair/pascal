@@ -40,121 +40,121 @@ func TestParseExpressions(t *testing.T) {
 		{Name: "less than comparison of string literal with string variable", Expr: "'abc' < str", ExpectErr: false},
 	}
 
-	b := &block{
-		variables: []*variable{
+	b := &Block{
+		Variables: []*Variable{
 			{
 				Name: "a",
-				Type: &integerType{},
+				Type: &IntegerType{},
 			},
 			{
 				Name: "b",
-				Type: &integerType{},
+				Type: &IntegerType{},
 			},
 			{
 				Name: "c",
-				Type: &integerType{},
+				Type: &IntegerType{},
 			},
 			{
 				Name: "i",
-				Type: &integerType{},
+				Type: &IntegerType{},
 			},
 			{
 				Name: "j",
-				Type: &integerType{},
+				Type: &IntegerType{},
 			},
 			{
 				Name: "s",
-				Type: &arrayType{
-					indexTypes:  []dataType{&subrangeType{1, 10, &integerType{}}},
-					elementType: &integerType{},
+				Type: &ArrayType{
+					IndexTypes:  []DataType{&SubrangeType{1, 10, &IntegerType{}}},
+					ElementType: &IntegerType{},
 				},
 			},
 			{
 				Name: "data",
-				Type: &arrayType{
-					indexTypes:  []dataType{&subrangeType{1, 10, &integerType{}}},
-					elementType: &integerType{},
+				Type: &ArrayType{
+					IndexTypes:  []DataType{&SubrangeType{1, 10, &IntegerType{}}},
+					ElementType: &IntegerType{},
 				},
 			},
 			{
 				Name: "matrix",
-				Type: &arrayType{
-					indexTypes:  []dataType{&subrangeType{1, 3, &integerType{}}, &subrangeType{1, 3, &integerType{}}},
-					elementType: &integerType{},
+				Type: &ArrayType{
+					IndexTypes:  []DataType{&SubrangeType{1, 3, &IntegerType{}}, &SubrangeType{1, 3, &IntegerType{}}},
+					ElementType: &IntegerType{},
 				},
 			},
 			{
 				Name: "result",
-				Type: &realType{},
+				Type: &RealType{},
 			},
 			{
 				Name: "x",
-				Type: &integerType{},
+				Type: &IntegerType{},
 			},
 			{
 				Name: "ptr",
-				Type: &pointerType{typ: &integerType{}},
+				Type: &PointerType{Type_: &IntegerType{}},
 			},
 			{
 				Name: "d",
-				Type: &booleanType{},
+				Type: &BooleanType{},
 			},
 			{
 				Name: "e",
-				Type: &booleanType{},
+				Type: &BooleanType{},
 			},
 			{
 				Name: "foo",
-				Type: &recordType{
-					fields: []*recordField{
+				Type: &RecordType{
+					Fields: []*RecordField{
 						{
-							Identifiers: []string{"data"},
-							Type:        &integerType{},
+							Identifier: "data",
+							Type:       &IntegerType{},
 						},
 					},
 				},
 			},
 			{
 				Name: "l",
-				Type: &realType{},
+				Type: &RealType{},
 			},
 			{
 				Name: "m",
-				Type: &realType{},
+				Type: &RealType{},
 			},
 			{
 				Name: "o",
-				Type: &realType{},
+				Type: &RealType{},
 			},
 			{
 				Name: "str",
-				Type: &stringType{},
+				Type: &StringType{},
 			},
 		},
-		functions: []*routine{
+		Functions: []*Routine{
 			{
 				Name: "length",
-				FormalParameters: []*formalParameter{
+				FormalParameters: []*FormalParameter{
 					{
 						Name: "arr",
-						Type: &arrayType{
-							indexTypes:  []dataType{&subrangeType{lowerBound: 1, upperBound: 10, typ: &integerType{}}},
-							elementType: &integerType{},
+						Type: &ArrayType{
+							IndexTypes:  []DataType{&SubrangeType{LowerBound: 1, UpperBound: 10, Type_: &IntegerType{}}},
+							ElementType: &IntegerType{},
 						},
 					},
 				},
-				ReturnType: &integerType{},
+				ReturnType: &IntegerType{},
 			},
 		},
 	}
 
 	for _, tt := range testData {
 		t.Run(tt.Name, func(t *testing.T) {
-			p := NewParser(tt.Name, tt.Expr)
+			p := newParser(tt.Name, tt.Expr)
 
 			var (
 				err  error
-				expr expression
+				expr Expression
 			)
 
 			func() {

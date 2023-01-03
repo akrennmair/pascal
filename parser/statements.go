@@ -1,165 +1,165 @@
 package parser
 
-type labelledStatement struct {
+type LabelledStatement struct {
 	label string
-	statement
+	Statement
 }
 
-func (s *labelledStatement) Type() statementType {
+func (s *LabelledStatement) Type() StatementType {
 	return s.Type()
 }
 
-func (s *labelledStatement) Label() *string {
+func (s *LabelledStatement) Label() *string {
 	return &s.label
 }
 
-type statementGoto struct {
-	target string
+type GotoStatement struct {
+	Target string
 }
 
-func (s *statementGoto) Type() statementType {
-	return stmtGoto
+func (s *GotoStatement) Type() StatementType {
+	return StatementGoto
 }
 
-func (s *statementGoto) Label() *string {
+func (s *GotoStatement) Label() *string {
 	return nil
 }
 
-type compoundStatement struct {
-	statements []statement
+type CompoundStatement struct {
+	Statements []Statement
 }
 
-func (s *compoundStatement) Type() statementType {
-	return stmtCompoundStatement
+func (s *CompoundStatement) Type() StatementType {
+	return StatementCompoundStatement
 }
 
-func (s *compoundStatement) Label() *string {
+func (s *CompoundStatement) Label() *string {
 	return nil
 }
 
-type whileStatement struct {
-	condition expression
-	stmt      statement
+type WhileStatement struct {
+	Condition Expression
+	Statement Statement
 }
 
-func (s *whileStatement) Type() statementType {
-	return stmtWhile
+func (s *WhileStatement) Type() StatementType {
+	return StatementWhile
 }
 
-func (s *whileStatement) Label() *string {
+func (s *WhileStatement) Label() *string {
 	return nil
 }
 
-type repeatStatement struct {
-	condition expression
-	stmts     []statement
+type RepeatStatement struct {
+	Condition  Expression
+	Statements []Statement
 }
 
-func (s *repeatStatement) Type() statementType {
-	return stmtRepeat
+func (s *RepeatStatement) Type() StatementType {
+	return StatementRepeat
 }
 
-func (s *repeatStatement) Label() *string {
+func (s *RepeatStatement) Label() *string {
 	return nil
 }
 
-type forStatement struct {
-	name        string
-	initialExpr expression
-	finalExpr   expression
-	body        statement
-	down        bool
+type ForStatement struct {
+	Name        string
+	InitialExpr Expression
+	FinalExpr   Expression
+	Statement   Statement
+	DownTo      bool
 }
 
-func (s *forStatement) Type() statementType {
-	return stmtFor
+func (s *ForStatement) Type() StatementType {
+	return StatementFor
 }
 
-func (s *forStatement) Label() *string {
+func (s *ForStatement) Label() *string {
 	return nil
 }
 
-type ifStatement struct {
-	condition expression
-	body      statement
-	elseBody  statement
+type IfStatement struct {
+	Condition     Expression
+	Statement     Statement
+	ElseStatement Statement
 }
 
-func (s *ifStatement) Type() statementType {
-	return stmtIf
+func (s *IfStatement) Type() StatementType {
+	return StatementIf
 }
 
-func (s *ifStatement) Label() *string {
+func (s *IfStatement) Label() *string {
 	return nil
 }
 
-type assignmentStatement struct {
-	lexpr expression
-	rexpr expression
+type AssignmentStatement struct {
+	LeftExpr  Expression
+	RightExpr Expression
 }
 
-func (s *assignmentStatement) Type() statementType {
-	return stmtAssignment
+func (s *AssignmentStatement) Type() StatementType {
+	return StatementAssignment
 }
 
-func (s *assignmentStatement) Label() *string {
+func (s *AssignmentStatement) Label() *string {
 	return nil
 }
 
-type procedureCallStatement struct {
-	name          string
-	parameterList []expression
+type ProcedureCallStatement struct {
+	Name         string
+	ActualParams []Expression
 }
 
-func (s *procedureCallStatement) Type() statementType {
-	return stmtProcedureCall
+func (s *ProcedureCallStatement) Type() StatementType {
+	return StatementProcedureCall
 }
 
-func (s *procedureCallStatement) Label() *string {
+func (s *ProcedureCallStatement) Label() *string {
 	return nil
 }
 
-type caseStatement struct {
-	expr      expression
-	caseLimbs []*caseLimb
+type CaseStatement struct {
+	Expr      Expression
+	CaseLimbs []*CaseLimb
 }
 
-func (s *caseStatement) Type() statementType {
-	return stmtCase
+func (s *CaseStatement) Type() StatementType {
+	return StatementCase
 }
 
-func (s *caseStatement) Label() *string {
+func (s *CaseStatement) Label() *string {
 	return nil
 }
 
-type caseLimb struct {
-	labels []constantLiteral
-	stmt   statement
+type CaseLimb struct {
+	Label     []ConstantLiteral
+	Statement Statement
 }
 
-type withStatement struct {
-	recordVariables []string
-	block           *block
+type WithStatement struct {
+	RecordVariables []string
+	Block           *Block
 }
 
-func (s *withStatement) Type() statementType {
-	return stmtWith
+func (s *WithStatement) Type() StatementType {
+	return StatementWith
 }
 
-func (s *withStatement) Label() *string {
+func (s *WithStatement) Label() *string {
 	return nil
 }
 
-type writeStatement struct {
-	ln            bool
-	fileVar       expression
-	parameterList []expression
+type WriteStatement struct {
+	AppendNewLine bool       // if true, writeln instead of write is meant.
+	FileVar       Expression // file variable; can be nil.
+	ActualParams  []Expression
 }
 
-func (s *writeStatement) Type() statementType {
-	return statementWrite
+func (s *WriteStatement) Type() StatementType {
+	return StatementWrite
 }
 
-func (s *writeStatement) Label() *string {
+func (s *WriteStatement) Label() *string {
 	return nil
 }

@@ -5,11 +5,11 @@ import (
 	"strings"
 )
 
-type expression interface {
+type Expression interface {
 	String() string
-	Type() dataType
+	Type() DataType
 	IsVariableExpr() bool
-	Reduce() expression // reduce nested expressions to innermost single expression
+	Reduce() Expression // reduce nested expressions to innermost single expression
 }
 
 func isRelationalOperator(typ itemType) bool {
@@ -22,19 +22,19 @@ func isRelationalOperator(typ itemType) bool {
 		typ == itemIn
 }
 
-type relationalOperator string
+type RelationalOperator string
 
 const (
-	opEqual        relationalOperator = "="
-	opNotEqual     relationalOperator = "<>"
-	opLess         relationalOperator = "<"
-	opLessEqual    relationalOperator = "<="
-	opGreater      relationalOperator = ">"
-	opGreaterEqual relationalOperator = ">="
-	opIn           relationalOperator = "in"
+	opEqual        RelationalOperator = "="
+	opNotEqual     RelationalOperator = "<>"
+	opLess         RelationalOperator = "<"
+	opLessEqual    RelationalOperator = "<="
+	opGreater      RelationalOperator = ">"
+	opGreaterEqual RelationalOperator = ">="
+	opIn           RelationalOperator = "in"
 )
 
-var itemTypeRelOps = map[itemType]relationalOperator{
+var itemTypeRelOps = map[itemType]RelationalOperator{
 	itemEqual:        opEqual,
 	itemNotEqual:     opNotEqual,
 	itemLess:         opLess,
@@ -44,49 +44,50 @@ var itemTypeRelOps = map[itemType]relationalOperator{
 	itemIn:           opIn,
 }
 
-func itemTypeToRelationalOperator(typ itemType) relationalOperator {
+func itemTypeToRelationalOperator(typ itemType) RelationalOperator {
 	op, ok := itemTypeRelOps[typ]
 	if !ok {
-		return relationalOperator(fmt.Sprintf("INVALID(%d)", typ))
+		return RelationalOperator(fmt.Sprintf("INVALID(%d)", typ))
 	}
 	return op
 }
 
-type relationalExpr struct {
-	left     expression
-	operator relationalOperator
-	right    expression
+type RelationalExpr struct {
+	Left     Expression
+	Operator RelationalOperator
+	Right    Expression
 }
 
-func (e *relationalExpr) String() string {
-	return fmt.Sprintf("relation<%s %s %s>", e.left, e.operator, e.right)
+func (e *RelationalExpr) String() string {
+	return fmt.Sprintf("relation<%s %s %s>", e.Left, e.Operator, e.Right)
 }
 
-func (e *relationalExpr) Type() dataType {
-	return &booleanType{}
+func (e *RelationalExpr) Type() DataType {
+	return &BooleanType{}
 }
 
-func (e *relationalExpr) IsVariableExpr() bool {
+func (e *RelationalExpr) IsVariableExpr() bool {
 	return false
 }
 
-func (e *relationalExpr) Reduce() expression {
-	return &relationalExpr{
-		left:     e.left.Reduce(),
-		operator: e.operator,
-		right:    e.right.Reduce(),
+func (e *RelationalExpr) Reduce() Expression {
+	return &RelationalExpr{
+		Left:     e.Left.Reduce(),
+		Operator: e.Operator,
+		Right:    e.Right.Reduce(),
 	}
 }
 
+// TODO: has this ever been used? Add test for it.
 type minusExpr struct {
-	expr *termExpr
+	expr *TermExpr
 }
 
 func (e *minusExpr) String() string {
 	return fmt.Sprintf("minus<%s>", e.expr)
 }
 
-func (e *minusExpr) Type() dataType {
+func (e *minusExpr) Type() DataType {
 	return e.expr.Type()
 }
 
@@ -94,7 +95,7 @@ func (e *minusExpr) IsVariableExpr() bool {
 	return false
 }
 
-func (e *minusExpr) Reduce() expression {
+func (e *minusExpr) Reduce() Expression {
 	return e
 }
 
@@ -102,148 +103,148 @@ func isAdditionOperator(typ itemType) bool {
 	return typ == itemSign || typ == itemOr
 }
 
-type simpleExpression struct {
-	sign  string
-	first expression
-	next  []*addition
+type SimpleExpr struct {
+	Sign  string
+	First Expression
+	Next  []*Addition
 }
 
-func (e *simpleExpression) String() string {
+func (e *SimpleExpr) String() string {
 	var buf strings.Builder
-	fmt.Fprintf(&buf, "simple-expr:<%s %s", e.sign, e.first)
-	for _, add := range e.next {
-		fmt.Fprintf(&buf, " %s %s", add.operator, add.term)
+	fmt.Fprintf(&buf, "simple-expr:<%s %s", e.Sign, e.First)
+	for _, add := range e.Next {
+		fmt.Fprintf(&buf, " %s %s", add.Operator, add.Term)
 	}
 	fmt.Fprint(&buf, ">")
 	return buf.String()
 }
 
-func (e *simpleExpression) Type() dataType {
-	return e.first.Type()
+func (e *SimpleExpr) Type() DataType {
+	return e.First.Type()
 }
 
-func (e *simpleExpression) IsVariableExpr() bool {
-	if e.sign != "" || len(e.next) > 0 {
+func (e *SimpleExpr) IsVariableExpr() bool {
+	if e.Sign != "" || len(e.Next) > 0 {
 		return false
 	}
 
-	return e.first.IsVariableExpr()
+	return e.First.IsVariableExpr()
 }
 
-func (e *simpleExpression) Reduce() expression {
-	if len(e.next) == 0 && (e.sign == "" || e.sign == "+") {
-		return e.first.Reduce()
+func (e *SimpleExpr) Reduce() Expression {
+	if len(e.Next) == 0 && (e.Sign == "" || e.Sign == "+") {
+		return e.First.Reduce()
 	}
-	ne := &simpleExpression{
-		sign:  e.sign,
-		first: e.first.Reduce(),
+	ne := &SimpleExpr{
+		Sign:  e.Sign,
+		First: e.First.Reduce(),
 	}
 
-	for _, add := range e.next {
-		ne.next = append(ne.next, &addition{
-			operator: add.operator,
-			term:     add.term.Reduce(),
+	for _, add := range e.Next {
+		ne.Next = append(ne.Next, &Addition{
+			Operator: add.Operator,
+			Term:     add.Term.Reduce(),
 		})
 	}
 
 	return ne
 }
 
-type additionOperator string
+type AdditionOperator string
 
 const (
-	opAdd      additionOperator = "+"
-	opSubtract additionOperator = "-"
-	opOr       additionOperator = "or"
+	OperatorAdd      AdditionOperator = "+"
+	OperatorSubtract AdditionOperator = "-"
+	OperatorOr       AdditionOperator = "or"
 )
 
-func tokenToAdditionOperator(t item) additionOperator {
+func tokenToAdditionOperator(t item) AdditionOperator {
 	if t.typ == itemSign && (t.val == "+" || t.val == "-") {
-		return additionOperator(t.val)
+		return AdditionOperator(t.val)
 	}
 	if t.typ == itemOr {
-		return opOr
+		return OperatorOr
 	}
-	return additionOperator(fmt.Sprintf("INVALID(%+v)", t))
+	return AdditionOperator(fmt.Sprintf("INVALID(%+v)", t))
 }
 
-type addition struct {
-	operator additionOperator
-	term     expression
+type Addition struct {
+	Operator AdditionOperator
+	Term     Expression
 }
 
-type termExpr struct {
-	first factorExpr
-	next  []*multiplication
+type TermExpr struct {
+	First Expression
+	Next  []*Multiplication
 }
 
-func (e *termExpr) String() string {
+func (e *TermExpr) String() string {
 	var buf strings.Builder
-	fmt.Fprintf(&buf, "term-expr:<%s", e.first)
-	for _, mul := range e.next {
-		fmt.Fprintf(&buf, " %s %s", mul.operator, mul.factor)
+	fmt.Fprintf(&buf, "term-expr:<%s", e.First)
+	for _, mul := range e.Next {
+		fmt.Fprintf(&buf, " %s %s", mul.Operator, mul.Factor)
 	}
 	fmt.Fprint(&buf, ">")
 	return buf.String()
 }
 
-func (e *termExpr) Type() dataType {
-	return e.first.Type()
+func (e *TermExpr) Type() DataType {
+	return e.First.Type()
 }
 
-func (e *termExpr) IsVariableExpr() bool {
-	if len(e.next) > 0 {
+func (e *TermExpr) IsVariableExpr() bool {
+	if len(e.Next) > 0 {
 		return false
 	}
 
-	return e.first.IsVariableExpr()
+	return e.First.IsVariableExpr()
 }
 
-func (e *termExpr) Reduce() expression {
-	if len(e.next) == 0 {
-		return e.first.Reduce()
+func (e *TermExpr) Reduce() Expression {
+	if len(e.Next) == 0 {
+		return e.First.Reduce()
 	}
 
-	ne := &termExpr{
-		first: e.first.Reduce(),
+	ne := &TermExpr{
+		First: e.First.Reduce(),
 	}
 
-	for _, mul := range ne.next {
-		ne.next = append(ne.next, &multiplication{
-			operator: mul.operator,
-			factor:   mul.factor.Reduce(),
+	for _, mul := range ne.Next {
+		ne.Next = append(ne.Next, &Multiplication{
+			Operator: mul.Operator,
+			Factor:   mul.Factor.Reduce(),
 		})
 	}
 	return e
 }
 
-type multiplication struct {
-	operator multiplicationOperator
-	factor   factorExpr
+type Multiplication struct {
+	Operator MultiplicationOperator
+	Factor   Expression
 }
 
-type multiplicationOperator string
+type MultiplicationOperator string
 
 const (
-	opMultiply    multiplicationOperator = "*"
-	opFloatDivide multiplicationOperator = "/"
-	opDivide      multiplicationOperator = "div"
-	opModulo      multiplicationOperator = "mod"
-	opAnd         multiplicationOperator = "and"
+	OperatorMultiply    MultiplicationOperator = "*"
+	OperatorFloatDivide MultiplicationOperator = "/"
+	OperatorDivide      MultiplicationOperator = "div"
+	OperatorModulo      MultiplicationOperator = "mod"
+	OperatorAnd         MultiplicationOperator = "and"
 )
 
-var itemTypMulOp = map[itemType]multiplicationOperator{
-	itemMultiply:    opMultiply,
-	itemFloatDivide: opFloatDivide,
-	itemDiv:         opDivide,
-	itemMod:         opModulo,
-	itemAnd:         opAnd,
+var itemTypMulOp = map[itemType]MultiplicationOperator{
+	itemMultiply:    OperatorMultiply,
+	itemFloatDivide: OperatorFloatDivide,
+	itemDiv:         OperatorDivide,
+	itemMod:         OperatorModulo,
+	itemAnd:         OperatorAnd,
 }
 
-func itemTypeToMultiplicationOperator(typ itemType) multiplicationOperator {
+func itemTypeToMultiplicationOperator(typ itemType) MultiplicationOperator {
 	op, ok := itemTypMulOp[typ]
 	if !ok {
-		return multiplicationOperator(fmt.Sprintf("INVALID(%+v)", typ))
+		return MultiplicationOperator(fmt.Sprintf("INVALID(%+v)", typ))
 	}
 	return op
 }
@@ -256,172 +257,168 @@ func isMultiplicationOperator(typ itemType) bool {
 		typ == itemAnd
 }
 
-type factorExpr interface {
-	expression
+type ConstantExpr struct {
+	Name  string
+	Type_ DataType
 }
 
-type constantExpr struct {
-	name string
-	typ  dataType
+func (e *ConstantExpr) String() string {
+	return fmt.Sprintf("constant:<%s : %s>", e.Name, e.Type_.Type())
 }
 
-func (e *constantExpr) String() string {
-	return fmt.Sprintf("constant:<%s : %s>", e.name, e.typ.Type())
+func (e *ConstantExpr) Type() DataType {
+	return e.Type_
 }
 
-func (e *constantExpr) Type() dataType {
-	return e.typ
-}
-
-func (e *constantExpr) IsVariableExpr() bool {
+func (e *ConstantExpr) IsVariableExpr() bool {
 	return false
 }
 
-func (e *constantExpr) Reduce() expression {
+func (e *ConstantExpr) Reduce() Expression {
 	return e
 }
 
-type variableExpr struct {
-	name string
-	typ  dataType
+type VariableExpr struct {
+	Name  string
+	Type_ DataType
 }
 
-func (e *variableExpr) String() string {
-	return fmt.Sprintf("variable:<%s>", e.name)
+func (e *VariableExpr) String() string {
+	return fmt.Sprintf("variable:<%s>", e.Name)
 }
 
-func (e *variableExpr) Type() dataType {
-	return e.typ
+func (e *VariableExpr) Type() DataType {
+	return e.Type_
 }
 
-func (e *variableExpr) IsVariableExpr() bool {
+func (e *VariableExpr) IsVariableExpr() bool {
 	return true
 }
 
-func (e *variableExpr) Reduce() expression {
+func (e *VariableExpr) Reduce() Expression {
 	return e
 }
 
-type integerExpr struct {
-	val int64
+type IntegerExpr struct {
+	Value int64
 }
 
-func (e *integerExpr) String() string {
-	return fmt.Sprintf("int:<%d>", e.val)
+func (e *IntegerExpr) String() string {
+	return fmt.Sprintf("int:<%d>", e.Value)
 }
 
-func (e *integerExpr) Type() dataType {
-	return &integerType{}
+func (e *IntegerExpr) Type() DataType {
+	return &IntegerType{}
 }
 
-func (e *integerExpr) IsVariableExpr() bool {
+func (e *IntegerExpr) IsVariableExpr() bool {
 	return false
 }
 
-func (e *integerExpr) Reduce() expression {
+func (e *IntegerExpr) Reduce() Expression {
 	return e
 }
 
-type floatExpr struct {
-	minus       bool
-	beforeComma string
-	afterComma  string
-	scaleFactor int
+type RealExpr struct {
+	Minus       bool
+	BeforeComma string
+	AfterComma  string
+	ScaleFactor int
 }
 
-func (e *floatExpr) String() string {
+func (e *RealExpr) String() string {
 	sign := ""
-	if e.minus {
+	if e.Minus {
 		sign = "-"
 	}
-	return fmt.Sprintf("float:<%s%s.%se%d>", sign, e.beforeComma, e.afterComma, e.scaleFactor)
+	return fmt.Sprintf("real:<%s%s.%se%d>", sign, e.BeforeComma, e.AfterComma, e.ScaleFactor)
 }
 
-func (e *floatExpr) Type() dataType {
-	return &realType{}
+func (e *RealExpr) Type() DataType {
+	return &RealType{}
 }
 
-func (e *floatExpr) IsVariableExpr() bool {
+func (e *RealExpr) IsVariableExpr() bool {
 	return false
 }
 
-func (e *floatExpr) Reduce() expression {
+func (e *RealExpr) Reduce() Expression {
 	return e
 }
 
-type stringExpr struct {
-	str string
+type StringExpr struct {
+	Value string
 }
 
-func (e *stringExpr) String() string {
-	return fmt.Sprintf("str:<%q>", e.str)
+func (e *StringExpr) String() string {
+	return fmt.Sprintf("str:<%q>", e.Value)
 }
 
-func (e *stringExpr) Type() dataType {
-	return &stringType{}
+func (e *StringExpr) Type() DataType {
+	return &StringType{}
 }
 
-func (e *stringExpr) IsVariableExpr() bool {
+func (e *StringExpr) IsVariableExpr() bool {
 	return false
 }
 
-func (e *stringExpr) Reduce() expression {
+func (e *StringExpr) Reduce() Expression {
 	return e
 }
 
-func (e *stringExpr) IsCharLiteral() bool {
+func (e *StringExpr) IsCharLiteral() bool {
 	// TODO: solve this neater.
-	return len(e.str) == 1 ||
-		(len(e.str) == 3 && e.str[0] == '\'' && e.str[2] == '\'') ||
-		e.str == "''''"
+	return len(e.Value) == 1 ||
+		(len(e.Value) == 3 && e.Value[0] == '\'' && e.Value[2] == '\'') ||
+		e.Value == "''''"
 }
 
-type nilExpr struct{}
+type NilExpr struct{}
 
-func (e *nilExpr) String() string {
+func (e *NilExpr) String() string {
 	return "nil"
 }
 
-func (e *nilExpr) Type() dataType {
-	return &pointerType{typ: nil} // nil means it's compatible with any type
+func (e *NilExpr) Type() DataType {
+	return &PointerType{Type_: nil} // nil means it's compatible with any type
 }
 
-func (e *nilExpr) IsVariableExpr() bool {
+func (e *NilExpr) IsVariableExpr() bool {
 	return false
 }
 
-func (e *nilExpr) Reduce() expression {
+func (e *NilExpr) Reduce() Expression {
 	return e
 }
 
-type notExpr struct {
-	expr factorExpr
+type NotExpr struct {
+	Expr Expression
 }
 
-func (e *notExpr) String() string {
-	return fmt.Sprintf("not:<%s>", e.expr)
+func (e *NotExpr) String() string {
+	return fmt.Sprintf("not:<%s>", e.Expr)
 }
 
-func (e *notExpr) Type() dataType {
-	return e.expr.Type()
+func (e *NotExpr) Type() DataType {
+	return e.Expr.Type()
 }
 
-func (e *notExpr) IsVariableExpr() bool {
+func (e *NotExpr) IsVariableExpr() bool {
 	return false
 }
 
-func (e *notExpr) Reduce() expression {
+func (e *NotExpr) Reduce() Expression {
 	return e
 }
 
-type setExpr struct {
-	elements []expression
+type SetExpr struct {
+	Elements []Expression
 }
 
-func (e *setExpr) String() string {
+func (e *SetExpr) String() string {
 	var buf strings.Builder
 	fmt.Fprint(&buf, "set-expr:<")
-	for idx, elem := range e.elements {
+	for idx, elem := range e.Elements {
 		if idx > 0 {
 			fmt.Fprint(&buf, " ")
 		}
@@ -431,50 +428,50 @@ func (e *setExpr) String() string {
 	return buf.String()
 }
 
-func (e *setExpr) Type() dataType {
-	return &setType{
-		elementType: e.elements[0].Type(),
+func (e *SetExpr) Type() DataType {
+	return &SetType{
+		ElementType: e.Elements[0].Type(),
 	}
 }
 
-func (e *setExpr) IsVariableExpr() bool {
+func (e *SetExpr) IsVariableExpr() bool {
 	return false
 }
 
-func (e *setExpr) Reduce() expression {
+func (e *SetExpr) Reduce() Expression {
 	return e
 }
 
-type subExpr struct {
-	expr expression
+type SubExpr struct {
+	Expr Expression
 }
 
-func (e *subExpr) String() string {
-	return fmt.Sprintf("sub-expr:<%s>", e.expr)
+func (e *SubExpr) String() string {
+	return fmt.Sprintf("sub-expr:<%s>", e.Expr)
 }
 
-func (e *subExpr) Type() dataType {
-	return e.expr.Type()
+func (e *SubExpr) Type() DataType {
+	return e.Expr.Type()
 }
 
-func (e *subExpr) IsVariableExpr() bool {
-	return e.expr.IsVariableExpr() // TODO: check whether this is correct.
+func (e *SubExpr) IsVariableExpr() bool {
+	return e.Expr.IsVariableExpr() // TODO: check whether this is correct.
 }
 
-func (e *subExpr) Reduce() expression {
-	return e.expr.Reduce()
+func (e *SubExpr) Reduce() Expression {
+	return e.Expr.Reduce()
 }
 
-type indexedVariableExpr struct {
-	expr  expression // and expression of type *arrayType
-	typ   dataType
-	exprs []expression
+type IndexedVariableExpr struct {
+	Expr       Expression // an expression of type *arrayType
+	Type_      DataType
+	IndexExprs []Expression
 }
 
-func (e *indexedVariableExpr) String() string {
+func (e *IndexedVariableExpr) String() string {
 	var buf strings.Builder
-	fmt.Fprintf(&buf, "indexed-variable-expr:<(%s)[", e.expr.String())
-	for idx, expr := range e.exprs {
+	fmt.Fprintf(&buf, "indexed-variable-expr:<(%s)[", e.Expr.String())
+	for idx, expr := range e.IndexExprs {
 		if idx > 0 {
 			fmt.Fprint(&buf, ", ")
 		}
@@ -484,36 +481,36 @@ func (e *indexedVariableExpr) String() string {
 	return buf.String()
 }
 
-func (e *indexedVariableExpr) Type() dataType {
-	return e.typ
+func (e *IndexedVariableExpr) Type() DataType {
+	return e.Type_
 }
 
-func (e *indexedVariableExpr) IsVariableExpr() bool {
+func (e *IndexedVariableExpr) IsVariableExpr() bool {
 	return true
 }
 
-func (e *indexedVariableExpr) Reduce() expression {
-	ne := &indexedVariableExpr{
-		expr: e.expr.Reduce(),
-		typ:  e.typ,
+func (e *IndexedVariableExpr) Reduce() Expression {
+	ne := &IndexedVariableExpr{
+		Expr:  e.Expr.Reduce(),
+		Type_: e.Type_,
 	}
-	for _, ie := range e.exprs {
-		ne.exprs = append(ne.exprs, ie.Reduce())
+	for _, ie := range e.IndexExprs {
+		ne.IndexExprs = append(ne.IndexExprs, ie.Reduce())
 	}
 	return ne
 }
 
-type functionCallExpr struct {
-	name   string
-	typ    dataType
-	params []expression
+type FunctionCallExpr struct {
+	Name         string
+	Type_        DataType
+	ActualParams []Expression
 }
 
-func (e *functionCallExpr) String() string {
+func (e *FunctionCallExpr) String() string {
 	var buf strings.Builder
 
-	fmt.Fprintf(&buf, "function-call-expr:<%s(", e.name)
-	for idx, param := range e.params {
+	fmt.Fprintf(&buf, "function-call-expr:<%s(", e.Name)
+	for idx, param := range e.ActualParams {
 		if idx > 0 {
 			fmt.Fprintf(&buf, ", ")
 		}
@@ -523,132 +520,132 @@ func (e *functionCallExpr) String() string {
 	return buf.String()
 }
 
-func (e *functionCallExpr) Type() dataType {
-	return e.typ
+func (e *FunctionCallExpr) Type() DataType {
+	return e.Type_
 }
 
-func (e *functionCallExpr) IsVariableExpr() bool {
+func (e *FunctionCallExpr) IsVariableExpr() bool {
 	return false
 }
 
-func (e *functionCallExpr) Reduce() expression {
-	ne := &functionCallExpr{
-		name: e.name,
-		typ:  e.typ,
+func (e *FunctionCallExpr) Reduce() Expression {
+	ne := &FunctionCallExpr{
+		Name:  e.Name,
+		Type_: e.Type_,
 	}
 
-	for _, pe := range ne.params {
-		ne.params = append(ne.params, pe.Reduce())
+	for _, pe := range ne.ActualParams {
+		ne.ActualParams = append(ne.ActualParams, pe.Reduce())
 	}
 
 	return ne
 }
 
-type fieldDesignatorExpr struct {
-	expr  expression
-	field string
-	typ   dataType
+type FieldDesignatorExpr struct {
+	Expr  Expression
+	Field string
+	Type_ DataType
 }
 
-func (e *fieldDesignatorExpr) String() string {
-	return fmt.Sprintf("field-designator-expr:<%s.%s>", e.expr, e.field)
+func (e *FieldDesignatorExpr) String() string {
+	return fmt.Sprintf("field-designator-expr:<%s.%s>", e.Expr, e.Field)
 }
 
-func (e *fieldDesignatorExpr) Type() dataType {
-	return e.typ
+func (e *FieldDesignatorExpr) Type() DataType {
+	return e.Type_
 }
 
-func (e *fieldDesignatorExpr) IsVariableExpr() bool {
+func (e *FieldDesignatorExpr) IsVariableExpr() bool {
 	return true
 }
 
-func (e *fieldDesignatorExpr) Reduce() expression {
-	return &fieldDesignatorExpr{
-		expr:  e.expr.Reduce(),
-		field: e.field,
-		typ:   e.typ,
+func (e *FieldDesignatorExpr) Reduce() Expression {
+	return &FieldDesignatorExpr{
+		Expr:  e.Expr.Reduce(),
+		Field: e.Field,
+		Type_: e.Type_,
 	}
 }
 
-type enumValueExpr struct {
-	symbol string
-	value  int
-	typ    dataType
+type EnumValueExpr struct {
+	Name  string
+	Value int
+	Type_ DataType
 }
 
-func (e *enumValueExpr) String() string {
-	return fmt.Sprintf("enum-value-expr:<%s %d of type %s>", e.symbol, e.value, e.typ.Type())
+func (e *EnumValueExpr) String() string {
+	return fmt.Sprintf("enum-value-expr:<%s %d of type %s>", e.Name, e.Value, e.Type_.Type())
 }
 
-func (e *enumValueExpr) Type() dataType {
-	return e.typ
+func (e *EnumValueExpr) Type() DataType {
+	return e.Type_
 }
 
-func (e *enumValueExpr) IsVariableExpr() bool {
+func (e *EnumValueExpr) IsVariableExpr() bool {
 	return true
 }
 
-func (e *enumValueExpr) Reduce() expression {
+func (e *EnumValueExpr) Reduce() Expression {
 	return e
 }
 
-type derefExpr struct {
-	expr expression
+type DerefExpr struct {
+	Expr Expression
 }
 
-func (e *derefExpr) String() string {
-	return fmt.Sprintf("deref-expr:<%s>", e.expr)
+func (e *DerefExpr) String() string {
+	return fmt.Sprintf("deref-expr:<%s>", e.Expr)
 }
 
-func (e *derefExpr) Type() dataType {
-	t, ok := e.expr.Type().(*pointerType)
+func (e *DerefExpr) Type() DataType {
+	t, ok := e.Expr.Type().(*PointerType)
 	if !ok {
 		panic("derefExpr was created with expression not of pointer type")
 	}
-	return t.typ
+	return t.Type_
 }
 
-func (e *derefExpr) IsVariableExpr() bool {
-	return e.expr.IsVariableExpr()
+func (e *DerefExpr) IsVariableExpr() bool {
+	return e.Expr.IsVariableExpr()
 }
 
-func (e *derefExpr) Reduce() expression {
-	return &derefExpr{
-		expr: e.expr.Reduce(),
+func (e *DerefExpr) Reduce() Expression {
+	return &DerefExpr{
+		Expr: e.Expr.Reduce(),
 	}
 }
 
-type formatExpr struct {
-	expr          expression
-	width         expression // TODO: find out what param1 and param2 stand for and rename them
-	decimalPlaces expression
+type FormatExpr struct {
+	Expr          Expression
+	Width         Expression
+	DecimalPlaces Expression
 }
 
-func (e *formatExpr) String() string {
+func (e *FormatExpr) String() string {
 	var buf strings.Builder
 
 	buf.WriteString("format-expr:<")
-	buf.WriteString(e.expr.String())
-	if e.width != nil {
+	buf.WriteString(e.Expr.String())
+	if e.Width != nil {
 		buf.WriteString(":")
-		buf.WriteString(e.width.String())
+		buf.WriteString(e.Width.String())
 	}
-	if e.decimalPlaces != nil {
+	if e.DecimalPlaces != nil {
 		buf.WriteString(":")
-		buf.WriteString(e.decimalPlaces.String())
+		buf.WriteString(e.DecimalPlaces.String())
 	}
 	buf.WriteString(">")
 	return buf.String()
 }
 
-func (e *formatExpr) Type() dataType {
-	return e.expr.Type()
+func (e *FormatExpr) Type() DataType {
+	return e.Expr.Type()
 }
 
-func (e *formatExpr) IsVariableExpr() bool {
-	return e.expr.IsVariableExpr()
+func (e *FormatExpr) IsVariableExpr() bool {
+	return e.Expr.IsVariableExpr()
 }
 
-func (e *formatExpr) Reduce() expression {
+func (e *FormatExpr) Reduce() Expression {
 	return e
 }

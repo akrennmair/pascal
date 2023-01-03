@@ -1,6 +1,6 @@
 package parser
 
-func findBuiltinProcedure(name string) *routine {
+func findBuiltinProcedure(name string) *Routine {
 	for _, proc := range builtinProcedures {
 		if proc.Name == name {
 			return proc
@@ -10,22 +10,22 @@ func findBuiltinProcedure(name string) *routine {
 	return nil
 }
 
-var builtinProcedures = []*routine{
+var builtinProcedures = []*Routine{
 	{Name: "writeln", varargs: true},
 }
 
-func getBuiltinType(identifier string) dataType {
+func getBuiltinType(identifier string) DataType {
 	switch identifier {
 	case "boolean":
-		return &booleanType{}
+		return &BooleanType{}
 	case "integer":
-		return &integerType{}
+		return &IntegerType{}
 	case "real":
-		return &realType{}
+		return &RealType{}
 	case "char":
-		return &charType{}
+		return &CharType{}
 	case "string":
-		return &stringType{}
+		return &StringType{}
 	}
 	return nil
 }

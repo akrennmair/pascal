@@ -10,49 +10,62 @@ import (
 	"strings"
 )
 
-func NewParser(name, text string) *program {
-	return &program{
+func newParser(name, text string) *parser {
+	return &parser{
 		lexer:  lex(name, text),
 		logger: log.New(io.Discard, "parser", log.LstdFlags|log.Lshortfile),
 	}
 }
 
-func (p *program) SetLogOutput(w io.Writer) {
+func (p *parser) setLogOutput(w io.Writer) {
 	p.logger.SetOutput(w)
 }
 
-func (p *program) Parse() (err error) {
+func (p *parser) Parse() (ast *AST, err error) {
 	defer p.recover(&err)
-	err = p.parse()
-	return err
+	ast, err = p.parse()
+	return ast, err
 }
 
-func parse(name, text string) (p *program, err error) {
-	return parseWithLexer(lex(name, text))
+// Parse parses a single Pascal file, identified by name. The
+// file content must be provided in text. It returns the
+// Abstract Syntax Tree (AST) as a *AST object, or an error.
+func Parse(name, text string) (ast *AST, err error) {
+	ast, err = parseWithLexer(lex(name, text))
+	return ast, err
 }
 
-func parseWithLexer(lexer *lexer) (p *program, err error) {
-	p = &program{
+func parseWithLexer(lexer *lexer) (ast *AST, err error) {
+	p := &parser{
 		lexer:  lexer,
 		logger: log.New(io.Discard, "parser", log.LstdFlags|log.Lshortfile),
 	}
 	defer p.recover(&err)
-	err = p.parse()
-	return p, err
+	ast, err = p.parse()
+	return ast, err
 }
 
-type program struct {
+type parser struct {
 	lexer     *lexer
 	logger    *log.Logger
 	token     [3]item
 	peekCount int
-
-	name  string
-	files []string
-	block *block
 }
 
-func (p *program) recover(errp *error) {
+type AST struct {
+	// The program name.
+	Name string
+
+	// The Files provided in the program heading.
+	Files []string
+
+	// The top-most block of the program that contains all global
+	// declarations and definitions as well as the main program
+	// to be executed.
+	Block *Block
+}
+
+func (p *parser) recover(errp *error) {
 	e := recover()
 	if e != nil {
 		// rethrow runtime errors
@@ -63,11 +76,11 @@ func (p *program) recover(errp *error) {
 	}
 }
 
-func (p *program) backup() {
+func (p *parser) backup() {
 	p.peekCount++
 }
 
-func (p *program) peek() item {
+func (p *parser) peek() item {
 	if p.peekCount > 0 {
 		return p.token[p.peekCount-1]
 	}
@@ -76,7 +89,7 @@ func (p *program) peek() item {
 	return p.token[0]
 }
 
-func (p *program) next() item {
+func (p *parser) next() item {
 	if p.peekCount > 0 {
 		p.peekCount--
 	} else {
@@ -86,25 +99,28 @@ func (p *program) next() item {
 	return i
 }
 
-func (p *program) errorf(fmtstr string, args ...interface{}) {
+func (p *parser) errorf(fmtstr string, args ...interface{}) {
 	err := errors.New(fmt.Sprintf("%s:%d:%d: ", p.lexer.name, p.lexer.lineNumber(), p.lexer.columnInLine()) + fmt.Sprintf(fmtstr, args...))
 	panic(err)
 }
 
-func (p *program) parse() (err error) {
+func (p *parser) parse() (ast *AST, err error) {
 	defer p.recover(&err)
-	p.parseProgramHeading()
-	p.block = p.parseBlock(nil, nil)
+
+	ast = &AST{}
+
+	p.parseProgramHeading(ast)
+	ast.Block = p.parseBlock(nil, nil)
 
 	if p.peek().typ != itemDot {
 		p.errorf("expected ., got %s instead", p.next())
 	}
 	p.next()
 
-	return nil
+	return ast, nil
 }
 
-func (p *program) parseProgramHeading() {
+func (p *parser) parseProgramHeading(ast *AST) {
 	if p.peek().typ != itemProgram {
 		p.errorf("expected program, got %s", p.next())
 	}
@@ -113,12 +129,12 @@ func (p *program) parseProgramHeading() {
 	if p.peek().typ != itemIdentifier {
 		p.errorf("expected identifier, got %s", p.next())
 	}
-	p.name = p.next().val
+	ast.Name = p.next().val
 
 	if p.peek().typ == itemOpenParen {
 		p.next()
 
-		p.files = p.parseIdentifierList(nil)
+		ast.Files = p.parseIdentifierList(nil)
 
 		if p.peek().typ != itemCloseParen {
 			p.errorf("expected ), got %s instead", p.peek())
@@ -132,144 +148,168 @@ func (p *program) parseProgramHeading() {
 	p.next()
 }
 
-type block struct {
-	parent               *block   // the parent block this block belongs to.
-	routine              *routine // the procedure or function this block belongs to. nil if topmost program.
-	labels               []string
-	constantDeclarations []*constDeclaration
-	typeDefinitions      []*typeDefinition
-	variables            []*variable
-	procedures           []*routine
-	functions            []*routine
-	statements           []statement
+// Block describes a program block. A program block consists of
+// declarations (label declarations, constant definitions, type definitions,
+// variable declarations and procedure and function delcarations) and
+// the statements associated with the block.
+type Block struct {
+	// Parent points to the block this block belongs to, e.g. a procedure block
+	// declared at the top level points to the program's main block. The program's
+	// main block has no parent.
+	Parent *Block
+
+	// Routine points to the Routine (procedure or function) this block belongs to.
+	// This field is nil if the block is the program's main block.
+	Routine *Routine
+
+	// Labels contains all declared Labels in the block. All Labels are unsigned digit sequences.
+	Labels []string
+
+	// Constants contains all constant definitions in the block.
+	Constants []*ConstantDefinition
+
+	// Types contains all type definitions in the block.
+	Types []*TypeDefinition
+
+	// Variables contains all variables declared in the block.
+	Variables []*Variable
+
+	// Procedure contains all procedures declared in the block.
+	Procedures []*Routine
+
+	// Functions contains all functions declared in the block.
+	Functions []*Routine
+
+	// Statements contains all Statements declared in the block.
+	Statements []Statement
 }
 
-func (b *block) findConstantDeclaration(name string) *constDeclaration {
+func (b *Block) findConstantDeclaration(name string) *ConstantDefinition {
 	if b == nil {
 		return nil
 	}
 
-	for _, constant := range b.constantDeclarations {
+	for _, constant := range b.Constants {
 		if constant.Name == name {
 			return constant
 		}
 	}
 
-	return b.parent.findConstantDeclaration(name)
+	return b.Parent.findConstantDeclaration(name)
 }
 
-func (b *block) findVariable(name string) *variable {
+func (b *Block) findVariable(name string) *Variable {
 	if b == nil {
 		return nil
 	}
 
-	for _, variable := range b.variables {
+	for _, variable := range b.Variables {
 		if variable.Name == name {
 			return variable
 		}
 	}
 
-	return b.parent.findVariable(name)
+	return b.Parent.findVariable(name)
 }
 
-func (b *block) findFormalParameter(name string) *formalParameter {
+func (b *Block) findFormalParameter(name string) *FormalParameter {
 	if b == nil {
 		return nil
 	}
 
-	if b.routine == nil {
-		return b.parent.findFormalParameter(name)
+	if b.Routine == nil {
+		return b.Parent.findFormalParameter(name)
 	}
 
-	for _, param := range b.routine.FormalParameters {
+	for _, param := range b.Routine.FormalParameters {
 		if param.Name == name {
 			return param
 		}
 	}
 
-	return b.parent.findFormalParameter(name)
+	return b.Parent.findFormalParameter(name)
 }
 
-func (b *block) findProcedure(name string) *routine {
+func (b *Block) findProcedure(name string) *Routine {
 	if b == nil {
 		return findBuiltinProcedure(name)
 	}
 
-	if b.routine != nil {
-		for _, param := range b.routine.FormalParameters {
+	if b.Routine != nil {
+		for _, param := range b.Routine.FormalParameters {
 			if param.Name != name {
 				continue
 			}
 
-			pt, ok := param.Type.(*procedureType)
+			pt, ok := param.Type.(*ProcedureType)
 			if !ok {
 				continue
 			}
 
-			return &routine{
+			return &Routine{
 				Name:             param.Name,
-				FormalParameters: pt.params,
+				FormalParameters: pt.FormalParams,
 				isParameter:      true,
 			}
 		}
 	}
 
-	for _, proc := range b.procedures {
+	for _, proc := range b.Procedures {
 		if proc.Name == name {
 			return proc
 		}
 	}
 
-	return b.parent.findProcedure(name)
+	return b.Parent.findProcedure(name)
 }
 
-func (b *block) findFunction(name string) *routine {
+func (b *Block) findFunction(name string) *Routine {
 	if b == nil {
 		return nil
 	}
 
-	if b.routine != nil {
-		for _, param := range b.routine.FormalParameters {
+	if b.Routine != nil {
+		for _, param := range b.Routine.FormalParameters {
 			if param.Name != name {
 				continue
 			}
 
-			ft, ok := param.Type.(*functionType)
+			ft, ok := param.Type.(*FunctionType)
 			if !ok {
 				continue
 			}
 
-			return &routine{
+			return &Routine{
 				Name:             param.Name,
-				FormalParameters: ft.params,
-				ReturnType:       ft.returnType,
+				FormalParameters: ft.FormalParams,
+				ReturnType:       ft.ReturnType,
 				isParameter:      true,
 			}
 		}
 	}
 
-	for _, proc := range b.functions {
+	for _, proc := range b.Functions {
 		if proc.Name == name {
 			return proc
 		}
 	}
 
-	return b.parent.findFunction(name)
+	return b.Parent.findFunction(name)
 }
 
-func (b *block) findFunctionForAssignment(name string) *routine {
-	if b == nil || b.routine == nil {
+func (b *Block) findFunctionForAssignment(name string) *Routine {
+	if b == nil || b.Routine == nil {
 		return nil
 	}
 
-	if b.routine.Name == name {
-		return b.routine
+	if b.Routine.Name == name {
+		return b.Routine
 	}
 
-	return b.parent.findFunctionForAssignment(name)
+	return b.Parent.findFunctionForAssignment(name)
 }
 
-func (b *block) findType(name string) dataType {
+func (b *Block) findType(name string) DataType {
 	typ := getBuiltinType(name)
 	if typ != nil {
 		return typ
@@ -279,9 +319,9 @@ func (b *block) findType(name string) dataType {
 		return nil
 	}
 
-	var foundType dataType
+	var foundType DataType
 
-	for _, typ := range b.typeDefinitions {
+	for _, typ := range b.Types {
 		if typ.Name == name {
 			foundType = typ.Type
 			break
@@ -289,20 +329,20 @@ func (b *block) findType(name string) dataType {
 	}
 
 	if foundType == nil {
-		foundType = b.parent.findType(name)
+		foundType = b.Parent.findType(name)
 	}
 
 	return foundType
 }
 
-func (b *block) findEnumValue(ident string) (idx int, typ dataType) {
+func (b *Block) findEnumValue(ident string) (idx int, typ DataType) {
 	if b == nil {
 		return 0, nil
 	}
 
-	for _, v := range b.variables {
-		if et, ok := v.Type.(*enumType); ok {
-			for idx, enumIdent := range et.identifiers {
+	for _, v := range b.Variables {
+		if et, ok := v.Type.(*EnumType); ok {
+			for idx, enumIdent := range et.Identifiers {
 				if ident == enumIdent {
 					return idx, v.Type
 				}
@@ -310,9 +350,9 @@ func (b *block) findEnumValue(ident string) (idx int, typ dataType) {
 		}
 	}
 
-	for _, td := range b.typeDefinitions {
-		if et, ok := td.Type.(*enumType); ok {
-			for idx, enumIdent := range et.identifiers {
+	for _, td := range b.Types {
+		if et, ok := td.Type.(*EnumType); ok {
+			for idx, enumIdent := range et.Identifiers {
 				if ident == enumIdent {
 					return idx, td.Type
 				}
@@ -320,11 +360,11 @@ func (b *block) findEnumValue(ident string) (idx int, typ dataType) {
 		}
 	}
 
-	return b.parent.findEnumValue(ident)
+	return b.Parent.findEnumValue(ident)
 }
 
-func (b *block) isValidLabel(label string) bool {
-	for _, l := range b.labels {
+func (b *Block) isValidLabel(label string) bool {
+	for _, l := range b.Labels {
 		if l == label {
 			return true
 		}
@@ -332,29 +372,29 @@ func (b *block) isValidLabel(label string) bool {
 	return false
 }
 
-func (b *block) getIdentifiersInRegion() (identifiers []string) {
-	identifiers = append(identifiers, b.labels...)
+func (b *Block) getIdentifiersInRegion() (identifiers []string) {
+	identifiers = append(identifiers, b.Labels...)
 
-	for _, decl := range b.constantDeclarations {
+	for _, decl := range b.Constants {
 		identifiers = append(identifiers, decl.Name)
 	}
 
-	for _, decl := range b.typeDefinitions {
+	for _, decl := range b.Types {
 		identifiers = append(identifiers, decl.Name)
 	}
 
-	for _, v := range b.variables {
+	for _, v := range b.Variables {
 		identifiers = append(identifiers, v.Name)
 	}
 
-	for _, p := range append(b.procedures, b.functions...) {
+	for _, p := range append(b.Procedures, b.Functions...) {
 		identifiers = append(identifiers, p.Name)
 	}
 
 	return identifiers
 }
 
-func (b *block) isIdentifierUsed(name string) bool {
+func (b *Block) isIdentifierUsed(name string) bool {
 	for _, ident := range b.getIdentifiersInRegion() {
 		if ident == name {
 			return true
@@ -363,51 +403,51 @@ func (b *block) isIdentifierUsed(name string) bool {
 	return false
 }
 
-func (b *block) addLabel(label string) error {
+func (b *Block) addLabel(label string) error {
 	if b.isIdentifierUsed(label) {
 		return fmt.Errorf("duplicate label identifier %q", label)
 	}
 
-	b.labels = append(b.labels, label)
+	b.Labels = append(b.Labels, label)
 
 	return nil
 }
 
-func (b *block) addConstantDefinition(constDecl *constDeclaration) error {
+func (b *Block) addConstantDefinition(constDecl *ConstantDefinition) error {
 	if b.isIdentifierUsed(constDecl.Name) {
 		return fmt.Errorf("duplicate const identifier %q", constDecl.Name)
 	}
 
-	b.constantDeclarations = append(b.constantDeclarations, constDecl)
+	b.Constants = append(b.Constants, constDecl)
 	return nil
 }
 
-func (b *block) addTypeDefinition(typeDef *typeDefinition) error {
+func (b *Block) addTypeDefinition(typeDef *TypeDefinition) error {
 	if b.isIdentifierUsed(typeDef.Name) {
 		return fmt.Errorf("duplicate type name %q", typeDef.Name)
 	}
 
-	b.typeDefinitions = append(b.typeDefinitions, typeDef)
+	b.Types = append(b.Types, typeDef)
 	return nil
 }
 
-func (b *block) addVariable(varDecl *variable) error {
+func (b *Block) addVariable(varDecl *Variable) error {
 	if b.isIdentifierUsed(varDecl.Name) {
 		return fmt.Errorf("duplicate variable name %q", varDecl.Name)
 	}
 
-	b.variables = append(b.variables, varDecl)
+	b.Variables = append(b.Variables, varDecl)
 	return nil
 }
 
-func (b *block) addProcedure(proc *routine) error {
-	for idx := range b.procedures {
-		if b.procedures[idx].Name == proc.Name && b.procedures[idx].Forward && !proc.Forward {
+func (b *Block) addProcedure(proc *Routine) error {
+	for idx := range b.Procedures {
+		if b.Procedures[idx].Name == proc.Name && b.Procedures[idx].Forward && !proc.Forward {
 			// we don't just overwrite the whole routine but instead assign the block and make it non-forward
 			// as ISO Pascal allows to forward-declare procedures and functions and then
 			// not have to declare the full procedure heading when actually declaring it afterwards.
-			b.procedures[idx].Forward = false
-			b.procedures[idx].Block = proc.Block
+			b.Procedures[idx].Forward = false
+			b.Procedures[idx].Block = proc.Block
 			return nil
 		}
 	}
@@ -416,18 +456,18 @@ func (b *block) addProcedure(proc *routine) error {
 		return fmt.Errorf("duplicate procedure name %q", proc.Name)
 	}
 
-	b.procedures = append(b.procedures, proc)
+	b.Procedures = append(b.Procedures, proc)
 	return nil
 }
 
-func (b *block) addFunction(funcDecl *routine) error {
-	for idx := range b.functions {
-		if b.functions[idx].Name == funcDecl.Name && b.functions[idx].Forward && !funcDecl.Forward {
+func (b *Block) addFunction(funcDecl *Routine) error {
+	for idx := range b.Functions {
+		if b.Functions[idx].Name == funcDecl.Name && b.Functions[idx].Forward && !funcDecl.Forward {
 			// we don't just overwrite the whole routine but instead assign the block and make it non-forward
 			// as ISO Pascal allows to forward-declare procedures and functions and then
 			// not have to declare the full procedure heading when actually declaring it afterwards.
-			b.functions[idx].Forward = false
-			b.functions[idx].Block = funcDecl.Block
+			b.Functions[idx].Forward = false
+			b.Functions[idx].Block = funcDecl.Block
 			return nil
 		}
 	}
@@ -436,12 +476,12 @@ func (b *block) addFunction(funcDecl *routine) error {
 		return fmt.Errorf("duplicate function name %q", funcDecl.Name)
 	}
 
-	b.functions = append(b.functions, funcDecl)
+	b.Functions = append(b.Functions, funcDecl)
 	return nil
 }
 
-func (b *block) findForwardDeclaredProcedure(name string) *routine {
-	for _, proc := range b.procedures {
+func (b *Block) findForwardDeclaredProcedure(name string) *Routine {
+	for _, proc := range b.Procedures {
 		if proc.Name == name && proc.Forward {
 			return proc
 		}
@@ -450,8 +490,8 @@ func (b *block) findForwardDeclaredProcedure(name string) *routine {
 	return nil
 }
 
-func (b *block) findForwardDeclaredFunction(name string) *routine {
-	for _, proc := range b.functions {
+func (b *Block) findForwardDeclaredFunction(name string) *Routine {
+	for _, proc := range b.Functions {
 		if proc.Name == name && proc.Forward {
 			return proc
 		}
@@ -460,17 +500,17 @@ func (b *block) findForwardDeclaredFunction(name string) *routine {
 	return nil
 }
 
-func (p *program) parseBlock(parent *block, proc *routine) *block {
-	b := &block{
-		parent:  parent,
-		routine: proc,
+func (p *parser) parseBlock(parent *Block, proc *Routine) *Block {
+	b := &Block{
+		Parent:  parent,
+		Routine: proc,
 	}
 	p.parseDeclarationPart(b)
 	p.parseStatementPart(b)
 	return b
 }
 
-func (p *program) parseDeclarationPart(b *block) {
+func (p *parser) parseDeclarationPart(b *Block) {
 	if p.peek().typ == itemLabel {
 		p.parseLabelDeclarationPart(b)
 	}
@@ -486,13 +526,13 @@ func (p *program) parseDeclarationPart(b *block) {
 	p.parseProcedureAndFunctionDeclarationPart(b)
 }
 
-func (p *program) parseStatementPart(b *block) {
+func (p *parser) parseStatementPart(b *Block) {
 	if p.peek().typ != itemBegin {
 		p.errorf("expected begin, got %s instead", p.next())
 	}
 	p.next()
 
-	b.statements = p.parseStatementSequence(b)
+	b.Statements = p.parseStatementSequence(b)
 
 	if p.peek().typ != itemEnd {
 		p.errorf("expected end, got %s instead", p.next())
@@ -500,13 +540,13 @@ func (p *program) parseStatementPart(b *block) {
 	p.next()
 }
 
-func (p *program) parseLabelDeclarationPart(b *block) {
+func (p *parser) parseLabelDeclarationPart(b *Block) {
 	if p.peek().typ != itemLabel {
 		p.errorf("expected label, got %s", p.next())
 	}
 	p.next()
 
-	b.labels = []string{}
+	b.Labels = []string{}
 
 labelDeclarationLoop:
 	for {
@@ -530,7 +570,7 @@ labelDeclarationLoop:
 	}
 }
 
-func (p *program) parseConstantDefinitionPart(b *block) {
+func (p *parser) parseConstantDefinitionPart(b *Block) {
 	if p.peek().typ != itemConst {
 		p.errorf("expected const, got %s", p.next())
 	}
@@ -563,12 +603,12 @@ func (p *program) parseConstantDefinitionPart(b *block) {
 	}
 }
 
-type constDeclaration struct {
+type ConstantDefinition struct {
 	Name  string
-	Value constantLiteral
+	Value ConstantLiteral
 }
 
-func (p *program) parseConstantDefinition(b *block) *constDeclaration {
+func (p *parser) parseConstantDefinition(b *Block) *ConstantDefinition {
 	if p.peek().typ != itemIdentifier {
 		p.errorf("expected constant identifier, got %s instead", p.peek())
 	}
@@ -582,16 +622,16 @@ func (p *program) parseConstantDefinition(b *block) *constDeclaration {
 
 	constValue := p.parseConstant(b)
 
-	return &constDeclaration{Name: constName, Value: constValue}
+	return &ConstantDefinition{Name: constName, Value: constValue}
 }
 
-func (p *program) parseTypeDefinitionPart(b *block) {
+func (p *parser) parseTypeDefinitionPart(b *Block) {
 	if p.peek().typ != itemTyp {
 		p.errorf("expected type, got %s", p.next())
 	}
 	p.next()
 
-	b.typeDefinitions = []*typeDefinition{}
+	b.Types = []*TypeDefinition{}
 	typeDef, ok := p.parseTypeDefinition(b)
 	if !ok {
 		p.errorf("expected type definition")
@@ -622,23 +662,23 @@ func (p *program) parseTypeDefinitionPart(b *block) {
 	}
 
 	// resolve pointer types where the underlying type may have only been defined afterwards.
-	for _, typeDef := range b.typeDefinitions {
-		pt, ok := typeDef.Type.(*pointerType)
+	for _, typeDef := range b.Types {
+		pt, ok := typeDef.Type.(*PointerType)
 		if !ok {
 			continue
 		}
-		if pt.name != "" && pt.typ == nil {
-			pt.typ = b.findType(pt.name)
+		if pt.Name != "" && pt.Type_ == nil {
+			pt.Type_ = b.findType(pt.Name)
 		}
 	}
 }
 
-type typeDefinition struct {
+type TypeDefinition struct {
 	Name string
-	Type dataType
+	Type DataType
 }
 
-func (p *program) parseTypeDefinition(b *block) (*typeDefinition, bool) {
+func (p *parser) parseTypeDefinition(b *Block) (*TypeDefinition, bool) {
 	if p.peek().typ != itemIdentifier {
 		return nil, false
 	}
@@ -652,45 +692,40 @@ func (p *program) parseTypeDefinition(b *block) (*typeDefinition, bool) {
 
 	dataType := p.parseType(b, true)
 
-	return &typeDefinition{Name: typeName, Type: dataType}, true
+	return &TypeDefinition{Name: typeName, Type: dataType}, true
 }
 
-type dataType interface {
-	Type() string
-	Equals(dt dataType) bool
+type DataType interface {
+	Type() string // TODO: rename to TypeString
+	Equals(dt DataType) bool
 }
 
-type recordField struct {
-	Identifiers []string
-	Type        dataType
+type RecordField struct {
+	Identifier string
+	Type       DataType
 }
 
-func (f *recordField) String() string {
+func (f *RecordField) String() string {
 	var buf strings.Builder
-	for idx, id := range f.Identifiers {
-		if idx > 0 {
-			buf.WriteString(", ")
-		}
-		buf.WriteString(id)
-	}
+	buf.WriteString(f.Identifier)
 	buf.WriteString(" : ")
 	buf.WriteString(f.Type.Type())
 	return buf.String()
 }
 
-type recordVariantField struct {
-	tagField string
-	typ      dataType
-	typeName string
-	variants []*recordVariant
+type RecordVariantField struct {
+	TagField string
+	Type     DataType
+	TypeName string
+	Variants []*RecordVariant
 }
 
-type recordVariant struct {
-	caseLabels []constantLiteral
-	fields     *recordType
+type RecordVariant struct {
+	CaseLabels []ConstantLiteral
+	Fields     *RecordType
 }
 
-func (p *program) parseType(b *block, resolvePointerTypesLater bool) dataType {
+func (p *parser) parseType(b *Block, resolvePointerTypesLater bool) DataType {
 	packed := false
 
 restartParseDataType:
@@ -723,12 +758,12 @@ restartParseDataType:
 		typeDecl := b.findType(ident)
 		if typeDecl == nil {
 			if resolvePointerTypesLater {
-				return &pointerType{name: ident}
+				return &PointerType{Name: ident}
 			}
 			p.errorf("unknown type %s", ident)
 		}
 
-		return &pointerType{typ: typeDecl}
+		return &PointerType{Type_: typeDecl}
 	case itemOpenParen:
 		return p.parseEnumType(b)
 	case itemPacked:
@@ -749,7 +784,7 @@ restartParseDataType:
 		}
 		p.next()
 		setDataType := p.parseType(b, resolvePointerTypesLater)
-		return &setType{elementType: setDataType, packed: packed}
+		return &SetType{ElementType: setDataType, Packed: packed}
 	case itemFile:
 		p.next()
 		if p.peek().typ != itemOf {
@@ -757,7 +792,7 @@ restartParseDataType:
 		}
 		p.next()
 		fileDataType := p.parseType(b, resolvePointerTypesLater)
-		return &fileType{elementType: fileDataType, packed: packed}
+		return &FileType{ElementType: fileDataType, Packed: packed}
 	case itemSign, itemUnsignedDigitSequence:
 		// if the type definition is a sign or digits, it can only be a subrange type.
 		return p.parseSubrangeType(b)
@@ -768,7 +803,7 @@ restartParseDataType:
 	return nil
 }
 
-func (p *program) parseEnumType(b *block) *enumType {
+func (p *parser) parseEnumType(b *Block) *EnumType {
 	if p.peek().typ != itemOpenParen {
 		p.errorf("expected (, got %s", p.next())
 	}
@@ -783,10 +818,10 @@ func (p *program) parseEnumType(b *block) *enumType {
 
 	// TODO: ensure that identifiers in identifier list are indeed unique.
 
-	return &enumType{identifiers: identifierList}
+	return &EnumType{Identifiers: identifierList}
 }
 
-func (p *program) parseIdentifierList(b *block) []string {
+func (p *parser) parseIdentifierList(b *Block) []string {
 	identifierList := []string{}
 
 	if p.peek().typ != itemIdentifier {
@@ -809,18 +844,18 @@ func (p *program) parseIdentifierList(b *block) []string {
 	return identifierList
 }
 
-type variable struct {
+type Variable struct {
 	Name string
-	Type dataType
+	Type DataType
 
 	// the following fields are only set for variables that are looked up from within with statements,
 	// and they indicate that Name and Type describe the field of a record variable of name BelongsTo of
 	// type BelongsToType.
 	BelongsTo     string
-	BelongsToType dataType
+	BelongsToType DataType
 }
 
-func (p *program) parseVarDeclarationPart(b *block) {
+func (p *parser) parseVarDeclarationPart(b *Block) {
 	if p.peek().typ != itemVar {
 		p.errorf("expected var, got %s", p.next())
 	}
@@ -835,7 +870,7 @@ func (p *program) parseVarDeclarationPart(b *block) {
 	}
 }
 
-func (p *program) parseVariableDeclaration(b *block) {
+func (p *parser) parseVariableDeclaration(b *Block) {
 	variableNames := p.parseIdentifierList(b)
 
 	if p.peek().typ != itemColon {
@@ -851,13 +886,13 @@ func (p *program) parseVariableDeclaration(b *block) {
 	p.next()
 
 	for _, varName := range variableNames {
-		if err := b.addVariable(&variable{Name: varName, Type: dataType}); err != nil {
+		if err := b.addVariable(&Variable{Name: varName, Type: dataType}); err != nil {
 			p.errorf("%v", err)
 		}
 	}
 }
 
-func (p *program) parseProcedureAndFunctionDeclarationPart(b *block) {
+func (p *parser) parseProcedureAndFunctionDeclarationPart(b *Block) {
 	for {
 		switch p.peek().typ {
 		case itemProcedure:
@@ -874,17 +909,17 @@ func (p *program) parseProcedureAndFunctionDeclarationPart(b *block) {
 	}
 }
 
-type routine struct {
+type Routine struct {
 	Name             string
-	Block            *block
-	FormalParameters []*formalParameter
-	ReturnType       dataType
+	Block            *Block
+	FormalParameters []*FormalParameter
+	ReturnType       DataType
 	Forward          bool // if true, routine is only forward-declared.
 	varargs          bool // for builtin functions with variable arguments.
 	isParameter      bool // if true, indicates that this refers to a procedural or functional parameter
 }
 
-func (p *program) parseProcedureDeclaration(b *block) {
+func (p *parser) parseProcedureDeclaration(b *Block) {
 	procedureName, parameterList := p.parseProcedureHeading(b)
 
 	if p.peek().typ != itemSemicolon {
@@ -892,7 +927,7 @@ func (p *program) parseProcedureDeclaration(b *block) {
 	}
 	p.next()
 
-	proc := &routine{Name: procedureName, FormalParameters: parameterList}
+	proc := &Routine{Name: procedureName, FormalParameters: parameterList}
 
 	if p.peek().typ == itemForward {
 		p.next()
@@ -910,7 +945,7 @@ func (p *program) parseProcedureDeclaration(b *block) {
 	}
 }
 
-func (p *program) parseProcedureHeading(b *block) (string, []*formalParameter) {
+func (p *parser) parseProcedureHeading(b *Block) (string, []*FormalParameter) {
 	if p.peek().typ != itemProcedure {
 		p.errorf("expected procedure, got %s", p.next())
 	}
@@ -921,20 +956,20 @@ func (p *program) parseProcedureHeading(b *block) (string, []*formalParameter) {
 	}
 	procedureName := p.next().val
 
-	var parameterList []*formalParameter
+	var parameterList []*FormalParameter
 	if p.peek().typ == itemOpenParen {
 		parameterList = p.parseFormalParameterList(b)
 	}
 	return procedureName, parameterList
 }
 
-type formalParameter struct {
+type FormalParameter struct {
 	Name              string
-	Type              dataType
+	Type              DataType
 	VariableParameter bool
 }
 
-func (p *formalParameter) String() string {
+func (p *FormalParameter) String() string {
 	var buf strings.Builder
 
 	if p.VariableParameter {
@@ -942,11 +977,11 @@ func (p *formalParameter) String() string {
 	}
 
 	switch p.Type.(type) {
-	case *functionType:
+	case *FunctionType:
 		buf.WriteString("function ")
 		buf.WriteString(p.Name)
 		buf.WriteString(p.Type.Type())
-	case *procedureType:
+	case *ProcedureType:
 		buf.WriteString("procedure ")
 		buf.WriteString(p.Name)
 		buf.WriteString(p.Type.Type())
@@ -959,13 +994,13 @@ func (p *formalParameter) String() string {
 	return buf.String()
 }
 
-func (p *program) parseFormalParameterList(b *block) []*formalParameter {
+func (p *parser) parseFormalParameterList(b *Block) []*FormalParameter {
 	if p.peek().typ != itemOpenParen {
 		p.errorf("expected (, got %s", p.next())
 	}
 	p.next()
 
-	parameterList := []*formalParameter{}
+	parameterList := []*FormalParameter{}
 
 parameterListLoop:
 	for {
@@ -989,10 +1024,10 @@ parameterListLoop:
 	return parameterList
 }
 
-func (p *program) parseFormalParameter(b *block) []*formalParameter {
+func (p *parser) parseFormalParameter(b *Block) []*FormalParameter {
 	variableParam := false
 
-	var formalParameters []*formalParameter
+	var formalParameters []*FormalParameter
 
 	switch p.peek().typ {
 	case itemProcedure:
@@ -1006,9 +1041,9 @@ func (p *program) parseFormalParameter(b *block) []*formalParameter {
 
 		params := p.parseFormalParameterList(b)
 
-		formalParameters = append(formalParameters, &formalParameter{
+		formalParameters = append(formalParameters, &FormalParameter{
 			Name: name,
-			Type: &procedureType{params: params},
+			Type: &ProcedureType{FormalParams: params},
 		})
 	case itemFunction:
 		p.next()
@@ -1029,9 +1064,9 @@ func (p *program) parseFormalParameter(b *block) []*formalParameter {
 
 		returnType := p.parseType(b, false)
 
-		formalParameters = append(formalParameters, &formalParameter{
+		formalParameters = append(formalParameters, &FormalParameter{
 			Name: name,
-			Type: &functionType{params: params, returnType: returnType},
+			Type: &FunctionType{FormalParams: params, ReturnType: returnType},
 		})
 	case itemVar:
 		variableParam = true
@@ -1047,9 +1082,9 @@ func (p *program) parseFormalParameter(b *block) []*formalParameter {
 
 		parameterType := p.parseType(b, false)
 
-		formalParameters = make([]*formalParameter, 0, len(parameterNames))
+		formalParameters = make([]*FormalParameter, 0, len(parameterNames))
 		for _, name := range parameterNames {
-			formalParameters = append(formalParameters, &formalParameter{Name: name, Type: parameterType, VariableParameter: variableParam})
+			formalParameters = append(formalParameters, &FormalParameter{Name: name, Type: parameterType, VariableParameter: variableParam})
 		}
 	default:
 		p.errorf("expected var, procedure, function or identifier, got %s", p.peek())
@@ -1058,7 +1093,7 @@ func (p *program) parseFormalParameter(b *block) []*formalParameter {
 	return formalParameters
 }
 
-func (p *program) parseFunctionDeclaration(b *block) {
+func (p *parser) parseFunctionDeclaration(b *Block) {
 	funcName, parameterList, returnType := p.parseFunctionHeading(b)
 
 	if p.peek().typ != itemSemicolon {
@@ -1066,7 +1101,7 @@ func (p *program) parseFunctionDeclaration(b *block) {
 	}
 	p.next()
 
-	proc := &routine{Name: funcName, FormalParameters: parameterList, ReturnType: returnType}
+	proc := &Routine{Name: funcName, FormalParameters: parameterList, ReturnType: returnType}
 
 	if p.peek().typ == itemForward {
 		p.next()
@@ -1084,7 +1119,7 @@ func (p *program) parseFunctionDeclaration(b *block) {
 	}
 }
 
-func (p *program) parseFunctionHeading(b *block) (string, []*formalParameter, dataType) {
+func (p *parser) parseFunctionHeading(b *Block) (string, []*FormalParameter, DataType) {
 	if p.peek().typ != itemFunction {
 		p.errorf("expected function, got %s", p.next())
 	}
@@ -1096,8 +1131,8 @@ func (p *program) parseFunctionHeading(b *block) (string, []*formalParameter, da
 	procedureName := p.next().val
 
 	var (
-		parameterList []*formalParameter
-		returnType    dataType
+		parameterList []*FormalParameter
+		returnType    DataType
 	)
 
 	if p.peek().typ == itemOpenParen {
@@ -1112,8 +1147,8 @@ func (p *program) parseFunctionHeading(b *block) (string, []*formalParameter, da
 	return procedureName, parameterList, returnType
 }
 
-func (p *program) parseStatementSequence(b *block) []statement {
-	var statements []statement
+func (p *parser) parseStatementSequence(b *Block) []Statement {
+	var statements []Statement
 
 	first := true
 
@@ -1139,28 +1174,28 @@ func (p *program) parseStatementSequence(b *block) []statement {
 	return statements
 }
 
-type statementType int
+type StatementType int
 
 const (
-	stmtGoto statementType = iota
-	stmtAssignment
-	stmtProcedureCall
-	stmtCompoundStatement
-	stmtWhile
-	stmtRepeat
-	stmtFor
-	stmtIf
-	stmtCase
-	stmtWith
-	statementWrite
+	StatementGoto StatementType = iota
+	StatementAssignment
+	StatementProcedureCall
+	StatementCompoundStatement
+	StatementWhile
+	StatementRepeat
+	StatementFor
+	StatementIf
+	StatementCase
+	StatementWith
+	StatementWrite
 )
 
-type statement interface {
-	Type() statementType
+type Statement interface {
+	Type() StatementType
 	Label() *string
 }
 
-func (p *program) parseStatement(b *block) statement {
+func (p *parser) parseStatement(b *Block) Statement {
 	var label string
 	if p.peek().typ == itemUnsignedDigitSequence {
 		label = p.next().val
@@ -1177,13 +1212,13 @@ func (p *program) parseStatement(b *block) statement {
 
 	stmt := p.parseUnlabelledStatement(b)
 	if label != "" {
-		stmt = &labelledStatement{label: label, statement: stmt}
+		stmt = &LabelledStatement{label: label, Statement: stmt}
 	}
 
 	return stmt
 }
 
-func (p *program) parseUnlabelledStatement(b *block) statement {
+func (p *parser) parseUnlabelledStatement(b *Block) Statement {
 	switch p.peek().typ {
 	case itemGoto:
 		p.next()
@@ -1194,7 +1229,7 @@ func (p *program) parseUnlabelledStatement(b *block) statement {
 		if !b.isValidLabel(tl) {
 			p.errorf("invalid goto label %s", tl)
 		}
-		return &statementGoto{target: tl}
+		return &GotoStatement{Target: tl}
 	case itemIdentifier:
 		return p.parseAssignmentOrProcedureStatement(b)
 	case itemBegin:
@@ -1204,7 +1239,7 @@ func (p *program) parseUnlabelledStatement(b *block) statement {
 			p.errorf("expected end, got %s", p.next())
 		}
 		p.next()
-		return &compoundStatement{statements: statements}
+		return &CompoundStatement{Statements: statements}
 	case itemWhile:
 		return p.parseWhileStatement(b)
 	case itemRepeat:
@@ -1222,7 +1257,7 @@ func (p *program) parseUnlabelledStatement(b *block) statement {
 	return nil
 }
 
-func (p *program) parseAssignmentOrProcedureStatement(b *block) statement {
+func (p *parser) parseAssignmentOrProcedureStatement(b *Block) Statement {
 	if p.peek().typ != itemIdentifier {
 		p.errorf("expected identifier, got %s", p.next())
 	}
@@ -1243,27 +1278,27 @@ func (p *program) parseAssignmentOrProcedureStatement(b *block) statement {
 		if err := p.validateParameters(proc.varargs, proc.FormalParameters, actualParameterList); err != nil {
 			p.errorf("procedure %s: %v", identifier, err)
 		}
-		return &procedureCallStatement{name: identifier, parameterList: actualParameterList}
+		return &ProcedureCallStatement{Name: identifier, ActualParams: actualParameterList}
 	}
 
 	if identifier == "writeln" {
-		return &writeStatement{ln: true}
+		return &WriteStatement{AppendNewLine: true}
 	} else if identifier == "write" {
 		p.errorf("write needs at least one parameter")
 	}
 
 	proc := b.findProcedure(identifier)
 	if proc != nil {
-		if err := p.validateParameters(proc.varargs, proc.FormalParameters, []expression{}); err != nil {
+		if err := p.validateParameters(proc.varargs, proc.FormalParameters, []Expression{}); err != nil {
 			p.errorf("procedure %s: %v", identifier, err)
 		}
-		return &procedureCallStatement{name: identifier}
+		return &ProcedureCallStatement{Name: identifier}
 	}
 
-	var lexpr expression
+	var lexpr Expression
 
 	if funcDecl := b.findFunctionForAssignment(identifier); funcDecl != nil {
-		lexpr = &variableExpr{name: identifier, typ: funcDecl.ReturnType} // TODO: do we need a separate expression type for this?
+		lexpr = &VariableExpr{Name: identifier, Type_: funcDecl.ReturnType} // TODO: do we need a separate expression type for this?
 	} else {
 		lexpr = p.parseVariable(b, identifier)
 	}
@@ -1277,7 +1312,7 @@ func (p *program) parseAssignmentOrProcedureStatement(b *block) statement {
 		if !lexpr.Type().Equals(rexpr.Type()) && !isCharStringLiteralAssignment(b, lexpr, rexpr) {
 			p.errorf("incompatible types: got %s, expected %s", rexpr.Type().Type(), lexpr.Type().Type())
 		}
-		return &assignmentStatement{lexpr: lexpr, rexpr: rexpr}
+		return &AssignmentStatement{LeftExpr: lexpr, RightExpr: rexpr}
 	}
 
 	p.errorf("unexpected token %s in statement", p.peek())
@@ -1285,7 +1320,7 @@ func (p *program) parseAssignmentOrProcedureStatement(b *block) statement {
 	return nil
 }
 
-func (p *program) parseWhileStatement(b *block) *whileStatement {
+func (p *parser) parseWhileStatement(b *Block) *WhileStatement {
 	if p.peek().typ != itemWhile {
 		p.errorf("expected while, got %s", p.next())
 	}
@@ -1293,7 +1328,7 @@ func (p *program) parseWhileStatement(b *block) *whileStatement {
 
 	condition := p.parseExpression(b)
 
-	if !condition.Type().Equals(&booleanType{}) {
+	if !condition.Type().Equals(&BooleanType{}) {
 		p.errorf("condition is not boolean, but %s", condition.Type().Type())
 	}
 
@@ -1304,10 +1339,10 @@ func (p *program) parseWhileStatement(b *block) *whileStatement {
 
 	stmt := p.parseStatement(b)
 
-	return &whileStatement{condition: condition, stmt: stmt}
+	return &WhileStatement{Condition: condition, Statement: stmt}
 }
 
-func (p *program) parseRepeatStatement(b *block) *repeatStatement {
+func (p *parser) parseRepeatStatement(b *Block) *RepeatStatement {
 	if p.peek().typ != itemRepeat {
 		p.errorf("expected repeat, got %s", p.next())
 	}
@@ -1321,14 +1356,14 @@ func (p *program) parseRepeatStatement(b *block) *repeatStatement {
 	p.next()
 
 	condition := p.parseExpression(b)
-	if !condition.Type().Equals(&booleanType{}) {
+	if !condition.Type().Equals(&BooleanType{}) {
 		p.errorf("condition is not boolean, but %s", condition.Type().Type())
 	}
 
-	return &repeatStatement{condition: condition, stmts: stmts}
+	return &RepeatStatement{Condition: condition, Statements: stmts}
 }
 
-func (p *program) parseForStatement(b *block) *forStatement {
+func (p *parser) parseForStatement(b *Block) *ForStatement {
 	if p.peek().typ != itemFor {
 		p.errorf("expected for, got %s", p.next())
 	}
@@ -1371,17 +1406,17 @@ func (p *program) parseForStatement(b *block) *forStatement {
 
 	stmt := p.parseStatement(b)
 
-	return &forStatement{name: variable, initialExpr: initialExpr, finalExpr: finalExpr, body: stmt, down: down}
+	return &ForStatement{Name: variable, InitialExpr: initialExpr, FinalExpr: finalExpr, Statement: stmt, DownTo: down}
 }
 
-func (p *program) parseIfStatement(b *block) *ifStatement {
+func (p *parser) parseIfStatement(b *Block) *IfStatement {
 	if p.peek().typ != itemIf {
 		p.errorf("expected if, got %s", p.next())
 	}
 	p.next()
 
 	condition := p.parseExpression(b)
-	if !condition.Type().Equals(&booleanType{}) {
+	if !condition.Type().Equals(&BooleanType{}) {
 		p.errorf("condition is not boolean, but %s", condition.Type().Type())
 	}
 
@@ -1392,17 +1427,17 @@ func (p *program) parseIfStatement(b *block) *ifStatement {
 
 	stmt := p.parseStatement(b)
 
-	var elseStmt statement
+	var elseStmt Statement
 
 	if p.peek().typ == itemElse {
 		p.next()
 		elseStmt = p.parseStatement(b)
 	}
 
-	return &ifStatement{condition: condition, body: stmt, elseBody: elseStmt}
+	return &IfStatement{Condition: condition, Statement: stmt, ElseStatement: elseStmt}
 }
 
-func (p *program) parseCaseStatement(b *block) statement {
+func (p *parser) parseCaseStatement(b *Block) Statement {
 	if p.peek().typ != itemCase {
 		p.errorf("expected case, got %s instead", p.peek())
 	}
@@ -1415,10 +1450,10 @@ func (p *program) parseCaseStatement(b *block) statement {
 	}
 	p.next()
 
-	var caseLimbs []*caseLimb
+	var caseLimbs []*CaseLimb
 
 	limb := p.parseCaseLimb(b)
-	for _, label := range limb.labels {
+	for _, label := range limb.Label {
 		if !expr.Type().Equals(label.ConstantType()) {
 			p.errorf("case label %s doesn't match case expression type %s", label.String(), expr.Type().Type())
 		}
@@ -1436,7 +1471,7 @@ func (p *program) parseCaseStatement(b *block) statement {
 		}
 
 		limb := p.parseCaseLimb(b)
-		for _, label := range limb.labels {
+		for _, label := range limb.Label {
 			if !expr.Type().Equals(label.ConstantType()) {
 				p.errorf("case label %s doesn't match case expression type %s", label.String(), expr.Type().Type())
 			}
@@ -1449,10 +1484,10 @@ func (p *program) parseCaseStatement(b *block) statement {
 	}
 	p.next()
 
-	return &caseStatement{expr: expr, caseLimbs: caseLimbs}
+	return &CaseStatement{Expr: expr, CaseLimbs: caseLimbs}
 }
 
-func (p *program) parseCaseLimb(b *block) *caseLimb {
+func (p *parser) parseCaseLimb(b *Block) *CaseLimb {
 	labels := p.parseCaseLabelList(b)
 
 	if p.peek().typ != itemColon {
@@ -1462,21 +1497,21 @@ func (p *program) parseCaseLimb(b *block) *caseLimb {
 
 	stmt := p.parseStatement(b)
 
-	return &caseLimb{
-		labels: labels,
-		stmt:   stmt,
+	return &CaseLimb{
+		Label:     labels,
+		Statement: stmt,
 	}
 }
 
-func (p *program) parseWithStatement(b *block) statement {
+func (p *parser) parseWithStatement(b *Block) Statement {
 	if p.peek().typ != itemWith {
 		p.errorf("expected with, got %s instead", p.peek())
 	}
 	p.next()
 
-	withBlock := &block{
-		parent:  b,
-		routine: b.routine,
+	withBlock := &Block{
+		Parent:  b,
+		Routine: b.Routine,
 	}
 
 	var recordVariables []string
@@ -1488,7 +1523,7 @@ func (p *program) parseWithStatement(b *block) statement {
 		}
 		ident := p.next().val
 
-		var typ dataType
+		var typ DataType
 
 		if varDecl := b.findVariable(ident); varDecl != nil {
 			typ = varDecl.Type
@@ -1498,24 +1533,20 @@ func (p *program) parseWithStatement(b *block) statement {
 			p.errorf("unknown variable %s x", ident)
 		}
 
-		recType, ok := typ.(*recordType)
+		recType, ok := typ.(*RecordType)
 		if !ok {
 			p.errorf("variable %s is not a record variable", ident)
 		}
 
 		recordVariables = append(recordVariables, ident)
 
-		for _, field := range recType.fields {
-			for _, fieldIdent := range field.Identifiers {
-				fieldVar := &variable{
-					Name:          fieldIdent,
-					Type:          field.Type,
-					BelongsTo:     ident,
-					BelongsToType: recType,
-				}
-
-				withBlock.variables = append(withBlock.variables, fieldVar)
-			}
+		for _, field := range recType.Fields {
+			withBlock.Variables = append(withBlock.Variables, &Variable{
+				Name:          field.Identifier,
+				Type:          field.Type,
+				BelongsTo:     ident,
+				BelongsToType: recType,
+			})
 		}
 
 		if p.peek().typ != itemComma {
@@ -1530,21 +1561,21 @@ func (p *program) parseWithStatement(b *block) statement {
 
 	stmt := p.parseStatement(withBlock)
 
-	withBlock.statements = append(withBlock.statements, stmt)
+	withBlock.Statements = append(withBlock.Statements, stmt)
 
-	return &withStatement{
-		recordVariables: recordVariables,
-		block:           withBlock,
+	return &WithStatement{
+		RecordVariables: recordVariables,
+		Block:           withBlock,
 	}
 }
 
-func (p *program) parseActualParameterList(b *block) []expression {
+func (p *parser) parseActualParameterList(b *Block) []Expression {
 	if p.peek().typ != itemOpenParen {
 		p.errorf("expected (, got %s", p.next())
 	}
 	p.next()
 
-	params := []expression{}
+	params := []Expression{}
 
 	for {
 		expr := p.parseExpression(b)
@@ -1565,7 +1596,7 @@ func (p *program) parseActualParameterList(b *block) []expression {
 	return params
 }
 
-func (p *program) parseExpression(b *block) expression {
+func (p *parser) parseExpression(b *Block) Expression {
 	p.logger.Printf("Parsing expression")
 
 	expr := p.parseSimpleExpression(b)
@@ -1583,33 +1614,33 @@ func (p *program) parseExpression(b *block) expression {
 
 	p.logger.Printf("Finished parsing expression")
 
-	relExpr := &relationalExpr{
-		left:     expr,
-		operator: operator,
-		right:    rightExpr,
+	relExpr := &RelationalExpr{
+		Left:     expr,
+		Operator: operator,
+		Right:    rightExpr,
 	}
 
-	lt := relExpr.left.Type()
-	rt := relExpr.right.Type()
+	lt := relExpr.Left.Type()
+	rt := relExpr.Right.Type()
 	if operator == opIn {
-		st, ok := rt.(*setType)
+		st, ok := rt.(*SetType)
 		if !ok {
 			p.errorf("in: expected set type, got %s instead.", rt.Type())
 		}
-		if !lt.Equals(st.elementType) {
-			p.errorf("type %s does not match set type %s", lt.Type(), st.elementType.Type())
+		if !lt.Equals(st.ElementType) {
+			p.errorf("type %s does not match set type %s", lt.Type(), st.ElementType.Type())
 		}
 	} else {
 		ok := lt.Equals(rt)
 		if !ok {
-			p.errorf("can't %s %s %s", lt.Type(), relExpr.operator, rt.Type())
+			p.errorf("can't %s %s %s", lt.Type(), relExpr.Operator, rt.Type())
 		}
 	}
 
 	return relExpr.Reduce()
 }
 
-func (p *program) parseSimpleExpression(b *block) *simpleExpression {
+func (p *parser) parseSimpleExpression(b *Block) *SimpleExpr {
 	p.logger.Printf("Parsing simple expression")
 	var sign string
 	if typ := p.peek().typ; typ == itemSign {
@@ -1618,9 +1649,9 @@ func (p *program) parseSimpleExpression(b *block) *simpleExpression {
 
 	term := p.parseTerm(b)
 
-	simpleExpr := &simpleExpression{
-		sign:  sign,
-		first: term,
+	simpleExpr := &SimpleExpr{
+		Sign:  sign,
+		First: term,
 	}
 
 	if !isAdditionOperator(p.peek().typ) {
@@ -1633,24 +1664,24 @@ func (p *program) parseSimpleExpression(b *block) *simpleExpression {
 
 		operator := tokenToAdditionOperator(operatorToken)
 
-		if operator == opOr {
-			_, ok := simpleExpr.first.Type().(*booleanType)
+		if operator == OperatorOr {
+			_, ok := simpleExpr.First.Type().(*BooleanType)
 			if !ok {
-				p.errorf("can't use or with %s", simpleExpr.first.Type().Type())
+				p.errorf("can't use or with %s", simpleExpr.First.Type().Type())
 			}
 		} else {
-			if !isIntegerType(simpleExpr.first.Type()) && !isRealType(simpleExpr.first.Type()) {
-				p.errorf("can only use %s operator with integer or real types, got %s instead", operator, simpleExpr.first.Type().Type())
+			if !isIntegerType(simpleExpr.First.Type()) && !isRealType(simpleExpr.First.Type()) {
+				p.errorf("can only use %s operator with integer or real types, got %s instead", operator, simpleExpr.First.Type().Type())
 			}
 		}
 
 		nextTerm := p.parseTerm(b)
 
-		if !typesCompatible(simpleExpr.first.Type(), nextTerm.Type()) {
-			p.errorf("can't %s %s %s", simpleExpr.first.Type().Type(), operator, nextTerm.Type().Type())
+		if !typesCompatible(simpleExpr.First.Type(), nextTerm.Type()) {
+			p.errorf("can't %s %s %s", simpleExpr.First.Type().Type(), operator, nextTerm.Type().Type())
 		}
 
-		simpleExpr.next = append(simpleExpr.next, &addition{operator: operator, term: nextTerm})
+		simpleExpr.Next = append(simpleExpr.Next, &Addition{Operator: operator, Term: nextTerm})
 
 		if !isAdditionOperator(p.peek().typ) {
 			break
@@ -1662,12 +1693,12 @@ func (p *program) parseSimpleExpression(b *block) *simpleExpression {
 	return simpleExpr
 }
 
-func (p *program) parseTerm(b *block) *termExpr {
+func (p *parser) parseTerm(b *Block) *TermExpr {
 	p.logger.Printf("Parsing term")
 	factor := p.parseFactor(b)
 
-	term := &termExpr{
-		first: factor,
+	term := &TermExpr{
+		First: factor,
 	}
 
 	if !isMultiplicationOperator(p.peek().typ) {
@@ -1680,32 +1711,32 @@ func (p *program) parseTerm(b *block) *termExpr {
 		p.logger.Printf("parseTerm: got operator %s", operator)
 
 		switch operator {
-		case opAnd:
-			_, ok := term.first.Type().(*booleanType)
+		case OperatorAnd:
+			_, ok := term.First.Type().(*BooleanType)
 			if !ok {
-				p.errorf("can't use and with %s", term.first.Type().Type())
+				p.errorf("can't use and with %s", term.First.Type().Type())
 			}
-		case opMultiply:
-			if !isIntegerType(term.first.Type()) && !isRealType(term.first.Type()) {
-				p.errorf("can only use %s operator with integer or real types, got %s instead", operator, term.first.Type().Type())
+		case OperatorMultiply:
+			if !isIntegerType(term.First.Type()) && !isRealType(term.First.Type()) {
+				p.errorf("can only use %s operator with integer or real types, got %s instead", operator, term.First.Type().Type())
 			}
-		case opFloatDivide:
-			if !isRealType(term.first.Type()) {
-				p.errorf("can only use %s operator with real types, got %s instead", operator, term.first.Type().Type())
+		case OperatorFloatDivide:
+			if !isRealType(term.First.Type()) {
+				p.errorf("can only use %s operator with real types, got %s instead", operator, term.First.Type().Type())
 			}
-		case opDivide, opModulo:
-			if !isIntegerType(term.first.Type()) {
-				p.errorf("can only use %s operator with integer types, got %s intead", operator, term.first.Type().Type())
+		case OperatorDivide, OperatorModulo:
+			if !isIntegerType(term.First.Type()) {
+				p.errorf("can only use %s operator with integer types, got %s intead", operator, term.First.Type().Type())
 			}
 		}
 
 		nextFactor := p.parseFactor(b)
 
-		if !typesCompatible(term.first.Type(), nextFactor.Type()) {
-			p.errorf("can't %s %s %s", term.first.Type().Type(), operator, nextFactor.Type().Type())
+		if !typesCompatible(term.First.Type(), nextFactor.Type()) {
+			p.errorf("can't %s %s %s", term.First.Type().Type(), operator, nextFactor.Type().Type())
 		}
 
-		term.next = append(term.next, &multiplication{operator: operator, factor: nextFactor})
+		term.Next = append(term.Next, &Multiplication{Operator: operator, Factor: nextFactor})
 
 		if !isMultiplicationOperator(p.peek().typ) {
 			break
@@ -1717,7 +1748,7 @@ func (p *program) parseTerm(b *block) *termExpr {
 	return term
 }
 
-func (p *program) parseFactor(b *block) factorExpr {
+func (p *parser) parseFactor(b *Block) Expression {
 	p.logger.Printf("Parsing factor")
 	defer p.logger.Printf("Finished parsing factor")
 
@@ -1732,24 +1763,24 @@ func (p *program) parseFactor(b *block) factorExpr {
 				if err := p.validateParameters(funcDecl.varargs, funcDecl.FormalParameters, params); err != nil {
 					p.errorf("function %s: %v", ident, err)
 				}
-				return &functionCallExpr{name: ident, params: params, typ: funcDecl.ReturnType}
+				return &FunctionCallExpr{Name: ident, ActualParams: params, Type_: funcDecl.ReturnType}
 			}
 
 			if len(funcDecl.FormalParameters) > 0 { // function has formal parameter which are not provided -> it's a functional-parameter
-				return &variableExpr{name: ident, typ: &functionType{params: funcDecl.FormalParameters, returnType: funcDecl.ReturnType}}
+				return &VariableExpr{Name: ident, Type_: &FunctionType{FormalParams: funcDecl.FormalParameters, ReturnType: funcDecl.ReturnType}}
 			}
 			// TODO: what if function has no formal parameters? is it a functional parameter or a function call? needs resolved later, probably.
-			if err := p.validateParameters(funcDecl.varargs, funcDecl.FormalParameters, []expression{}); err != nil {
+			if err := p.validateParameters(funcDecl.varargs, funcDecl.FormalParameters, []Expression{}); err != nil {
 				p.errorf("function %s: %v", ident, err)
 			}
-			return &functionCallExpr{name: ident, typ: funcDecl.ReturnType}
+			return &FunctionCallExpr{Name: ident, Type_: funcDecl.ReturnType}
 
 		}
 		if constDecl := b.findConstantDeclaration(ident); constDecl != nil {
-			return &constantExpr{ident, constDecl.Value.ConstantType()}
+			return &ConstantExpr{ident, constDecl.Value.ConstantType()}
 		}
 		if idx, typ := b.findEnumValue(ident); typ != nil {
-			return &enumValueExpr{symbol: ident, value: idx, typ: typ}
+			return &EnumValueExpr{Name: ident, Value: idx, Type_: typ}
 		}
 
 		return p.parseVariable(b, ident)
@@ -1760,21 +1791,21 @@ func (p *program) parseFactor(b *block) factorExpr {
 		return p.parseNumber(false)
 	case itemStringLiteral:
 		p.logger.Printf("parseFactor: got string literal %s", p.peek())
-		return &stringExpr{p.next().val}
+		return &StringExpr{p.next().val}
 	case itemOpenBracket:
 		return p.parseSet(b)
 	case itemNil:
 		p.next()
-		return &nilExpr{}
+		return &NilExpr{}
 	case itemOpenParen:
 		return p.parseSubExpr(b)
 	case itemNot:
 		p.next()
 		expr := p.parseFactor(b)
-		if !expr.Type().Equals(&booleanType{}) {
+		if !expr.Type().Equals(&BooleanType{}) {
 			p.errorf("can't NOT %s", expr.Type().Type())
 		}
-		return &notExpr{expr}
+		return &NotExpr{expr}
 	default:
 		p.errorf("unexpected %s while parsing factor", p.peek())
 	}
@@ -1782,15 +1813,15 @@ func (p *program) parseFactor(b *block) factorExpr {
 	return nil
 }
 
-func (p *program) parseVariable(b *block, ident string) expression {
-	var expr expression
+func (p *parser) parseVariable(b *Block, ident string) Expression {
+	var expr Expression
 
 	if paramDecl := b.findFormalParameter(ident); paramDecl != nil {
-		expr = &variableExpr{name: ident, typ: paramDecl.Type} // TODO: do we need a separate formal parameter expression here?
+		expr = &VariableExpr{Name: ident, Type_: paramDecl.Type} // TODO: do we need a separate formal parameter expression here?
 	} else if procDecl := b.findProcedure(ident); procDecl != nil { // TODO: do we need a separate procedural parameter expression here?
-		expr = &variableExpr{name: ident, typ: &procedureType{params: procDecl.FormalParameters}}
+		expr = &VariableExpr{Name: ident, Type_: &ProcedureType{FormalParams: procDecl.FormalParameters}}
 	} else if varDecl := b.findVariable(ident); varDecl != nil {
-		expr = &variableExpr{name: ident, typ: varDecl.Type}
+		expr = &VariableExpr{Name: ident, Type_: varDecl.Type}
 	}
 
 	if expr == nil {
@@ -1802,18 +1833,18 @@ func (p *program) parseVariable(b *block, ident string) expression {
 	for cont {
 		switch p.peek().typ {
 		case itemCaret:
-			_, ok := expr.Type().(*pointerType)
+			_, ok := expr.Type().(*PointerType)
 			if !ok {
 				p.errorf("attempting to ^ but expression is not a pointer type")
 			}
 			p.next()
-			expr = &derefExpr{expr: expr}
+			expr = &DerefExpr{Expr: expr}
 		case itemOpenBracket:
 			expr = p.parseIndexVariableExpr(b, expr)
 		case itemDot:
 			p.next()
 
-			rt, ok := expr.Type().(*recordType)
+			rt, ok := expr.Type().(*RecordType)
 			if !ok {
 				p.errorf("expression is a record type")
 			}
@@ -1824,7 +1855,7 @@ func (p *program) parseVariable(b *block, ident string) expression {
 			fieldIdentifier := p.next().val
 			field := rt.findField(fieldIdentifier)
 
-			expr = &fieldDesignatorExpr{expr: expr, field: fieldIdentifier, typ: field.Type}
+			expr = &FieldDesignatorExpr{Expr: expr, Field: fieldIdentifier, Type_: field.Type}
 		default:
 			cont = false
 		}
@@ -1833,7 +1864,7 @@ func (p *program) parseVariable(b *block, ident string) expression {
 	return expr
 }
 
-func (p *program) parseNumber(minus bool) factorExpr {
+func (p *parser) parseNumber(minus bool) Expression {
 	p.logger.Printf("Parsing number")
 
 	unsignedDigitSequence := p.next().val
@@ -1856,7 +1887,7 @@ func (p *program) parseNumber(minus bool) factorExpr {
 			p.errorf("expected either . or E, but got %v instead", p.peek())
 		}
 		p.logger.Printf("parseNumber: parsed float")
-		return &floatExpr{minus: minus, beforeComma: unsignedDigitSequence, afterComma: afterComma, scaleFactor: scaleFactor}
+		return &RealExpr{Minus: minus, BeforeComma: unsignedDigitSequence, AfterComma: afterComma, ScaleFactor: scaleFactor}
 	}
 	intValue, err := strconv.ParseInt(unsignedDigitSequence, 10, 64)
 	if err != nil {
@@ -1866,10 +1897,10 @@ func (p *program) parseNumber(minus bool) factorExpr {
 		intValue = -intValue
 	}
 	p.logger.Printf("parseNumber: parsed int %d", intValue)
-	return &integerExpr{intValue}
+	return &IntegerExpr{intValue}
 }
 
-func (p *program) parseScaleFactor() int {
+func (p *parser) parseScaleFactor() int {
 	minus := false
 	if typ := p.peek().typ; typ == itemSign {
 		minus = p.next().val == "-"
@@ -1888,16 +1919,16 @@ func (p *program) parseScaleFactor() int {
 	return int(scaleFactor)
 }
 
-func (p *program) parseSet(b *block) *setExpr {
+func (p *parser) parseSet(b *Block) *SetExpr {
 	if p.peek().typ != itemOpenBracket {
 		p.errorf("expected [, found %s instead", p.next())
 	}
 	p.next()
 
-	set := &setExpr{}
+	set := &SetExpr{}
 
 	expr := p.parseExpression(b)
-	set.elements = append(set.elements, expr)
+	set.Elements = append(set.Elements, expr)
 
 loop:
 	for {
@@ -1912,13 +1943,13 @@ loop:
 		}
 
 		expr := p.parseExpression(b)
-		set.elements = append(set.elements, expr)
+		set.Elements = append(set.Elements, expr)
 	}
 
 	return set
 }
 
-func (p *program) parseSubExpr(b *block) *subExpr {
+func (p *parser) parseSubExpr(b *Block) *SubExpr {
 	if p.peek().typ != itemOpenParen {
 		p.errorf("expected (, got %s instead", p.peek())
 	}
@@ -1931,11 +1962,11 @@ func (p *program) parseSubExpr(b *block) *subExpr {
 	}
 	p.next()
 
-	return &subExpr{expr}
+	return &SubExpr{expr}
 }
 
-func (p *program) parseExpressionList(b *block) []expression {
-	var exprs []expression
+func (p *parser) parseExpressionList(b *Block) []Expression {
+	var exprs []Expression
 
 	expr := p.parseExpression(b)
 
@@ -1955,7 +1986,7 @@ func (p *program) parseExpressionList(b *block) []expression {
 	return exprs
 }
 
-func (p *program) parseArrayType(b *block, packed bool) *arrayType {
+func (p *parser) parseArrayType(b *Block, packed bool) *ArrayType {
 	if p.peek().typ != itemArray {
 		p.errorf("expected array, got %s instead", p.peek())
 	}
@@ -1966,7 +1997,7 @@ func (p *program) parseArrayType(b *block, packed bool) *arrayType {
 	}
 	p.next()
 
-	indexTypes := []dataType{p.parseSimpleType(b)}
+	indexTypes := []DataType{p.parseSimpleType(b)}
 
 	for {
 		if p.peek().typ != itemComma {
@@ -1991,14 +2022,14 @@ func (p *program) parseArrayType(b *block, packed bool) *arrayType {
 
 	elementType := p.parseType(b, false)
 
-	return &arrayType{
-		indexTypes:  indexTypes,
-		elementType: elementType,
-		packed:      packed,
+	return &ArrayType{
+		IndexTypes:  indexTypes,
+		ElementType: elementType,
+		Packed:      packed,
 	}
 }
 
-func (p *program) parseSimpleType(b *block) dataType {
+func (p *parser) parseSimpleType(b *Block) DataType {
 	if p.peek().typ == itemOpenParen {
 		return p.parseEnumType(b)
 	}
@@ -2006,20 +2037,20 @@ func (p *program) parseSimpleType(b *block) dataType {
 	return p.parseSubrangeType(b)
 }
 
-func (p *program) parseSubrangeType(b *block) dataType {
+func (p *parser) parseSubrangeType(b *Block) DataType {
 	lowerBound := p.parseConstant(b)
 	var (
 		lowerValue int
 		upperValue int
-		typ        dataType
-		upperType  dataType
+		typ        DataType
+		upperType  DataType
 	)
 
 	switch lb := lowerBound.(type) {
-	case *integerLiteral:
+	case *IntegerLiteral:
 		lowerValue = lb.Value
 		typ = lb.ConstantType()
-	case *enumValueLiteral:
+	case *EnumValueLiteral:
 		lowerValue = lb.Value
 		typ = lb.Type
 	default:
@@ -2034,10 +2065,10 @@ func (p *program) parseSubrangeType(b *block) dataType {
 	upperBound := p.parseConstant(b)
 
 	switch ub := upperBound.(type) {
-	case *integerLiteral:
+	case *IntegerLiteral:
 		upperValue = ub.Value
 		upperType = ub.ConstantType()
-	case *enumValueLiteral:
+	case *EnumValueLiteral:
 		upperValue = ub.Value
 		upperType = ub.Type
 	default:
@@ -2048,14 +2079,14 @@ func (p *program) parseSubrangeType(b *block) dataType {
 		p.errorf("type of lower bound differs from upper bound: %s vs %s", typ.Type(), upperType.Type())
 	}
 
-	return &subrangeType{
-		lowerBound: lowerValue,
-		upperBound: upperValue,
-		typ:        typ,
+	return &SubrangeType{
+		LowerBound: lowerValue,
+		UpperBound: upperValue,
+		Type_:      typ,
 	}
 }
 
-func (p *program) parseConstant(b *block) constantLiteral {
+func (p *parser) parseConstant(b *Block) ConstantLiteral {
 	minus := false
 	if p.peek().typ == itemSign {
 		minus = p.next().val == "-"
@@ -2063,7 +2094,7 @@ func (p *program) parseConstant(b *block) constantLiteral {
 	return p.parseConstantWithoutSign(b, minus)
 }
 
-func isPossiblyConstant(b *block, it item) bool {
+func isPossiblyConstant(b *Block, it item) bool {
 	if it.typ == itemIdentifier {
 		if b.findConstantDeclaration(it.val) != nil {
 			return true
@@ -2079,8 +2110,8 @@ func isPossiblyConstant(b *block, it item) bool {
 	return it.typ == itemSign || it.typ == itemUnsignedDigitSequence || it.typ == itemStringLiteral
 }
 
-func (p *program) parseConstantWithoutSign(b *block, minus bool) constantLiteral {
-	var v constantLiteral
+func (p *parser) parseConstantWithoutSign(b *Block, minus bool) ConstantLiteral {
+	var v ConstantLiteral
 
 	if p.peek().typ == itemIdentifier {
 		constantName := p.next().val
@@ -2093,18 +2124,18 @@ func (p *program) parseConstantWithoutSign(b *block, minus bool) constantLiteral
 				p.errorf("undeclared constant %s", constantName)
 			}
 
-			v = &enumValueLiteral{Symbol: constantName, Value: idx, Type: typ}
+			v = &EnumValueLiteral{Symbol: constantName, Value: idx, Type: typ}
 		}
 	} else if p.peek().typ == itemUnsignedDigitSequence {
 		number := p.parseNumber(false) // negation will be done later on.
 		switch n := number.(type) {
-		case *integerExpr:
-			v = &integerLiteral{Value: int(n.val)}
-		case *floatExpr:
-			v = &floatLiteral{minus: n.minus, beforeComma: n.beforeComma, afterComma: n.afterComma, scaleFactor: n.scaleFactor}
+		case *IntegerExpr:
+			v = &IntegerLiteral{Value: int(n.Value)}
+		case *RealExpr:
+			v = &RealLiteral{Minus: n.Minus, BeforeComma: n.BeforeComma, AfterComma: n.AfterComma, ScaleFactor: n.ScaleFactor}
 		}
 	} else if p.peek().typ == itemStringLiteral {
-		v = &stringLiteral{Value: p.next().val}
+		v = &StringLiteral{Value: p.next().val}
 	} else {
 		p.errorf("got unexpected %s while parsing constant", p.peek())
 	}
@@ -2120,7 +2151,7 @@ func (p *program) parseConstantWithoutSign(b *block, minus bool) constantLiteral
 	return v
 }
 
-func (p *program) parseRecordType(b *block, packed bool) *recordType {
+func (p *parser) parseRecordType(b *Block, packed bool) *RecordType {
 	if p.peek().typ != itemRecord {
 		p.errorf("expected record, got %s instead.", p.peek())
 	}
@@ -2136,8 +2167,8 @@ func (p *program) parseRecordType(b *block, packed bool) *recordType {
 	return record
 }
 
-func (p *program) parseFieldList(b *block, packed bool) *recordType {
-	record := &recordType{packed: packed}
+func (p *parser) parseFieldList(b *Block, packed bool) *RecordType {
+	record := &RecordType{Packed: packed}
 
 	if p.peek().typ != itemCase && p.peek().typ != itemIdentifier {
 		// if it's neither a case nor an identifier, we probably have an empty field list
@@ -2145,11 +2176,11 @@ func (p *program) parseFieldList(b *block, packed bool) *recordType {
 	}
 
 	if p.peek().typ != itemCase {
-		record.fields = p.parsedFixedPart(b)
+		record.Fields = p.parsedFixedPart(b)
 	}
 
 	if p.peek().typ == itemCase {
-		record.variantField = p.parseVariantField(b, packed)
+		record.VariantField = p.parseVariantField(b, packed)
 	}
 
 	if p.peek().typ == itemSemicolon {
@@ -2158,24 +2189,20 @@ func (p *program) parseFieldList(b *block, packed bool) *recordType {
 
 	fieldNames := map[string]bool{}
 
-	for _, f := range record.fields {
-		for _, ident := range f.Identifiers {
-			if fieldNames[ident] {
-				p.errorf("duplicate field name %s", ident)
-			}
-			fieldNames[ident] = true
+	for _, f := range record.Fields {
+		if fieldNames[f.Identifier] {
+			p.errorf("duplicate field name %s", f.Identifier)
 		}
+		fieldNames[f.Identifier] = true
 	}
 
-	if record.variantField != nil {
-		for _, v := range record.variantField.variants {
-			for _, f := range v.fields.fields {
-				for _, ident := range f.Identifiers {
-					if fieldNames[ident] {
-						p.errorf("duplicate variant field name %s", ident)
-					}
-					fieldNames[ident] = true
+	if record.VariantField != nil {
+		for _, v := range record.VariantField.Variants {
+			for _, f := range v.Fields.Fields {
+				if fieldNames[f.Identifier] {
+					p.errorf("duplicate variant field name %s", f.Identifier)
 				}
+				fieldNames[f.Identifier] = true
 			}
 		}
 	}
@@ -2183,9 +2210,9 @@ func (p *program) parseFieldList(b *block, packed bool) *recordType {
 	return record
 }
 
-func (p *program) parsedFixedPart(b *block) (fields []*recordField) {
-	field := p.parseRecordSection(b)
-	fields = append(fields, field)
+func (p *parser) parsedFixedPart(b *Block) (fields []*RecordField) {
+	sectionFields := p.parseRecordSection(b)
+	fields = append(fields, sectionFields...)
 
 	for {
 		if p.peek().typ != itemSemicolon {
@@ -2197,14 +2224,14 @@ func (p *program) parsedFixedPart(b *block) (fields []*recordField) {
 			break
 		}
 
-		field := p.parseRecordSection(b)
-		fields = append(fields, field)
+		sectionFields := p.parseRecordSection(b)
+		fields = append(fields, sectionFields...)
 	}
 
 	return fields
 }
 
-func (p *program) parseVariantField(b *block, packed bool) (field *recordVariantField) {
+func (p *parser) parseVariantField(b *Block, packed bool) (field *RecordVariantField) {
 	if p.peek().typ != itemCase {
 		p.errorf("expected case, got %s instead", p.peek())
 	}
@@ -2237,10 +2264,10 @@ func (p *program) parseVariantField(b *block, packed bool) (field *recordVariant
 	}
 	p.next()
 
-	field = &recordVariantField{
-		tagField: tag,
-		typ:      typeDef,
-		typeName: typeIdentifier,
+	field = &RecordVariantField{
+		TagField: tag,
+		Type:     typeDef,
+		TypeName: typeIdentifier,
 	}
 
 	for {
@@ -2249,7 +2276,7 @@ func (p *program) parseVariantField(b *block, packed bool) (field *recordVariant
 		}
 
 		variant := p.parseVariant(b, packed)
-		field.variants = append(field.variants, variant)
+		field.Variants = append(field.Variants, variant)
 
 		if p.peek().typ != itemSemicolon {
 			break
@@ -2260,7 +2287,7 @@ func (p *program) parseVariantField(b *block, packed bool) (field *recordVariant
 	return field
 }
 
-func (p *program) parseVariant(b *block, packed bool) *recordVariant {
+func (p *parser) parseVariant(b *Block, packed bool) *RecordVariant {
 	labels := p.parseCaseLabelList(b)
 
 	if p.peek().typ != itemColon {
@@ -2280,13 +2307,13 @@ func (p *program) parseVariant(b *block, packed bool) *recordVariant {
 	}
 	p.next()
 
-	return &recordVariant{
-		caseLabels: labels,
-		fields:     fieldList,
+	return &RecordVariant{
+		CaseLabels: labels,
+		Fields:     fieldList,
 	}
 }
 
-func (p *program) parseCaseLabelList(b *block) (labels []constantLiteral) {
+func (p *parser) parseCaseLabelList(b *Block) (labels []ConstantLiteral) {
 	label := p.parseConstant(b)
 	labels = append(labels, label)
 
@@ -2300,7 +2327,7 @@ func (p *program) parseCaseLabelList(b *block) (labels []constantLiteral) {
 	return labels
 }
 
-func (p *program) parseRecordSection(b *block) *recordField {
+func (p *parser) parseRecordSection(b *Block) []*RecordField {
 	identifierList := p.parseIdentifierList(b)
 
 	if p.peek().typ != itemColon {
@@ -2310,10 +2337,15 @@ func (p *program) parseRecordSection(b *block) *recordField {
 
 	typ := p.parseType(b, false)
 
-	return &recordField{Identifiers: identifierList, Type: typ}
+	var fields []*RecordField
+
+	for _, ident := range identifierList {
+		fields = append(fields, &RecordField{Identifier: ident, Type: typ})
+	}
+	return fields
 }
 
-func (p *program) validateParameters(varargs bool, formalParams []*formalParameter, actualParams []expression) error {
+func (p *parser) validateParameters(varargs bool, formalParams []*FormalParameter, actualParams []Expression) error {
 	if varargs {
 		return nil
 	}
@@ -2339,7 +2371,7 @@ func (p *program) validateParameters(varargs bool, formalParams []*formalParamet
 	return nil
 }
 
-func (p *program) parseIndexVariableExpr(b *block, expr expression) *indexedVariableExpr {
+func (p *parser) parseIndexVariableExpr(b *Block, expr Expression) *IndexedVariableExpr {
 	p.next()
 	indexes := p.parseExpressionList(b)
 	if p.peek().typ != itemCloseBracket {
@@ -2347,7 +2379,7 @@ func (p *program) parseIndexVariableExpr(b *block, expr expression) *indexedVari
 	}
 	p.next()
 
-	_, isStringType := expr.Type().(*stringType)
+	_, isStringType := expr.Type().(*StringType)
 	if isStringType {
 		if len(indexes) != 1 {
 			p.errorf("strings have exactly 1 dimension, actually got %d", len(indexes))
@@ -2357,47 +2389,47 @@ func (p *program) parseIndexVariableExpr(b *block, expr expression) *indexedVari
 			p.errorf("string index needs to be an integer type, actually got %s", indexes[0].Type().Type())
 		}
 
-		return &indexedVariableExpr{expr: expr, exprs: indexes, typ: &charType{}}
+		return &IndexedVariableExpr{Expr: expr, IndexExprs: indexes, Type_: &CharType{}}
 	}
 
-	arrType, ok := expr.Type().(*arrayType)
+	arrType, ok := expr.Type().(*ArrayType)
 	if !ok {
 		p.errorf("expression is not array")
 	}
 
 	// TODO: support situation where fewer index expressions mean that an array of fewer dimensions is returned.
 
-	if len(arrType.indexTypes) != len(indexes) {
-		p.errorf("array has %d dimensions but %d index expressions were provided", len(arrType.indexTypes), len(indexes))
+	if len(arrType.IndexTypes) != len(indexes) {
+		p.errorf("array has %d dimensions but %d index expressions were provided", len(arrType.IndexTypes), len(indexes))
 	}
 
-	for idx, idxType := range arrType.indexTypes {
+	for idx, idxType := range arrType.IndexTypes {
 		if !typesCompatible(idxType, indexes[idx].Type()) {
 			p.errorf("array dimension %d is of type %s, but index expression type %s was provided", idx, idxType.Type(), indexes[idx].Type().Type())
 		}
 	}
 
-	return &indexedVariableExpr{expr: expr, exprs: indexes, typ: arrType.elementType}
+	return &IndexedVariableExpr{Expr: expr, IndexExprs: indexes, Type_: arrType.ElementType}
 }
 
-func (p *program) parseWrite(b *block, ln bool) *writeStatement {
+func (p *parser) parseWrite(b *Block, ln bool) *WriteStatement {
 	if p.peek().typ != itemOpenParen {
 		p.errorf("expected (, got %s instead", p.peek())
 	}
 	p.next()
 
-	stmt := &writeStatement{ln: ln}
+	stmt := &WriteStatement{AppendNewLine: ln}
 
 	first := p.parseExpression(b)
 
-	_, isFileType := first.Type().(*fileType)
+	_, isFileType := first.Type().(*FileType)
 
 	if first.IsVariableExpr() && isFileType {
-		stmt.fileVar = first
+		stmt.FileVar = first
 	} else {
 		p.verifyWriteType(first.Type(), ln)
 		width, decimalPlaces := p.parseWritelnFormat(first, b)
-		stmt.parameterList = append(stmt.parameterList, &formatExpr{expr: first, width: width, decimalPlaces: decimalPlaces})
+		stmt.ActualParams = append(stmt.ActualParams, &FormatExpr{Expr: first, Width: width, DecimalPlaces: decimalPlaces})
 	}
 
 	for p.peek().typ == itemComma {
@@ -2407,7 +2439,7 @@ func (p *program) parseWrite(b *block, ln bool) *writeStatement {
 		p.verifyWriteType(param.Type(), ln)
 
 		width, decimalPlaces := p.parseWritelnFormat(param, b)
-		stmt.parameterList = append(stmt.parameterList, &formatExpr{expr: param, width: width, decimalPlaces: decimalPlaces})
+		stmt.ActualParams = append(stmt.ActualParams, &FormatExpr{Expr: param, Width: width, DecimalPlaces: decimalPlaces})
 	}
 
 	if p.peek().typ != itemCloseParen {
@@ -2418,7 +2450,7 @@ func (p *program) parseWrite(b *block, ln bool) *writeStatement {
 	return stmt
 }
 
-func (p *program) parseWritelnFormat(expr expression, b *block) (widthExpr expression, decimalPlacesExpr expression) {
+func (p *parser) parseWritelnFormat(expr Expression, b *Block) (widthExpr Expression, decimalPlacesExpr Expression) {
 	if p.peek().typ == itemColon {
 		p.next()
 		widthExpr = p.parseExpression(b)
@@ -2428,20 +2460,20 @@ func (p *program) parseWritelnFormat(expr expression, b *block) (widthExpr expre
 		}
 	}
 
-	if decimalPlacesExpr != nil && !expr.Type().Equals(&realType{}) {
+	if decimalPlacesExpr != nil && !expr.Type().Equals(&RealType{}) {
 		p.errorf("decimal places format is not allowed for type %s", expr.Type().Type())
 	}
 
 	return widthExpr, decimalPlacesExpr
 }
 
-func (p *program) verifyWriteType(typ dataType, ln bool) {
+func (p *parser) verifyWriteType(typ DataType, ln bool) {
 	funcName := "write"
 	if ln {
 		funcName += "ln"
 	}
 
-	allowedWriteTypes := []dataType{&integerType{}, &realType{}, &charType{}, getBuiltinType("string")}
+	allowedWriteTypes := []DataType{&IntegerType{}, &RealType{}, &CharType{}, getBuiltinType("string")}
 
 	for _, at := range allowedWriteTypes {
 		if at.Equals(typ) {

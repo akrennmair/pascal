@@ -8,7 +8,7 @@ import (
 
 type item struct {
 	typ itemType
-	pos Pos
+	pos pos
 	val string
 }
 
@@ -24,7 +24,7 @@ func (i item) String() string {
 
 type itemType int
 
-type Pos int
+type pos int
 
 const (
 	itemError itemType = iota
@@ -138,10 +138,10 @@ type lexer struct {
 	name    string
 	input   string
 	state   stateFn
-	pos     Pos
-	start   Pos
-	width   Pos
-	lastPos Pos
+	pos     pos
+	start   pos
+	width   pos
+	lastPos pos
 	items   chan item
 }
 
@@ -151,7 +151,7 @@ func (l *lexer) next() rune {
 		return eof
 	}
 	r, w := utf8.DecodeRuneInString(l.input[l.pos:])
-	l.width = Pos(w)
+	l.width = pos(w)
 	l.pos += l.width
 	return r
 }

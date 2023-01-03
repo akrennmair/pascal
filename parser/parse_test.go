@@ -1267,7 +1267,7 @@ func TestParserSuccesses(t *testing.T) {
 
 	for idx, testEntry := range testData {
 		t.Run(testEntry.name, func(t *testing.T) {
-			p, err := parse(fmt.Sprintf("test_%d.pas", idx), testEntry.code)
+			p, err := Parse(fmt.Sprintf("test_%d.pas", idx), testEntry.code)
 			if err != nil {
 				t.Errorf("%d. parse failed: %v", idx, err)
 			}
@@ -2313,7 +2313,7 @@ func TestParserErrors(t *testing.T) {
 
 	for idx, tt := range testData {
 		t.Run(tt.Name, func(t *testing.T) {
-			p, err := parse(fmt.Sprintf("test_%d.pas", idx), tt.Code)
+			p, err := Parse(fmt.Sprintf("test_%d.pas", idx), tt.Code)
 			if err == nil {
 				t.Errorf("Parsing code unexpectedly didn't return error")
 			} else if !strings.Contains(err.Error(), tt.ExpectedError) {
