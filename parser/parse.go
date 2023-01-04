@@ -105,6 +105,10 @@ func (p *parser) errorf(fmtstr string, args ...interface{}) {
 	panic(err)
 }
 
+// parse parses a Pascal program.
+//
+//	program =
+//	    program-heading block "." .
 func (p *parser) parse() (ast *AST, err error) {
 	defer p.recover(&err)
 
@@ -121,6 +125,10 @@ func (p *parser) parse() (ast *AST, err error) {
 	return ast, nil
 }
 
+// parseProgramHeading parses a program heading.
+//
+//	program-heading =
+//	    "program" identifier [ "(" identifier-list ")" ] ";".
 func (p *parser) parseProgramHeading(ast *AST) {
 	if p.peek().typ != itemProgram {
 		p.errorf("expected program, got %s", p.next())
@@ -501,6 +509,10 @@ func (b *Block) findForwardDeclaredFunction(name string) *Routine {
 	return nil
 }
 
+// parseBlock parses a block.
+//
+//	block =
+//	    declaration-part statement-part .
 func (p *parser) parseBlock(parent *Block, proc *Routine) *Block {
 	b := &Block{
 		Parent:  parent,
@@ -511,6 +523,14 @@ func (p *parser) parseBlock(parent *Block, proc *Routine) *Block {
 	return b
 }
 
+// parseDeclaration parses a declaration part.
+//
+//	declaration-part
+//	    [ label-declaration-part ]
+//	    [ constant-definition-part ]
+//	    [ type-definition-part ]
+//	    [ variable-declaration-part ]
+//	    procedure-and-function-declaration-part
 func (p *parser) parseDeclarationPart(b *Block) {
 	if p.peek().typ == itemLabel {
 		p.parseLabelDeclarationPart(b)
@@ -527,6 +547,10 @@ func (p *parser) parseDeclarationPart(b *Block) {
 	p.parseProcedureAndFunctionDeclarationPart(b)
 }
 
+// parseStatementPart parses a statement part.
+//
+//	statement-part =
+//	    "begin" [ statement-sequence ] "end"
 func (p *parser) parseStatementPart(b *Block) {
 	if p.peek().typ != itemBegin {
 		p.errorf("expected begin, got %s instead", p.next())
@@ -541,6 +565,10 @@ func (p *parser) parseStatementPart(b *Block) {
 	p.next()
 }
 
+// parseLabelDeclarationPart parses a label declaration part.
+//
+//	label-declaration-part =
+//	    "label" label { "," label } ";" .
 func (p *parser) parseLabelDeclarationPart(b *Block) {
 	if p.peek().typ != itemLabel {
 		p.errorf("expected label, got %s", p.next())
@@ -571,6 +599,10 @@ labelDeclarationLoop:
 	}
 }
 
+// parseConstantDefinitionPart parses a constant definition part.
+//
+//	constant-definition-part =
+//	    "const" constant-definition ";" { constant-definition ";" } .
 func (p *parser) parseConstantDefinitionPart(b *Block) {
 	if p.peek().typ != itemConst {
 		p.errorf("expected const, got %s", p.next())
@@ -609,6 +641,10 @@ type ConstantDefinition struct {
 	Value ConstantLiteral
 }
 
+// parseConstantDefinition parses a constant definition.
+//
+//	constant-definition =
+//	    identifier "=" constant .
 func (p *parser) parseConstantDefinition(b *Block) *ConstantDefinition {
 	if p.peek().typ != itemIdentifier {
 		p.errorf("expected constant identifier, got %s instead", p.peek())
@@ -626,6 +662,10 @@ func (p *parser) parseConstantDefinition(b *Block) *ConstantDefinition {
 	return &ConstantDefinition{Name: constName, Value: constValue}
 }
 
+// parseTypeDefinitionPart parses a type definition part.
+//
+//	type-definition-part =
+//	    "type" type-definition ";" { type-definition ";" } .
 func (p *parser) parseTypeDefinitionPart(b *Block) {
 	if p.peek().typ != itemTyp {
 		p.errorf("expected type, got %s", p.next())
@@ -679,6 +719,10 @@ type TypeDefinition struct {
 	Type DataType
 }
 
+// parseTypeDefinition parses a type definition.
+//
+//	type-definition =
+//	   identifier "=" type .
 func (p *parser) parseTypeDefinition(b *Block) (*TypeDefinition, bool) {
 	if p.peek().typ != itemIdentifier {
 		return nil, false
@@ -726,6 +770,28 @@ type RecordVariant struct {
 	Fields     *RecordType
 }
 
+// parseType parses a type. While the EBNF looks neat, the reality is little bit messier.
+//
+//	type =
+//	    simple-type | structured-type | pointer-type | type-identifier .
+//	simple-type =
+//	    subrange-type | enumerated-type
+//	structured-type =
+//	    [ "packed" ] unpacked-structured-type
+//	unpacked-structured-type =
+//	    array-type | record-type | set-type | file-type .
+//	set-type =
+//	    "set" "of" base-type .
+//	base-type =
+//	     type .
+//	file-type =
+//	    "file" "of" file-component-type .
+//	file-component-type =
+//	    type .
+//	pointer-type =
+//	    "^" type-identifier .
+//	type-identifier =
+//	    identifier .
 func (p *parser) parseType(b *Block, resolvePointerTypesLater bool) DataType {
 	packed := false
 
@@ -804,6 +870,10 @@ restartParseDataType:
 	return nil
 }
 
+// parseEnumType parses an enumerated type.
+//
+//	enumerated-type =
+//	   "(" identifier-list ")" .
 func (p *parser) parseEnumType(b *Block) *EnumType {
 	if p.peek().typ != itemOpenParen {
 		p.errorf("expected (, got %s", p.next())
@@ -822,6 +892,10 @@ func (p *parser) parseEnumType(b *Block) *EnumType {
 	return &EnumType{Identifiers: identifierList}
 }
 
+// parseIdentifierList parses an identifier list.
+//
+//	identifier-list =
+//	    identifier { "," identifier } .
 func (p *parser) parseIdentifierList(b *Block) []string {
 	identifierList := []string{}
 

@@ -6,10 +6,19 @@ import (
 )
 
 type Expression interface {
+	// String returns a string representation of the expression for debugging purposes.
 	String() string
+
+	// Type returns the data type of the expression.
 	Type() DataType
+
+	// IsVariableExpr returns true if the expression is a variable expression, which means
+	// that it can be used as a left expression in assignments.
 	IsVariableExpr() bool
-	Reduce() Expression // reduce nested expressions to innermost single expression
+
+	// Reduce reduces nested expressions to the innermost single expression, as far as
+	// possible. This is to remove overly complicated nesting of various expression types.
+	Reduce() Expression
 }
 
 func isRelationalOperator(typ itemType) bool {
@@ -22,6 +31,7 @@ func isRelationalOperator(typ itemType) bool {
 		typ == itemIn
 }
 
+// RelationalOperator describes relational operators used in relational expressions.
 type RelationalOperator string
 
 const (
@@ -52,6 +62,9 @@ func itemTypeToRelationalOperator(typ itemType) RelationalOperator {
 	return op
 }
 
+// RelationalExpr expresses a relational expression in which a left expression
+// is compared to a right expression. The resulting type of a relational expression
+// is always boolean.
 type RelationalExpr struct {
 	Left     Expression
 	Operator RelationalOperator
@@ -82,6 +95,9 @@ func isAdditionOperator(typ itemType) bool {
 	return typ == itemSign || typ == itemOr
 }
 
+// SimpleExpr describes a simple expression, which consists of an optional
+// sign, a starting term expression, and an optional list of pairs of addition operators
+// ("addition" in the loosest sense) and further term expressions.
 type SimpleExpr struct {
 	Sign  string
 	First Expression
@@ -129,6 +145,9 @@ func (e *SimpleExpr) Reduce() Expression {
 	return ne
 }
 
+// AdditionOperator describes addition operators. "Addition" is used in a loose sense,
+// is the preferred nomenclature in the Pascal EBNF, and primarily refers to its
+// precedence.
 type AdditionOperator string
 
 const (
@@ -147,11 +166,14 @@ func tokenToAdditionOperator(t item) AdditionOperator {
 	return AdditionOperator(fmt.Sprintf("INVALID(%+v)", t))
 }
 
+// Addition describes an addition operator and a term used in a simple expression.
 type Addition struct {
 	Operator AdditionOperator
 	Term     Expression
 }
 
+// TermExpr describes a term, which consists of a factor and an optional list of
+// multiplication operators ("multiplication" in the loosest sense) and terms.
 type TermExpr struct {
 	First Expression
 	Next  []*Multiplication
@@ -197,11 +219,15 @@ func (e *TermExpr) Reduce() Expression {
 	return e
 }
 
+// Multipliciation describes a multiplication operator and a factor used in a term.
 type Multiplication struct {
 	Operator MultiplicationOperator
 	Factor   Expression
 }
 
+// MultiplicationOperator describes a multiplication operator. "Multiplication" is used
+// here in a loose sense, as it is the preferred nomenclature of the Pascal EBNF, and
+// primarily refers to its precedence.
 type MultiplicationOperator string
 
 const (
@@ -236,6 +262,8 @@ func isMultiplicationOperator(typ itemType) bool {
 		typ == itemAnd
 }
 
+// ConstantExpr describes an expression that refers to a constant (defined elsewhere in the program)
+// by its name and the type it represents.
 type ConstantExpr struct {
 	Name  string
 	Type_ DataType
@@ -257,6 +285,8 @@ func (e *ConstantExpr) Reduce() Expression {
 	return e
 }
 
+// VariableExpr describes an expression that refers to a variable or formal parameter (defined
+// elsewhere in the program) by its name and the type it represents.
 type VariableExpr struct {
 	Name  string
 	Type_ DataType
@@ -278,6 +308,7 @@ func (e *VariableExpr) Reduce() Expression {
 	return e
 }
 
+// IntegerExpr describes a literal of type integer, as an expression.
 type IntegerExpr struct {
 	Value int64
 }
@@ -298,6 +329,7 @@ func (e *IntegerExpr) Reduce() Expression {
 	return e
 }
 
+// RealExpr describes a literal of type real, as an expression.
 type RealExpr struct {
 	Minus       bool
 	BeforeComma string
@@ -325,6 +357,7 @@ func (e *RealExpr) Reduce() Expression {
 	return e
 }
 
+// StringExpr describes a literal of type string, as an expression.
 type StringExpr struct {
 	Value string
 }
@@ -352,6 +385,7 @@ func (e *StringExpr) IsCharLiteral() bool {
 		e.Value == "''''"
 }
 
+// NilExpr describes the nil pointer, as an expression.
 type NilExpr struct{}
 
 func (e *NilExpr) String() string {
@@ -370,6 +404,7 @@ func (e *NilExpr) Reduce() Expression {
 	return e
 }
 
+// NotExpr describes a NOT expression which negates another boolean expression.
 type NotExpr struct {
 	Expr Expression
 }
@@ -390,6 +425,7 @@ func (e *NotExpr) Reduce() Expression {
 	return e
 }
 
+// SetExpr describes a set literal, as an expression.
 type SetExpr struct {
 	Elements []Expression
 }
@@ -421,6 +457,7 @@ func (e *SetExpr) Reduce() Expression {
 	return e
 }
 
+// SubExpr describes an expression that is surrounded by "(" and ")".
 type SubExpr struct {
 	Expr Expression
 }
@@ -441,6 +478,9 @@ func (e *SubExpr) Reduce() Expression {
 	return e.Expr.Reduce()
 }
 
+// IndexedVariableExpr describes an indexed access of an element of an expression (which is of an array type).
+// The type describes the returned data type, while IndexExprs contains the expressions for the array's
+// dimensions.
 type IndexedVariableExpr struct {
 	Expr       Expression // an expression of type *arrayType
 	Type_      DataType
@@ -479,6 +519,9 @@ func (e *IndexedVariableExpr) Reduce() Expression {
 	return ne
 }
 
+// FunctionCallExpr describes a function being called by name (defined elsewhere in
+// the program or as a system function), with the actual parameters
+// as expressions. The data type of the expression is the function's return type.
 type FunctionCallExpr struct {
 	Name         string
 	Type_        DataType
@@ -520,6 +563,9 @@ func (e *FunctionCallExpr) Reduce() Expression {
 	return ne
 }
 
+// FieldDesignatorExpr describes an expression where a record type's field is accessed.
+// Expr is an expression of a record type, Field contains the field name, while the type
+// is the field's type and thus the expression's type.
 type FieldDesignatorExpr struct {
 	Expr  Expression
 	Field string
@@ -546,6 +592,8 @@ func (e *FieldDesignatorExpr) Reduce() Expression {
 	}
 }
 
+// EnumValueExpr describes an enum value, with the enum value's name, its integer value,
+// and the enum data type it is of.
 type EnumValueExpr struct {
 	Name  string
 	Value int
@@ -568,6 +616,8 @@ func (e *EnumValueExpr) Reduce() Expression {
 	return e
 }
 
+// DerefExpr describes a dereferencing expression, where a pointer is dereferenced to access
+// the memory it points to, either for reading or writing purposes.
 type DerefExpr struct {
 	Expr Expression
 }
@@ -594,6 +644,10 @@ func (e *DerefExpr) Reduce() Expression {
 	}
 }
 
+// FormatExpr is solely used to format actual parameters to the write and writeln procedures.
+// Expr is what is to be written, the optional Width expression describes the overall width
+// that is used to write the expression, and the decimal places expression indicates how
+// many decimal places shall be shown if Expr's type is a real.
 type FormatExpr struct {
 	Expr          Expression
 	Width         Expression

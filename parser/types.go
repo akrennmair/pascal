@@ -95,6 +95,10 @@ func (t *EnumType) Equals(dt DataType) bool {
 	return true
 }
 
+// ArrayType describes an array type. IndexTypes contains the types of the dimensions
+// of the array, which must either be a subrange type or an enumerated type. ElementType
+// describes the data type of an individual element of the array. The Packed flag indicates
+// whether the array type is packed or not.
 type ArrayType struct {
 	IndexTypes  []DataType
 	ElementType DataType
