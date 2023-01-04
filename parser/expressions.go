@@ -682,3 +682,34 @@ func (e *FormatExpr) IsVariableExpr() bool {
 func (e *FormatExpr) Reduce() Expression {
 	return e
 }
+
+func decodeStringLiteral(s string) string {
+	if s[0] == '\'' {
+		s = s[1:]
+	}
+	if s[len(s)-1] == '\'' {
+		s = s[:len(s)-1]
+	}
+
+	var (
+		buf                 strings.Builder
+		skipNextSingleQuote bool
+	)
+
+	for _, r := range s {
+		if skipNextSingleQuote {
+			skipNextSingleQuote = false
+			if r == '\'' {
+				continue
+			}
+		}
+		buf.WriteRune(r)
+		if r == '\'' {
+			skipNextSingleQuote = true
+		}
+	}
+
+	out := buf.String()
+
+	return out
+}

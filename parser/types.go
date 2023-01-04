@@ -36,10 +36,19 @@ func (t *PointerType) Equals(dt DataType) bool {
 	return t.Type_.Equals(o.Type_)
 }
 
+func (t *PointerType) TypeName() string {
+	return ""
+}
+
+func (t *PointerType) Named(_ string) DataType {
+	return t
+}
+
 type SubrangeType struct {
 	LowerBound int
 	UpperBound int
 	Type_      DataType
+	name       string
 }
 
 func (t *SubrangeType) Type() string {
@@ -60,10 +69,6 @@ func (t *SubrangeType) Equals(dt DataType) bool {
 		return false
 	}
 
-	if t.Type_ != o.Type_ {
-		return false
-	}
-
 	if t.Type_ != nil && !t.Type_.Equals(o.Type_) {
 		return false
 	}
@@ -71,8 +76,20 @@ func (t *SubrangeType) Equals(dt DataType) bool {
 	return t.LowerBound == o.LowerBound && t.UpperBound == o.UpperBound
 }
 
+func (t *SubrangeType) TypeName() string {
+	return t.name
+}
+
+func (t *SubrangeType) Named(name string) DataType {
+	var nt SubrangeType
+	nt = *t
+	nt.name = name
+	return &nt
+}
+
 type EnumType struct {
 	Identifiers []string
+	name        string
 }
 
 func (t *EnumType) Type() string {
@@ -95,6 +112,17 @@ func (t *EnumType) Equals(dt DataType) bool {
 	return true
 }
 
+func (t *EnumType) TypeName() string {
+	return t.name
+}
+
+func (t *EnumType) Named(name string) DataType {
+	var nt EnumType
+	nt = *t
+	nt.name = name
+	return &nt
+}
+
 // ArrayType describes an array type. IndexTypes contains the types of the dimensions
 // of the array, which must either be a subrange type or an enumerated type. ElementType
 // describes the data type of an individual element of the array. The Packed flag indicates
@@ -103,6 +131,7 @@ type ArrayType struct {
 	IndexTypes  []DataType
 	ElementType DataType
 	Packed      bool
+	name        string
 }
 
 func (t *ArrayType) Type() string {
@@ -148,10 +177,22 @@ func (t *ArrayType) Equals(dt DataType) bool {
 	return true
 }
 
+func (t *ArrayType) TypeName() string {
+	return t.name
+}
+
+func (t *ArrayType) Named(name string) DataType {
+	var nt ArrayType
+	nt = *t
+	nt.name = name
+	return &nt
+}
+
 type RecordType struct {
 	Fields       []*RecordField
 	VariantField *RecordVariantField
 	Packed       bool
+	name         string
 }
 
 func (t *RecordType) findField(name string) *RecordField {
@@ -227,9 +268,21 @@ func (t *RecordType) Equals(dt DataType) bool {
 	return true
 }
 
+func (t *RecordType) TypeName() string {
+	return t.name
+}
+
+func (t *RecordType) Named(name string) DataType {
+	var nt RecordType
+	nt = *t
+	nt.name = name
+	return &nt
+}
+
 type SetType struct {
 	ElementType DataType
 	Packed      bool
+	name        string
 }
 
 func (t *SetType) Type() string {
@@ -245,7 +298,20 @@ func (t *SetType) Equals(dt DataType) bool {
 	return ok && t.ElementType.Equals(o.ElementType) && t.Packed == o.Packed
 }
 
-type IntegerType struct{}
+func (t *SetType) TypeName() string {
+	return t.name
+}
+
+func (t *SetType) Named(name string) DataType {
+	var nt SetType
+	nt = *t
+	nt.name = name
+	return &nt
+}
+
+type IntegerType struct {
+	name string
+}
 
 func (t *IntegerType) Type() string {
 	return "integer"
@@ -256,7 +322,20 @@ func (t *IntegerType) Equals(dt DataType) bool {
 	return ok
 }
 
-type BooleanType struct{}
+func (t *IntegerType) TypeName() string {
+	return t.name
+}
+
+func (t *IntegerType) Named(name string) DataType {
+	var nt IntegerType
+	nt = *t
+	nt.name = name
+	return &nt
+}
+
+type BooleanType struct {
+	name string
+}
 
 func (t *BooleanType) Type() string {
 	return "boolean"
@@ -267,7 +346,20 @@ func (t *BooleanType) Equals(dt DataType) bool {
 	return ok
 }
 
-type CharType struct{}
+func (t *BooleanType) TypeName() string {
+	return t.name
+}
+
+func (t *BooleanType) Named(name string) DataType {
+	var nt BooleanType
+	nt = *t
+	nt.name = name
+	return &nt
+}
+
+type CharType struct {
+	name string
+}
 
 func (t *CharType) Type() string {
 	return "char"
@@ -278,7 +370,20 @@ func (t *CharType) Equals(dt DataType) bool {
 	return ok
 }
 
-type StringType struct{}
+func (t *CharType) TypeName() string {
+	return t.name
+}
+
+func (t *CharType) Named(name string) DataType {
+	var nt CharType
+	nt = *t
+	nt.name = name
+	return &nt
+}
+
+type StringType struct {
+	name string
+}
 
 func (t *StringType) Type() string {
 	return "string"
@@ -289,7 +394,20 @@ func (t *StringType) Equals(dt DataType) bool {
 	return ok
 }
 
-type RealType struct{}
+func (t *StringType) TypeName() string {
+	return t.name
+}
+
+func (t *StringType) Named(name string) DataType {
+	var nt StringType
+	nt = *t
+	nt.name = name
+	return &nt
+}
+
+type RealType struct {
+	name string
+}
 
 func (t *RealType) Type() string {
 	return "real"
@@ -300,9 +418,21 @@ func (t *RealType) Equals(dt DataType) bool {
 	return ok
 }
 
+func (t *RealType) TypeName() string {
+	return t.name
+}
+
+func (t *RealType) Named(name string) DataType {
+	var nt RealType
+	nt = *t
+	nt.name = name
+	return &nt
+}
+
 type FileType struct {
 	ElementType DataType
 	Packed      bool
+	name        string
 }
 
 func (t *FileType) Type() string {
@@ -318,6 +448,17 @@ func (t *FileType) Type() string {
 func (t *FileType) Equals(dt DataType) bool {
 	o, ok := dt.(*FileType)
 	return ok && t.ElementType.Equals(o.ElementType)
+}
+
+func (t *FileType) TypeName() string {
+	return t.name
+}
+
+func (t *FileType) Named(name string) DataType {
+	var nt FileType
+	nt = *t
+	nt.name = name
+	return &nt
 }
 
 type ProcedureType struct {
@@ -357,6 +498,14 @@ func (t *ProcedureType) Equals(dt DataType) bool {
 	}
 
 	return true
+}
+
+func (t *ProcedureType) TypeName() string {
+	return ""
+}
+
+func (t *ProcedureType) Named(_ string) DataType {
+	return t
 }
 
 type FunctionType struct {
@@ -403,6 +552,14 @@ func (t *FunctionType) Equals(dt DataType) bool {
 	}
 
 	return true
+}
+
+func (t *FunctionType) TypeName() string {
+	return ""
+}
+
+func (t *FunctionType) Named(_ string) DataType {
+	return t
 }
 
 type ConstantLiteral interface {

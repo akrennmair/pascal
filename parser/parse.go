@@ -743,6 +743,8 @@ func (p *parser) parseTypeDefinition(b *Block) (*TypeDefinition, bool) {
 type DataType interface {
 	Type() string // TODO: rename to TypeString
 	Equals(dt DataType) bool
+	TypeName() string           // non-empty if type was looked up by name (not in type definition).
+	Named(name string) DataType // produces a copy of the data type but with a name.
 }
 
 type RecordField struct {
@@ -802,7 +804,7 @@ restartParseDataType:
 		// if identifier is an already existing type name, it's an alias.
 		if typ := b.findType(ident); typ != nil {
 			p.next()
-			return typ
+			return typ.Named(ident)
 		}
 
 		// if the identifier is an already existing constant, it can only be a constant being used in a subrange type.
@@ -1865,7 +1867,7 @@ func (p *parser) parseFactor(b *Block) Expression {
 		return p.parseNumber(false)
 	case itemStringLiteral:
 		p.logger.Printf("parseFactor: got string literal %s", p.peek())
-		return &StringExpr{p.next().val}
+		return &StringExpr{decodeStringLiteral(p.next().val)}
 	case itemOpenBracket:
 		return p.parseSet(b)
 	case itemNil:
@@ -2209,7 +2211,7 @@ func (p *parser) parseConstantWithoutSign(b *Block, minus bool) ConstantLiteral 
 			v = &RealLiteral{Minus: n.Minus, BeforeComma: n.BeforeComma, AfterComma: n.AfterComma, ScaleFactor: n.ScaleFactor}
 		}
 	} else if p.peek().typ == itemStringLiteral {
-		v = &StringLiteral{Value: p.next().val}
+		v = &StringLiteral{Value: decodeStringLiteral(p.next().val)}
 	} else {
 		p.errorf("got unexpected %s while parsing constant", p.peek())
 	}

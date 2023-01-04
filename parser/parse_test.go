@@ -2064,7 +2064,7 @@ func TestParserErrors(t *testing.T) {
 		},
 		{
 			"case statement with case label type mismatch",
-			`case label '''hello''' doesn't match case expression type integer`,
+			`case label 'hello' doesn't match case expression type integer`,
 			`program test;
 
 			var x : integer;
@@ -2078,7 +2078,7 @@ func TestParserErrors(t *testing.T) {
 		},
 		{
 			"case statement with case label type mismatch (2)",
-			`case label '''hello''' doesn't match case expression type integer`,
+			`case label 'hello' doesn't match case expression type integer`,
 			`program test;
 
 			var x : integer;
