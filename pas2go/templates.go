@@ -1,4 +1,4 @@
-package main
+package pas2go
 
 import "text/template"
 

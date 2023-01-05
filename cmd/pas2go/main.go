@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -9,6 +8,7 @@ import (
 	"os"
 
 	"github.com/akrennmair/pascal/parser"
+	"github.com/akrennmair/pascal/pas2go"
 )
 
 func main() {
@@ -34,7 +34,7 @@ func main() {
 		log.Fatalf("Parsing %s failed: %v", sourceFile, err)
 	}
 
-	goSource, err := transpile(ast)
+	goSource, err := pas2go.Transpile(ast)
 	if err != nil {
 		log.Fatalf("Transpiling %s failed: %v", sourceFile, err)
 	}
@@ -46,14 +46,4 @@ func main() {
 			log.Fatalf("Couldn't write to output file %s: %v", outputFile, err)
 		}
 	}
-}
-
-func transpile(ast *parser.AST) (string, error) {
-	var buf bytes.Buffer
-
-	if err := transpilerTemplate.ExecuteTemplate(&buf, "main", ast); err != nil {
-		return "", fmt.Errorf("failed to generated Go source code: %w", err)
-	}
-
-	return buf.String(), nil
 }
