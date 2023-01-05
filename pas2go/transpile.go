@@ -17,7 +17,7 @@ func Transpile(ast *parser.AST) (string, error) {
 
 	//fmt.Printf("transpile: src = %s\n", buf.String())
 
-	cmd := exec.Command("gofmt")
+	cmd := exec.Command("gofmt", "-s")
 	cmd.Stdin = &buf
 	output, err := cmd.CombinedOutput()
 	if err != nil {

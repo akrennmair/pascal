@@ -32,10 +32,20 @@ func toGoType(typ parser.DataType) string {
 			return "*" + dt.Name
 		}
 		return "*" + toGoType(dt.Type_)
-	default:
-		_ = dt
-		return fmt.Sprintf("bug: unhandled type %T", typ)
+	case *parser.ArrayType:
+		var buf strings.Builder
+		for _, indexType := range dt.IndexTypes {
+			buf.WriteString("[")
+			srt, ok := indexType.(*parser.SubrangeType)
+			if ok {
+				buf.WriteString(fmt.Sprintf("%d", srt.UpperBound-srt.LowerBound+1))
+			} // TODO: handle other index types.
+			buf.WriteString("]")
+		}
+		buf.WriteString(toGoType(dt.ElementType))
+		return buf.String()
 	}
+	return fmt.Sprintf("bug: unhandled type %T", typ)
 }
 
 func sortTypeDefs(typeDefs []*parser.TypeDefinition) []*parser.TypeDefinition {
@@ -201,9 +211,14 @@ func toExpr(expr parser.Expression) string {
 	case *parser.IndexedVariableExpr:
 		var buf strings.Builder
 		buf.WriteString(toExpr(e.Expr))
-		for _, idxExpr := range e.IndexExprs {
+		for idx, idxExpr := range e.IndexExprs {
 			buf.WriteString("[")
 			buf.WriteString(toExpr(idxExpr))
+			if srt, ok := e.Expr.Type().(*parser.ArrayType).IndexTypes[idx].(*parser.SubrangeType); ok && srt.LowerBound != 0 {
+				buf.WriteString("-(")
+				buf.WriteString(fmt.Sprint(srt.LowerBound))
+				buf.WriteString(")")
+			}
 			buf.WriteString("]")
 		}
 		return buf.String()

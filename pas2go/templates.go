@@ -100,9 +100,7 @@ func main() {
 	{{- else if eq .Type 2 }}{{/* procedure call */}}
 		{{ .Name }}{{ .ActualParams | actualParams }}
 	{{- else if eq .Type 3 }}{{/* compound statement */}}
-		{
-			{{ template "statements" .Statements }}
-		}
+		{{- template "statements" .Statements }}
 	{{- else if eq .Type 4 }}{{/* while statement */}}
 		for {{ template "expr" .Condition }} {
 			{{ template "statement" .Statement }}
@@ -116,8 +114,8 @@ func main() {
 			}
 		}
 	{{- else if eq .Type 6 }}{{/* for statement */}}
-		for {{ .Name }} = {{ template "expr" .InitialExpr }}; {{ .Name }} <= {{ template "expr" .FinalExpr }}; {{ .Name }}{{ if .DownTo }}--{{ else }}++{{ end }} {
-			{{ template "statement" .Statement }}
+		for {{ .Name }} = {{ template "expr" .InitialExpr }}; {{ .Name }} {{ if .DownTo }}>={{ else }}<={{ end }} {{ template "expr" .FinalExpr }}; {{ .Name }}{{ if .DownTo }}--{{ else }}++{{ end }} {
+			{{- template "statement" .Statement }}
 		}
 	{{- else if eq .Type 7 }}{{/* if statement */}}
 		if {{ template "expr" .Condition }} {

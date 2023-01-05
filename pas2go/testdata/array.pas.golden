@@ -1,0 +1,30 @@
+package main
+
+import (
+	"github.com/akrennmair/pascal/pas2go/system"
+)
+
+var _ = system.Write
+
+// program test
+func main() {
+	var (
+		arr    [5]int
+		i      int
+		j      int
+		matrix [11][7]float64
+	)
+	_ = arr
+	_ = i
+	_ = j
+	_ = matrix
+
+	for i = 1; i <= 5; i++ {
+		arr[i-(1)] = i * i
+	}
+	for i = -5; i <= 5; i++ {
+		for j = 3; j >= -3; j-- {
+			matrix[i-(-5)][j-(-3)] = 23.5e0
+		}
+	}
+}
