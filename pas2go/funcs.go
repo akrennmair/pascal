@@ -44,6 +44,18 @@ func toGoType(typ parser.DataType) string {
 		}
 		buf.WriteString(toGoType(dt.ElementType))
 		return buf.String()
+	case *parser.SubrangeType:
+		// TODO: implement
+	case *parser.EnumType:
+		// TODO: implement
+	case *parser.SetType:
+		// TODO: implement
+	case *parser.FileType:
+		// TODO: implement
+	case *parser.ProcedureType:
+		// TODO: implement
+	case *parser.FunctionType:
+		// TODO: implement
 	}
 	return fmt.Sprintf("bug: unhandled type %T", typ)
 }
