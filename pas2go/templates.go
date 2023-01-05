@@ -22,9 +22,11 @@ import (
 	"github.com/akrennmair/pascal/pas2go/system"
 )
 
+var _ = system.Write
+
+// program {{ .Name }}
 func main() {
-	// program {{ .Name }}
-	{{- template "block" .Block -}}
+	{{- template "block" .Block }}
 }
 {{ end }}
 

@@ -106,7 +106,7 @@ func constantLiteral(cl parser.ConstantLiteral) string {
 		if lit.Minus {
 			sign = "-"
 		}
-		return fmt.Sprintf("%s%s.%se %d", sign, lit.BeforeComma, lit.AfterComma, lit.ScaleFactor)
+		return fmt.Sprintf("%s%s.%se%d", sign, lit.BeforeComma, lit.AfterComma, lit.ScaleFactor)
 	case *parser.EnumValueLiteral:
 		return lit.Symbol
 	default:

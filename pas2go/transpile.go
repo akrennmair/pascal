@@ -3,6 +3,7 @@ package pas2go
 import (
 	"bytes"
 	"fmt"
+	"os/exec"
 
 	"github.com/akrennmair/pascal/parser"
 )
@@ -14,5 +15,12 @@ func Transpile(ast *parser.AST) (string, error) {
 		return "", fmt.Errorf("failed to generated Go source code: %w", err)
 	}
 
-	return buf.String(), nil
+	cmd := exec.Command("gofmt")
+	cmd.Stdin = &buf
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return string(output), fmt.Errorf("running gofmt failed: %w (%s)", err, string(output))
+	}
+
+	return string(output), nil
 }
