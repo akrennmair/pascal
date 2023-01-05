@@ -1,0 +1,31 @@
+package main
+
+import (
+	"github.com/akrennmair/pascal/pas2go/system"
+)
+
+var _ = system.Write
+
+// program test
+func main() {
+	type (
+		foo struct {
+			c   int
+			d   float64
+			bla integer `pas2go:"tagfield"`
+			a   float64 `pas2go:"caselabels,1,2,3"`
+			b   string  `pas2go:"caselabels,3,4,5"`
+		}
+	)
+
+	var (
+		x foo
+	)
+	_ = x
+
+	x.c = 42
+	x.d = 23.5e0
+	x.bla = 1
+	x.a = 42.23e0
+	x.b = "judgement day"
+}

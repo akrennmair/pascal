@@ -71,20 +71,25 @@ func recordTypeToGoType(rec *parser.RecordType) string {
 	}
 
 	if rec.VariantField != nil {
-		/* // TODO: how should we deal with tag field and type name?
 		if rec.VariantField.TagField != "" && rec.VariantField.Type != nil {
 			buf.WriteString("    ")
 			buf.WriteString(rec.VariantField.TagField)
 			buf.WriteString(" ")
-			buf.WriteString(rec.VariantField.TypeName)
+			buf.WriteString(rec.VariantField.Type.TypeName())
+			buf.WriteString(" `pas2go:\"tagfield\"`")
+			buf.WriteString("\n")
 		}
-		*/
 		for _, variant := range rec.VariantField.Variants {
+			var caseLabels []string
+			for _, l := range variant.CaseLabels {
+				caseLabels = append(caseLabels, l.String())
+			}
 			for _, field := range variant.Fields.Fields {
 				buf.WriteString("	")
 				buf.WriteString(field.Identifier)
 				buf.WriteString(" ")
 				buf.WriteString(toGoType(field.Type))
+				buf.WriteString(fmt.Sprintf(" `pas2go:\"caselabels,%s\"`", strings.Join(caseLabels, ",")))
 				buf.WriteString("\n")
 			}
 		}
@@ -181,7 +186,7 @@ func toExpr(expr parser.Expression) string {
 		if e.Minus {
 			sign = "-"
 		}
-		return fmt.Sprintf("%s%s.%se %d", sign, e.BeforeComma, e.AfterComma, e.ScaleFactor)
+		return fmt.Sprintf("%s%s.%se%d", sign, e.BeforeComma, e.AfterComma, e.ScaleFactor)
 	case *parser.StringExpr:
 		return fmt.Sprintf("%q", e.Value)
 	case *parser.NilExpr:
@@ -213,6 +218,8 @@ func toExpr(expr parser.Expression) string {
 	case *parser.FormatExpr:
 		// TODO: implement full formatting
 		return toExpr(e.Expr)
+	case *parser.CharExpr:
+		return fmt.Sprintf("'%c'", e.Value)
 	default:
 		return fmt.Sprintf("bug: invalid expression type %T", expr)
 	}

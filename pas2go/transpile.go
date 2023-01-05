@@ -15,6 +15,8 @@ func Transpile(ast *parser.AST) (string, error) {
 		return "", fmt.Errorf("failed to generated Go source code: %w", err)
 	}
 
+	//fmt.Printf("transpile: src = %s\n", buf.String())
+
 	cmd := exec.Command("gofmt")
 	cmd.Stdin = &buf
 	output, err := cmd.CombinedOutput()

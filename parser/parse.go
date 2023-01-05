@@ -345,6 +345,11 @@ func (b *Block) findType(name string) DataType {
 }
 
 func (b *Block) findEnumValue(ident string) (idx int, typ DataType) {
+	idx, typ = getBuiltinEnumValues(ident)
+	if typ != nil {
+		return idx, typ
+	}
+
 	if b == nil {
 		return 0, nil
 	}
@@ -763,7 +768,6 @@ func (f *RecordField) String() string {
 type RecordVariantField struct {
 	TagField string
 	Type     DataType
-	TypeName string
 	Variants []*RecordVariant
 }
 
@@ -1384,14 +1388,33 @@ func (p *parser) parseAssignmentOrProcedureStatement(b *Block, label *string) St
 			p.errorf("assignment: unknown left expression %s", identifier)
 		}
 		rexpr := p.parseExpression(b)
-		if !lexpr.Type().Equals(rexpr.Type()) && !isCharStringLiteralAssignment(b, lexpr, rexpr) {
-			p.errorf("incompatible types: got %s, expected %s", rexpr.Type().Type(), lexpr.Type().Type())
+		if !lexpr.Type().Equals(rexpr.Type()) {
+			if !isCharStringLiteralAssignment(b, lexpr, rexpr) {
+				p.errorf("incompatible types: got %s, expected %s", rexpr.Type().Type(), lexpr.Type().Type())
+			} else {
+				rexpr = p.stringToCharLiteralExpr(rexpr)
+			}
 		}
 		return &AssignmentStatement{label: label, LeftExpr: lexpr, RightExpr: rexpr}
 	}
 
 	p.errorf("unexpected token %s in statement", p.peek())
 	// unreachable
+	return nil
+}
+
+func (p *parser) stringToCharLiteralExpr(expr Expression) Expression {
+	if se, ok := expr.(*StringExpr); ok {
+		return &CharExpr{
+			Value: se.Value[0],
+		}
+	}
+
+	if ce, ok := expr.(*ConstantExpr); ok {
+		return ce
+	}
+
+	p.errorf("expected string literal or constant expression, got %T", expr)
 	return nil
 }
 
@@ -1930,6 +1953,9 @@ func (p *parser) parseVariable(b *Block, ident string) Expression {
 			}
 			fieldIdentifier := p.next().val
 			field := rt.findField(fieldIdentifier)
+			if field == nil {
+				p.errorf("unknown field %s", fieldIdentifier)
+			}
 
 			expr = &FieldDesignatorExpr{Expr: expr, Field: fieldIdentifier, Type_: field.Type}
 		default:
@@ -2342,8 +2368,7 @@ func (p *parser) parseVariantField(b *Block, packed bool) (field *RecordVariantF
 
 	field = &RecordVariantField{
 		TagField: tag,
-		Type:     typeDef,
-		TypeName: typeIdentifier,
+		Type:     typeDef.Named(typeIdentifier),
 	}
 
 	for {

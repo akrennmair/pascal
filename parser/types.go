@@ -201,6 +201,22 @@ func (t *RecordType) findField(name string) *RecordField {
 			return f
 		}
 	}
+
+	if t.VariantField != nil {
+		if t.VariantField.TagField == name {
+			return &RecordField{
+				Identifier: t.VariantField.TagField,
+				Type:       t.VariantField.Type,
+			}
+		}
+
+		for _, variant := range t.VariantField.Variants {
+			if rf := variant.Fields.findField(name); rf != nil {
+				return rf
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -230,7 +246,7 @@ func (tt *RecordType) printFieldList(buf *strings.Builder, r *RecordType) {
 		if r.VariantField.TagField != "" {
 			buf.WriteString(r.VariantField.TagField + ": ")
 		}
-		buf.WriteString(r.VariantField.TypeName)
+		buf.WriteString(r.VariantField.Type.TypeName())
 		buf.WriteString(" of ")
 		for idx, variant := range r.VariantField.Variants {
 			if idx > 0 {

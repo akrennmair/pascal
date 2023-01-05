@@ -379,6 +379,26 @@ func (e *StringExpr) Reduce() Expression {
 	return e
 }
 
+type CharExpr struct {
+	Value byte
+}
+
+func (e *CharExpr) String() string {
+	return fmt.Sprintf("char:<'%c'>", e.Value)
+}
+
+func (e *CharExpr) Type() DataType {
+	return &CharType{}
+}
+
+func (e *CharExpr) IsVariableExpr() bool {
+	return false
+}
+
+func (e *CharExpr) Reduce() Expression {
+	return e
+}
+
 func (e *StringExpr) IsCharLiteral() bool {
 	// TODO: solve this neater.
 	return len(e.Value) == 1 ||

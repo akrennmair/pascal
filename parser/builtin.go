@@ -29,3 +29,14 @@ func getBuiltinType(identifier string) DataType {
 	}
 	return nil
 }
+
+func getBuiltinEnumValues(identifier string) (idx int, typ DataType) {
+	switch identifier {
+	case "false":
+		return 0, &BooleanType{}
+	case "true":
+		return 1, &BooleanType{}
+	default:
+		return 0, nil
+	}
+}
