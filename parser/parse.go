@@ -1897,7 +1897,7 @@ func (p *parser) parseVariable(b *Block, ident string) Expression {
 	} else if procDecl := b.findProcedure(ident); procDecl != nil { // TODO: do we need a separate procedural parameter expression here?
 		expr = &VariableExpr{Name: ident, Type_: &ProcedureType{FormalParams: procDecl.FormalParameters}}
 	} else if varDecl := b.findVariable(ident); varDecl != nil {
-		expr = &VariableExpr{Name: ident, Type_: varDecl.Type}
+		expr = &VariableExpr{Name: ident, Type_: varDecl.Type, Decl: varDecl}
 	}
 
 	if expr == nil {

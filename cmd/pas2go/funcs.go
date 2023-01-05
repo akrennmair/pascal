@@ -8,26 +8,53 @@ import (
 )
 
 func toGoType(typ parser.DataType) string {
-	if name := typ.TypeName(); name != "" {
-		return name
-	}
 	switch dt := typ.(type) {
 	case *parser.IntegerType:
-		return "integer"
+		return "int"
 	case *parser.BooleanType:
 		return "bool"
 	case *parser.RealType:
 		return "float64"
 	case *parser.RecordType:
+		if name := typ.TypeName(); name != "" {
+			return name
+		}
 		return recordTypeToGoType(dt)
 	case *parser.CharType:
 		return "byte"
 	case *parser.StringType:
 		return "string"
+	case *parser.PointerType:
+		if name := typ.TypeName(); name != "" {
+			return name
+		}
+		if dt.Name != "" {
+			return "*" + dt.Name
+		}
+		return "*" + toGoType(dt.Type_)
 	default:
 		_ = dt
 		return fmt.Sprintf("bug: unhandled type %T", typ)
 	}
+}
+
+func sortTypeDefs(typeDefs []*parser.TypeDefinition) []*parser.TypeDefinition {
+	var (
+		newTypeList   []*parser.TypeDefinition
+		typesToAppend []*parser.TypeDefinition
+	)
+
+	for _, typeDef := range typeDefs {
+		if pt, ok := typeDef.Type.(*parser.PointerType); ok {
+			if pt.Name != "" {
+				typesToAppend = append(typesToAppend, typeDef)
+				continue
+			}
+		}
+		newTypeList = append(newTypeList, typeDef)
+	}
+
+	return append(newTypeList, typesToAppend...)
 }
 
 func recordTypeToGoType(rec *parser.RecordType) string {
@@ -102,6 +129,23 @@ func formalParams(params []*parser.FormalParameter) string {
 	return buf.String()
 }
 
+func actualParams(params []parser.Expression) string {
+	var buf strings.Builder
+
+	buf.WriteString("(")
+
+	for idx, param := range params {
+		if idx > 0 {
+			buf.WriteString(", ")
+		}
+		buf.WriteString(toExpr(param))
+	}
+
+	buf.WriteString(")")
+
+	return buf.String()
+}
+
 func toExpr(expr parser.Expression) string {
 	switch e := expr.(type) {
 	case *parser.RelationalExpr:
@@ -126,6 +170,9 @@ func toExpr(expr parser.Expression) string {
 	case *parser.ConstantExpr:
 		return e.Name
 	case *parser.VariableExpr:
+		if e.Decl != nil && e.Decl.BelongsTo != "" {
+			return e.Decl.BelongsTo + "." + e.Name
+		}
 		return e.Name
 	case *parser.IntegerExpr:
 		return fmt.Sprint(e.Value)
@@ -156,7 +203,7 @@ func toExpr(expr parser.Expression) string {
 		}
 		return buf.String()
 	case *parser.FunctionCallExpr:
-		return "TODO: implement function call expression"
+		return e.Name + actualParams(e.ActualParams)
 	case *parser.FieldDesignatorExpr:
 		return toExpr(e.Expr) + "." + e.Field
 	case *parser.EnumValueExpr:

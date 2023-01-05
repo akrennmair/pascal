@@ -4,30 +4,23 @@ const sourceTemplate = `
 {{- define "main" -}}
 package main
 
-/*
 import (
 	"github.com/akrennmair/pascal/pas2go/system"
 )
-*/
 
 func main() {
 	// program {{ .Name }}
-	{{- template "block" .Block }}
-
+	{{- template "block" .Block -}}
 }
 {{ end }}
+
 {{- define "block" }}
 	{{- template "constants" .Constants }}
-
-	{{ template "types" .Types }}
-
-	{{ template "variables" .Variables }}
-
-	{{ template "functions" .Procedures }}
-
-	{{ template "functions" .Functions }}
-
-	{{ template "statements" .Statements }}
+	{{- template "types" .Types }}
+	{{- template "variables" .Variables }}
+	{{- template "functions" .Procedures }}
+	{{- template "functions" .Functions }}
+	{{- template "statements" .Statements }}
 {{- end }}
 
 {{- define "constants" }}
@@ -37,14 +30,18 @@ func main() {
 		{{ $const.Name }} = {{ $const.Value | constantLiteral }}
 	{{- end }}
 	)
-	{{- end }}
-{{- end }}
+	{{ end -}}
+{{ end }}
 
 {{- define "types" }}
-	{{- range $type := . }}
-	type {{ $type.Name }} {{ $type.Type | toGoType }}
-	{{ end }}
-{{- end }}
+	{{- if . }}
+	type (
+	{{- range $type := . | sortTypeDefs }}
+	{{ $type.Name }} {{ $type.Type | toGoType }}
+	{{- end }}
+	)
+	{{ end -}}
+{{ end }}
 
 {{- define "variables" }}
 	{{- if . }}
@@ -53,25 +50,30 @@ func main() {
 		{{ $var.Name }} {{ $var.Type | toGoType }}
 	{{- end }}
 	)
+
+	{{- range $var := . }}
+	_ = {{ $var.Name }}
 	{{- end }}
-{{- end }}
+	{{ end -}}
+{{ end }}
 
 {{- define "functions" }}
 	{{- range $routine := . }}
-		{{ $routine.Name }} := func({{ $routine.FormalParameters | formalParams }}){{ if $routine.ReturnType }} {{ $routine.ReturnType | toGoType }}{{ end }} {
-			{{ template "block" $routine.Block }}
+		{{ $routine.Name }} := func({{ $routine.FormalParameters | formalParams }}){{ if $routine.ReturnType }} ({{ $routine.Name }} {{ $routine.ReturnType | toGoType }}){{ end }} {
+			{{- template "block" $routine.Block }}
+			return
 		}
-	{{- end }}
-{{- end }}
+	{{ end -}}
+{{ end }}
 
 {{- define "statements" }}
 	{{- range $statement := . }}
 		{{- if $statement.Label }}
 		{{ $statement.Label }}:
 		{{- end }}
-		{{ template "statement" $statement }}
-	{{- end }}
-{{- end }}
+		{{- template "statement" $statement }}
+	{{- end -}}
+{{ end }}
 
 
 {{- define "statement" }}
@@ -80,7 +82,7 @@ func main() {
 	{{- else if eq .Type 1 }}{{/* assignment */}}
 		{{ template "expr" .LeftExpr }} = {{ template "expr" .RightExpr }}
 	{{- else if eq .Type 2 }}{{/* procedure call */}}
-		// TODO: implement procedure call
+		{{ .Name }}{{ .ActualParams | actualParams }}
 	{{- else if eq .Type 3 }}{{/* compound statement */}}
 		{
 			{{ template "statements" .Statements }}
@@ -108,12 +110,12 @@ func main() {
 	{{- else if eq .Type 8 }}{{/* case statement */}}
 		// TODO: implement case
 	{{- else if eq .Type 9 }}{{/* with statement */}}
-		// TODO: implement with
+		{{ template "statements" .Statement.Block.Statements }}
 	{{- else if eq .Type 10 }}{{/* write statement */}}
-		// TODO: implement write
+		system.Write{{ if .AppendNewLine }}ln{{ end }}{{ .ActualParams | actualParams }}
 	{{- else }}
 	// bug: invalid statement type {{ .Type }}
-	{{- end}}
+	{{- end }}
 {{- end }}
 
 {{- define "expr" }}

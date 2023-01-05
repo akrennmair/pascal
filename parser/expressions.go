@@ -290,6 +290,7 @@ func (e *ConstantExpr) Reduce() Expression {
 type VariableExpr struct {
 	Name  string
 	Type_ DataType
+	Decl  *Variable
 }
 
 func (e *VariableExpr) String() string {
@@ -556,7 +557,7 @@ func (e *FunctionCallExpr) Reduce() Expression {
 		Type_: e.Type_,
 	}
 
-	for _, pe := range ne.ActualParams {
+	for _, pe := range e.ActualParams {
 		ne.ActualParams = append(ne.ActualParams, pe.Reduce())
 	}
 

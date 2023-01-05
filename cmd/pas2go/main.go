@@ -34,8 +34,10 @@ func main() {
 
 	funcs := template.FuncMap{
 		"toGoType":        toGoType,
+		"sortTypeDefs":    sortTypeDefs,
 		"constantLiteral": constantLiteral,
 		"formalParams":    formalParams,
+		"actualParams":    actualParams,
 		"toExpr":          toExpr,
 	}
 
