@@ -1,0 +1,32 @@
+package main
+
+import (
+	"github.com/akrennmair/pascal/pas2go/system"
+)
+
+var _ = system.Write
+
+// program test
+func main() {
+	var (
+		x struct {
+			a int
+			b float64
+		}
+		y struct {
+			z struct {
+				c int
+			}
+		}
+	)
+	_ = x
+	_ = y
+
+	x.a = 42
+	x.b = 23.5e0
+	system.Writeln("a = ", x.a)
+	system.Writeln("b = ", x.b)
+
+	y.z.c = 9001
+	system.Writeln("c = ", y.z.c)
+}

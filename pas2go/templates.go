@@ -124,7 +124,7 @@ func main() {
 	{{- else if eq .Type 8 }}{{/* case statement */}}
 		// TODO: implement case
 	{{- else if eq .Type 9 }}{{/* with statement */}}
-		{{ template "statements" .Statement.Block.Statements }}
+		{{ template "statements" .Block.Statements }}
 	{{- else if eq .Type 10 }}{{/* write statement */}}
 		system.Write{{ if .AppendNewLine }}ln{{ end }}{{ .ActualParams | actualParams }}
 	{{- else }}

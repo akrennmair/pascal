@@ -934,6 +934,7 @@ type Variable struct {
 	// type BelongsToType.
 	BelongsTo     string
 	BelongsToType DataType
+	BelongsToDecl *Variable
 }
 
 func (p *parser) parseVarDeclarationPart(b *Block) {
@@ -1621,9 +1622,12 @@ func (p *parser) parseWithStatement(b *Block, label *string) Statement {
 		}
 		ident := p.next().val
 
-		var typ DataType
+		var (
+			typ     DataType
+			varDecl *Variable
+		)
 
-		if varDecl := b.findVariable(ident); varDecl != nil {
+		if varDecl = b.findVariable(ident); varDecl != nil {
 			typ = varDecl.Type
 		} else if paramDecl := b.findFormalParameter(ident); paramDecl != nil {
 			typ = paramDecl.Type
@@ -1644,12 +1648,14 @@ func (p *parser) parseWithStatement(b *Block, label *string) Statement {
 				Type:          field.Type,
 				BelongsTo:     ident,
 				BelongsToType: recType,
+				BelongsToDecl: varDecl,
 			})
 		}
 
 		if p.peek().typ != itemComma {
 			break
 		}
+		p.next()
 	}
 
 	if p.peek().typ != itemDo {

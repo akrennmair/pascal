@@ -197,8 +197,14 @@ func toExpr(expr parser.Expression) string {
 	case *parser.ConstantExpr:
 		return e.Name
 	case *parser.VariableExpr:
-		if e.Decl != nil && e.Decl.BelongsTo != "" {
-			return e.Decl.BelongsTo + "." + e.Name
+		if e.Decl != nil {
+			str := e.Name
+			decl := e.Decl
+			for decl.BelongsTo != "" {
+				str = decl.BelongsTo + "." + str
+				decl = decl.BelongsToDecl
+			}
+			return str
 		}
 		return e.Name
 	case *parser.IntegerExpr:

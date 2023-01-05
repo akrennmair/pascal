@@ -705,6 +705,27 @@ func TestParserSuccesses(t *testing.T) {
 			end.`,
 		},
 		{
+			"with statement with more than 1 variable",
+			`program test;
+
+			var x : record
+					a : integer;
+					b : real;
+				end;
+				y : record
+					c : integer
+				end;
+
+			begin
+				with x, y do
+				begin
+					a := 23;
+					b := 23.5;
+					c := 42
+				end
+			end.`,
+		},
+		{
 			"nested with statements and record-identifier.field-identifier syntax of nested records",
 			`program test;
 
