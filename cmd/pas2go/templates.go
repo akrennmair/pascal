@@ -1,5 +1,19 @@
 package main
 
+import "text/template"
+
+var (
+	tmplFuncs = template.FuncMap{
+		"toGoType":        toGoType,
+		"sortTypeDefs":    sortTypeDefs,
+		"constantLiteral": constantLiteral,
+		"formalParams":    formalParams,
+		"actualParams":    actualParams,
+		"toExpr":          toExpr,
+	}
+	transpilerTemplate = template.Must(template.New("").Funcs(tmplFuncs).Parse(sourceTemplate))
+)
+
 const sourceTemplate = `
 {{- define "main" -}}
 package main

@@ -7,16 +7,18 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"text/template"
 
 	"github.com/akrennmair/pascal/parser"
 )
 
 func main() {
+	var outputFile string
+
+	flag.StringVar(&outputFile, "o", "", "if non-empty, where the output will be written to")
 	flag.Parse()
 
 	if len(flag.Args()) == 0 {
-		fmt.Fprintf(os.Stdout, "usage: %s file.pas", os.Args[0])
+		fmt.Fprintf(os.Stdout, "usage: %s [-o output.go] file.pas", os.Args[0])
 		os.Exit(1)
 	}
 
@@ -32,25 +34,26 @@ func main() {
 		log.Fatalf("Parsing %s failed: %v", sourceFile, err)
 	}
 
-	funcs := template.FuncMap{
-		"toGoType":        toGoType,
-		"sortTypeDefs":    sortTypeDefs,
-		"constantLiteral": constantLiteral,
-		"formalParams":    formalParams,
-		"actualParams":    actualParams,
-		"toExpr":          toExpr,
-	}
-
-	tmpl, err := template.New("").Funcs(funcs).Parse(sourceTemplate)
+	goSource, err := transpile(ast)
 	if err != nil {
-		log.Fatalf("Parsing template failed: %v", err)
+		log.Fatalf("Transpiling %s failed: %v", sourceFile, err)
 	}
 
+	if outputFile == "" {
+		fmt.Print(goSource)
+	} else {
+		if err := ioutil.WriteFile(outputFile, []byte(goSource), 0644); err != nil {
+			log.Fatalf("Couldn't write to output file %s: %v", outputFile, err)
+		}
+	}
+}
+
+func transpile(ast *parser.AST) (string, error) {
 	var buf bytes.Buffer
 
-	if err := tmpl.ExecuteTemplate(&buf, "main", ast); err != nil {
-		log.Fatalf("Failed to generate source code: %v", err)
+	if err := transpilerTemplate.ExecuteTemplate(&buf, "main", ast); err != nil {
+		return "", fmt.Errorf("failed to generated Go source code: %w", err)
 	}
 
-	fmt.Print(buf.String())
+	return buf.String(), nil
 }
