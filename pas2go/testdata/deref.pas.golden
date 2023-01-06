@@ -1,0 +1,30 @@
+package main
+
+import (
+	"github.com/akrennmair/pascal/pas2go/system"
+)
+
+var _ = system.Write
+
+// program test
+func main() {
+	type (
+		y struct {
+			c *int
+		}
+	)
+
+	var (
+		x struct {
+			a *int
+			b *struct {
+				c *int
+			}
+		}
+	)
+	_ = x
+
+	(*x.a) = (*(*x.b).c)
+	(*(*x.b).c) = 23
+	(*(*x.b).c) = (*x.a)
+}

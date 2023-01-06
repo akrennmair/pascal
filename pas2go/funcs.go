@@ -275,7 +275,7 @@ func toExpr(expr parser.Expression) string {
 	case *parser.EnumValueExpr:
 		return e.Name
 	case *parser.DerefExpr:
-		return "*(" + toExpr(e.Expr) + ")"
+		return "(*" + toExpr(e.Expr) + ")"
 	case *parser.FormatExpr:
 		// TODO: implement full formatting
 		return toExpr(e.Expr)
