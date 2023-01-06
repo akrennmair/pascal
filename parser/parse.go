@@ -836,7 +836,14 @@ restartParseDataType:
 			p.errorf("unknown type %s", ident)
 		}
 
-		return &PointerType{Type_: typeDecl}
+		// don't store names of built-in types, as they are fully represented in the type declaration already, and
+		// the name would only stand in the way for any code generation that assumes that non-empty names refer
+		// to non-builtin types.
+		if getBuiltinType(ident) != nil {
+			ident = ""
+		}
+
+		return &PointerType{Name: ident, Type_: typeDecl}
 	case itemOpenParen:
 		return p.parseEnumType(b)
 	case itemPacked:

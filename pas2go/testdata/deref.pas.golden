@@ -17,9 +17,7 @@ func main() {
 	var (
 		x struct {
 			a *int
-			b *struct {
-				c *int
-			}
+			b *y
 		}
 	)
 	_ = x

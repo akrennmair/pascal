@@ -37,7 +37,7 @@ func (t *PointerType) Equals(dt DataType) bool {
 }
 
 func (t *PointerType) TypeName() string {
-	return ""
+	return t.Type_.TypeName()
 }
 
 func (t *PointerType) Named(_ string) DataType {
