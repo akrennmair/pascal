@@ -75,7 +75,8 @@ func main() {
 
 {{- define "functions" }}
 	{{- range $routine := . }}
-		{{ $routine.Name }} := func({{ $routine.FormalParameters | formalParams }}){{ if $routine.ReturnType }} ({{ $routine.Name }} {{ $routine.ReturnType | toGoType }}){{ end }} {
+		var {{ $routine.Name }} func({{ $routine.FormalParameters | formalParams }}){{ if $routine.ReturnType }} {{ $routine.ReturnType | toGoType }}{{ end }}
+		{{ $routine.Name }} = func({{ $routine.FormalParameters | formalParams }}){{ if $routine.ReturnType }} ({{ $routine.Name }}_ {{ $routine.ReturnType | toGoType }}){{ end }} {
 			{{- template "block" $routine.Block }}
 			return
 		}
@@ -119,8 +120,12 @@ func main() {
 		}
 	{{- else if eq .Type 7 }}{{/* if statement */}}
 		if {{ template "expr" .Condition }} {
-			{{ template "statement" .Statement }}
+			{{- template "statement" .Statement }}
 		}
+		{{- if .ElseStatement }} else {
+			{{- template "statement" .ElseStatement }}
+		}
+		{{- end }}
 	{{- else if eq .Type 8 }}{{/* case statement */}}
 		// TODO: implement case
 	{{- else if eq .Type 9 }}{{/* with statement */}}

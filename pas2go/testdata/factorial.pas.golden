@@ -1,0 +1,22 @@
+package main
+
+import (
+	"github.com/akrennmair/pascal/pas2go/system"
+)
+
+var _ = system.Write
+
+// program test
+func main() {
+	var factorial func(i int) int
+	factorial = func(i int) (factorial_ int) {
+		if i == 1 {
+			factorial_ = 1
+		} else {
+			factorial_ = i * factorial(i-1)
+		}
+		return
+	}
+
+	system.Writeln("10! = ", factorial(10))
+}

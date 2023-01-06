@@ -1183,18 +1183,33 @@ func (p *parser) parseFunctionDeclaration(b *Block) {
 	}
 	p.next()
 
+	forwardDeclProc := &Routine{Name: funcName, FormalParameters: parameterList, ReturnType: returnType, Forward: true}
 	proc := &Routine{Name: funcName, FormalParameters: parameterList, ReturnType: returnType}
 
+	// if it is a true forward declaration, we just add the forward function and then return.
 	if p.peek().typ == itemForward {
 		p.next()
-		proc.Forward = true
-	} else {
-		procForParsing := proc
-		if fwdProc := b.findForwardDeclaredFunction(funcName); fwdProc != nil {
-			procForParsing = fwdProc
+		if err := b.addFunction(forwardDeclProc); err != nil {
+			p.errorf("%v", err)
 		}
-		proc.Block = p.parseBlock(b, procForParsing)
+		return
 	}
+	// right after parsing the function heading, we add even non-forward function declarations
+	// as forward declarations if there isn't one already, so that when parsing the function block, the function that
+	// is currently being declared is already available. This is necessary for correctly
+	// parsing recursive functions.
+	if funcDecl := b.findFunction(funcName); funcDecl == nil {
+		if err := b.addFunction(forwardDeclProc); err != nil {
+			p.errorf("%v", err)
+		}
+	} else if proc.FormalParameters == nil {
+		// this is necessary because the formal parameters and return type of the proper declaration may not be present
+		// but are present in the forward declaration.
+		proc.FormalParameters = funcDecl.FormalParameters
+		proc.ReturnType = funcDecl.ReturnType
+	}
+
+	proc.Block = p.parseBlock(b, proc)
 
 	if err := b.addFunction(proc); err != nil {
 		p.errorf("%v", err)
@@ -1378,7 +1393,7 @@ func (p *parser) parseAssignmentOrProcedureStatement(b *Block, label *string) St
 	var lexpr Expression
 
 	if funcDecl := b.findFunctionForAssignment(identifier); funcDecl != nil {
-		lexpr = &VariableExpr{Name: identifier, Type_: funcDecl.ReturnType} // TODO: do we need a separate expression type for this?
+		lexpr = &VariableExpr{Name: identifier, Type_: funcDecl.ReturnType, IsReturnValue: true}
 	} else {
 		lexpr = p.parseVariable(b, identifier)
 	}
@@ -1922,7 +1937,7 @@ func (p *parser) parseVariable(b *Block, ident string) Expression {
 	var expr Expression
 
 	if paramDecl := b.findFormalParameter(ident); paramDecl != nil {
-		expr = &VariableExpr{Name: ident, Type_: paramDecl.Type} // TODO: do we need a separate formal parameter expression here?
+		expr = &VariableExpr{Name: ident, Type_: paramDecl.Type, IsFormalParameter: true}
 	} else if procDecl := b.findProcedure(ident); procDecl != nil { // TODO: do we need a separate procedural parameter expression here?
 		expr = &VariableExpr{Name: ident, Type_: &ProcedureType{FormalParams: procDecl.FormalParameters}}
 	} else if varDecl := b.findVariable(ident); varDecl != nil {

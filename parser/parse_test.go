@@ -1083,7 +1083,7 @@ func TestParserSuccesses(t *testing.T) {
 			end.`,
 		},
 		{
-			"forward declaration of function",
+			"forward declaration of simple function",
 			`program test;
 
 			function x(a : integer) : integer; forward;
@@ -1283,6 +1283,22 @@ func TestParserSuccesses(t *testing.T) {
 					t[i] := s[i]
 			end.
 			`,
+		},
+		{
+			"recursive factorial function",
+			`program test;
+
+			function factorial(i : integer) : integer;
+			begin
+				if i = 1 then
+					factorial := 1
+				else
+					factorial := i * factorial(i - 1)
+			end;
+			
+			begin
+				writeln('10! = ', factorial(10))
+			end.`,
 		},
 	}
 

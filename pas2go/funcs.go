@@ -173,16 +173,41 @@ func actualParams(params []parser.Expression) string {
 	return buf.String()
 }
 
+var operatorMapping = map[string]string{
+	"=":   "==",
+	"<>":  "!=",
+	"<":   "<",
+	">":   ">",
+	"<=":  "<=",
+	">=":  ">=",
+	"+":   "+",
+	"-":   "-",
+	"*":   "*",
+	"/":   "/",
+	"div": "/",
+	"mod": "%",
+	"and": "&&",
+	"or":  "||",
+}
+
+func translateOperator(op string) string {
+	newOp, ok := operatorMapping[op]
+	if !ok {
+		return fmt.Sprintf("BUG(unknown operator %q)", op)
+	}
+	return newOp
+}
+
 func toExpr(expr parser.Expression) string {
 	switch e := expr.(type) {
 	case *parser.RelationalExpr:
-		return toExpr(e.Left) + " " + string(e.Operator) + " " + toExpr(e.Right)
+		return toExpr(e.Left) + " " + translateOperator(string(e.Operator)) + " " + toExpr(e.Right)
 	case *parser.SimpleExpr:
 		var buf strings.Builder
 		buf.WriteString(e.Sign)
 		buf.WriteString(toExpr(e.First))
 		for _, next := range e.Next {
-			buf.WriteString(string(next.Operator))
+			buf.WriteString(translateOperator(string(next.Operator)))
 			buf.WriteString(toExpr(next.Term))
 		}
 		return buf.String()
@@ -190,15 +215,15 @@ func toExpr(expr parser.Expression) string {
 		var buf strings.Builder
 		buf.WriteString(toExpr(e.First))
 		for _, next := range e.Next {
-			buf.WriteString(string(next.Operator))
+			buf.WriteString(translateOperator(string(next.Operator)))
 			buf.WriteString(toExpr(next.Factor))
 		}
 		return buf.String()
 	case *parser.ConstantExpr:
 		return e.Name
 	case *parser.VariableExpr:
+		str := e.Name
 		if e.Decl != nil {
-			str := e.Name
 			decl := e.Decl
 			for decl.BelongsTo != "" {
 				str = decl.BelongsTo + "." + str
@@ -206,7 +231,10 @@ func toExpr(expr parser.Expression) string {
 			}
 			return str
 		}
-		return e.Name
+		if e.IsReturnValue {
+			str = str + "_"
+		}
+		return str
 	case *parser.IntegerExpr:
 		return fmt.Sprint(e.Value)
 	case *parser.RealExpr:
