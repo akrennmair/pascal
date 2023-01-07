@@ -2617,9 +2617,11 @@ func (p *parser) verifyWriteType(typ DataType, ln bool) {
 		return
 	}
 
-	// subranges are also allowed.
-	if _, ok := typ.(*SubrangeType); ok {
-		return
+	// subranges of integers are also allowed.
+	if srt, ok := typ.(*SubrangeType); ok {
+		if srt.Type_.Equals(&IntegerType{}) {
+			return
+		}
 	}
 
 	p.errorf("can't use variables of type %s with %s", typ.Type(), funcName)

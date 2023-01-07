@@ -703,11 +703,13 @@ func typesCompatible(t1, t2 DataType) bool {
 }
 
 func isIntegerType(dt DataType) bool {
-	switch dt.(type) {
+	switch t := dt.(type) {
 	case *IntegerType:
 		return true
 	case *SubrangeType:
-		return true
+		if t.Type_.Equals(&IntegerType{}) {
+			return true
+		}
 	}
 
 	return false
