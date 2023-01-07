@@ -53,9 +53,28 @@ func toGoType(typ parser.DataType) string {
 	case *parser.FileType:
 		// TODO: implement
 	case *parser.ProcedureType:
-		// TODO: implement
+		var buf strings.Builder
+		buf.WriteString("func(")
+		for idx, param := range dt.FormalParams {
+			if idx > 0 {
+				buf.WriteString(", ")
+			}
+			buf.WriteString(toGoType(param.Type))
+		}
+		buf.WriteString(")")
+		return buf.String()
 	case *parser.FunctionType:
-		// TODO: implement
+		var buf strings.Builder
+		buf.WriteString("func(")
+		for idx, param := range dt.FormalParams {
+			if idx > 0 {
+				buf.WriteString(", ")
+			}
+			buf.WriteString(toGoType(param.Type))
+		}
+		buf.WriteString(") ")
+		buf.WriteString(toGoType(dt.ReturnType))
+		return buf.String()
 	}
 	return fmt.Sprintf("bug: unhandled type %T", typ)
 }

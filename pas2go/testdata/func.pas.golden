@@ -1,0 +1,31 @@
+package main
+
+import (
+	"github.com/akrennmair/pascal/pas2go/system"
+)
+
+var _ = system.Write
+
+// program test
+func main() {
+	var a func(b func(int) int, i int)
+	a = func(b func(int) int, i int) {
+		system.Writeln(i, " -> ", b(i))
+		return
+	}
+
+	var times2 func(i int) int
+	times2 = func(i int) (times2_ int) {
+		times2_ = i * 2
+		return
+	}
+
+	var square func(i int) int
+	square = func(i int) (square_ int) {
+		square_ = i * i
+		return
+	}
+
+	a(times2, 23)
+	a(square, 42)
+}

@@ -1,0 +1,26 @@
+package main
+
+import (
+	"github.com/akrennmair/pascal/pas2go/system"
+)
+
+var _ = system.Write
+
+// program test
+func main() {
+	var a func(b func(int), i int)
+	a = func(b func(int), i int) {
+		system.Writeln("foo")
+		b(i)
+		system.Writeln("bar")
+		return
+	}
+
+	var printint func(i int)
+	printint = func(i int) {
+		system.Writeln("i = ", i)
+		return
+	}
+
+	a(printint, 23)
+}
