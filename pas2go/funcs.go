@@ -45,9 +45,9 @@ func toGoType(typ parser.DataType) string {
 		buf.WriteString(toGoType(dt.ElementType))
 		return buf.String()
 	case *parser.SubrangeType:
-		// TODO: implement
+		return "int" // Go doesn't have subrange types, so that's the closest we can translate them to.
 	case *parser.EnumType:
-		// TODO: implement
+		return "int" // Go doesn't have enum types, so we just define it as an alias to int, and declare constants and a string conversion method.
 	case *parser.SetType:
 		// TODO: implement
 	case *parser.FileType:
@@ -284,4 +284,25 @@ func toExpr(expr parser.Expression) string {
 	default:
 		return fmt.Sprintf("bug: invalid expression type %T", expr)
 	}
+}
+
+func filterEnumTypes(typeDefs []*parser.TypeDefinition) (enumTypes []*parser.TypeDefinition) {
+	for _, typeDef := range typeDefs {
+		if _, ok := typeDef.Type.(*parser.EnumType); ok {
+			enumTypes = append(enumTypes, typeDef)
+		}
+	}
+	return enumTypes
+}
+
+func generateEnumConstants(typeDef *parser.TypeDefinition) string {
+	var buf strings.Builder
+
+	buf.WriteString("const (\n")
+	for identIdx, ident := range typeDef.Type.(*parser.EnumType).Identifiers {
+		fmt.Fprintf(&buf, "	%s %s = %d\n", ident, typeDef.Name, identIdx)
+	}
+	buf.WriteString(")\n")
+
+	return buf.String()
 }

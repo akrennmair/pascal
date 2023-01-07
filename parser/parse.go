@@ -1411,7 +1411,7 @@ func (p *parser) parseAssignmentOrProcedureStatement(b *Block, label *string) St
 			p.errorf("assignment: unknown left expression %s", identifier)
 		}
 		rexpr := p.parseExpression(b)
-		if !lexpr.Type().Equals(rexpr.Type()) {
+		if !typesCompatible(lexpr.Type(), rexpr.Type()) {
 			if !isCharStringLiteralAssignment(b, lexpr, rexpr) {
 				p.errorf("incompatible types: got %s, expected %s", rexpr.Type().Type(), lexpr.Type().Type())
 			} else {
@@ -2608,6 +2608,16 @@ func (p *parser) verifyWriteType(typ DataType, ln bool) {
 		if at.Equals(typ) {
 			return
 		}
+	}
+
+	// enums are also allowed.
+	if _, ok := typ.(*EnumType); ok {
+		return
+	}
+
+	// subranges are also allowed.
+	if _, ok := typ.(*SubrangeType); ok {
+		return
 	}
 
 	p.errorf("can't use variables of type %s with %s", typ.Type(), funcName)

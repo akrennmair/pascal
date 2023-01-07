@@ -4,12 +4,14 @@ import "text/template"
 
 var (
 	tmplFuncs = template.FuncMap{
-		"toGoType":        toGoType,
-		"sortTypeDefs":    sortTypeDefs,
-		"constantLiteral": constantLiteral,
-		"formalParams":    formalParams,
-		"actualParams":    actualParams,
-		"toExpr":          toExpr,
+		"toGoType":              toGoType,
+		"sortTypeDefs":          sortTypeDefs,
+		"constantLiteral":       constantLiteral,
+		"formalParams":          formalParams,
+		"actualParams":          actualParams,
+		"toExpr":                toExpr,
+		"filterEnumTypes":       filterEnumTypes,
+		"generateEnumConstants": generateEnumConstants,
 	}
 	transpilerTemplate = template.Must(template.New("").Funcs(tmplFuncs).Parse(sourceTemplate))
 )
@@ -33,6 +35,7 @@ func main() {
 {{- define "block" }}
 	{{- template "constants" .Constants }}
 	{{- template "types" .Types }}
+	{{- template "typeConstants" .Types }}
 	{{- template "variables" .Variables }}
 	{{- template "functions" .Procedures }}
 	{{- template "functions" .Functions }}
@@ -57,6 +60,15 @@ func main() {
 	{{- end }}
 	)
 	{{ end -}}
+{{ end }}
+
+{{- define "typeConstants" }}
+	{{- $types := . | filterEnumTypes }}
+	{{- if $types }}
+		{{- range $type := $types }}
+			{{- $type | generateEnumConstants }}
+		{{- end }}
+	{{- end -}}
 {{ end }}
 
 {{- define "variables" }}
