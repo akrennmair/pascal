@@ -494,26 +494,6 @@ func (b *Block) addFunction(funcDecl *Routine) error {
 	return nil
 }
 
-func (b *Block) findForwardDeclaredProcedure(name string) *Routine {
-	for _, proc := range b.Procedures {
-		if proc.Name == name && proc.Forward {
-			return proc
-		}
-	}
-
-	return nil
-}
-
-func (b *Block) findForwardDeclaredFunction(name string) *Routine {
-	for _, proc := range b.Functions {
-		if proc.Name == name && proc.Forward {
-			return proc
-		}
-	}
-
-	return nil
-}
-
 // parseBlock parses a block.
 //
 //	block =
@@ -1016,18 +996,26 @@ func (p *parser) parseProcedureDeclaration(b *Block) {
 	}
 	p.next()
 
+	forwardDeclProc := &Routine{Name: procedureName, FormalParameters: parameterList, Forward: true}
 	proc := &Routine{Name: procedureName, FormalParameters: parameterList}
 
 	if p.peek().typ == itemForward {
 		p.next()
-		proc.Forward = true
-	} else {
-		procForParsing := proc
-		if fwdProc := b.findForwardDeclaredProcedure(procedureName); fwdProc != nil {
-			procForParsing = fwdProc
+		if err := b.addProcedure(forwardDeclProc); err != nil {
+			p.errorf("%v", err)
 		}
-		proc.Block = p.parseBlock(b, procForParsing)
+		return
 	}
+
+	if procDecl := b.findProcedure(procedureName); procDecl == nil {
+		if err := b.addProcedure(forwardDeclProc); err != nil {
+			p.errorf("%v", err)
+		}
+	} else if proc.FormalParameters == nil {
+		proc.FormalParameters = procDecl.FormalParameters
+	}
+
+	proc.Block = p.parseBlock(b, proc)
 
 	if err := b.addProcedure(proc); err != nil {
 		p.errorf("%v", err)
