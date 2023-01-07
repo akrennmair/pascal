@@ -1749,7 +1749,7 @@ func (p *parser) parseExpression(b *Block) Expression {
 
 	lt := relExpr.Left.Type()
 	rt := relExpr.Right.Type()
-	if operator == opIn {
+	if operator == OpIn {
 		st, ok := rt.(*SetType)
 		if !ok {
 			p.errorf("in: expected set type, got %s instead.", rt.Type())
@@ -1797,7 +1797,9 @@ func (p *parser) parseSimpleExpression(b *Block) *SimpleExpr {
 				p.errorf("can't use or with %s", simpleExpr.First.Type().Type())
 			}
 		} else {
-			if !isIntegerType(simpleExpr.First.Type()) && !isRealType(simpleExpr.First.Type()) {
+			if !isIntegerType(simpleExpr.First.Type()) &&
+				!isRealType(simpleExpr.First.Type()) &&
+				((operator != OperatorAdd && operator != OperatorSubtract) || !isSetType(simpleExpr.First.Type())) {
 				p.errorf("can only use %s operator with integer or real types, got %s instead", operator, simpleExpr.First.Type().Type())
 			}
 		}
@@ -1844,8 +1846,8 @@ func (p *parser) parseTerm(b *Block) *TermExpr {
 				p.errorf("can't use and with %s", term.First.Type().Type())
 			}
 		case OperatorMultiply:
-			if !isIntegerType(term.First.Type()) && !isRealType(term.First.Type()) {
-				p.errorf("can only use %s operator with integer or real types, got %s instead", operator, term.First.Type().Type())
+			if !isIntegerType(term.First.Type()) && !isRealType(term.First.Type()) && !isSetType(term.First.Type()) {
+				p.errorf("can only use %s operator with integer, real or set types, got %s instead", operator, term.First.Type().Type())
 			}
 		case OperatorFloatDivide:
 			if !isRealType(term.First.Type()) {

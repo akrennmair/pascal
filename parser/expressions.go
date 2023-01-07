@@ -35,23 +35,23 @@ func isRelationalOperator(typ itemType) bool {
 type RelationalOperator string
 
 const (
-	opEqual        RelationalOperator = "="
-	opNotEqual     RelationalOperator = "<>"
-	opLess         RelationalOperator = "<"
-	opLessEqual    RelationalOperator = "<="
-	opGreater      RelationalOperator = ">"
-	opGreaterEqual RelationalOperator = ">="
-	opIn           RelationalOperator = "in"
+	OpEqual        RelationalOperator = "="
+	OpNotEqual     RelationalOperator = "<>"
+	OpLess         RelationalOperator = "<"
+	OpLessEqual    RelationalOperator = "<="
+	OpGreater      RelationalOperator = ">"
+	OpGreaterEqual RelationalOperator = ">="
+	OpIn           RelationalOperator = "in"
 )
 
 var itemTypeRelOps = map[itemType]RelationalOperator{
-	itemEqual:        opEqual,
-	itemNotEqual:     opNotEqual,
-	itemLess:         opLess,
-	itemLessEqual:    opLessEqual,
-	itemGreater:      opGreater,
-	itemGreaterEqual: opGreaterEqual,
-	itemIn:           opIn,
+	itemEqual:        OpEqual,
+	itemNotEqual:     OpNotEqual,
+	itemLess:         OpLess,
+	itemLessEqual:    OpLessEqual,
+	itemGreater:      OpGreater,
+	itemGreaterEqual: OpGreaterEqual,
+	itemIn:           OpIn,
 }
 
 func itemTypeToRelationalOperator(typ itemType) RelationalOperator {

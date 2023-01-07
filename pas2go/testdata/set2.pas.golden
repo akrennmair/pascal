@@ -1,0 +1,43 @@
+package main
+
+import (
+	"github.com/akrennmair/pascal/pas2go/system"
+)
+
+var _ = system.Write
+
+// program test
+func main() {
+	var (
+		s1 system.SetType[int]
+		s2 system.SetType[int]
+		s3 system.SetType[int]
+	)
+	_ = s1
+	_ = s2
+	_ = s3
+
+	s1 = system.Set[int](10, 5, 17)
+	s2 = system.Set[int](5, 18, 20)
+	s3 = s1.Union(s2)
+	if !(s3.In(20)) {
+		system.Writeln("error: 20 not found in union!")
+	}
+	if !(s3.In(17)) {
+		system.Writeln("error: 17 not found in union!")
+	}
+	s3 = s1.Difference(s2)
+	if !(s3.In(10)) {
+		system.Writeln("error: 10 not found in difference!")
+	}
+	if s3.In(5) {
+		system.Writeln("error: 5 found in difference!")
+	}
+	s3 = s1.Intersection(s2)
+	if !(s3.In(5)) {
+		system.Writeln("error: 5 not found in intersection!")
+	}
+	if s3.In(18) {
+		system.Writeln("error: 18 found in intersection!")
+	}
+}

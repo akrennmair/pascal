@@ -714,11 +714,13 @@ func isIntegerType(dt DataType) bool {
 }
 
 func isRealType(dt DataType) bool {
-	if _, ok := dt.(*RealType); ok {
-		return true
-	}
+	_, ok := dt.(*RealType)
+	return ok
+}
 
-	return false
+func isSetType(dt DataType) bool {
+	_, ok := dt.(*SetType)
+	return ok
 }
 
 func isCharStringLiteralAssignment(b *Block, lexpr Expression, rexpr Expression) bool {

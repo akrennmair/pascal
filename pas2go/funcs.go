@@ -49,7 +49,7 @@ func toGoType(typ parser.DataType) string {
 	case *parser.EnumType:
 		return "int" // Go doesn't have enum types, so we just define it as an alias to int, and declare constants and a string conversion method.
 	case *parser.SetType:
-		// TODO: implement
+		return fmt.Sprintf("system.SetType[%s]", toGoType(dt.ElementType))
 	case *parser.FileType:
 		// TODO: implement
 	case *parser.ProcedureType:
@@ -198,11 +198,60 @@ func translateOperator(op string) string {
 	return newOp
 }
 
+func toSetSimpleExpr(e *parser.SimpleExpr) string {
+	var buf strings.Builder
+
+	buf.WriteString(e.Sign) // TODO: this makes no sense, so how should we handle this?
+
+	buf.WriteString(toExpr(e.First))
+	for _, next := range e.Next {
+		switch next.Operator {
+		case parser.OperatorAdd:
+			buf.WriteString(".Union(")
+			buf.WriteString(toExpr(next.Term))
+			buf.WriteString(")")
+		case parser.OperatorSubtract:
+			buf.WriteString(".Difference(")
+			buf.WriteString(toExpr(next.Term))
+			buf.WriteString(")")
+		default:
+			fmt.Fprintf(&buf, "BUG: unsupported operator %s", string(next.Operator))
+		}
+	}
+
+	return buf.String()
+}
+
+func toSetTermExpr(e *parser.TermExpr) string {
+	var buf strings.Builder
+
+	buf.WriteString(toExpr(e.First))
+
+	for _, next := range e.Next {
+		switch next.Operator {
+		case parser.OperatorMultiply:
+			buf.WriteString(".Intersection(")
+			buf.WriteString(toExpr(next.Factor))
+			buf.WriteString(")")
+		default:
+			fmt.Fprintf(&buf, "BUG: unsupported operator %s", string(next.Operator))
+		}
+	}
+
+	return buf.String()
+}
+
 func toExpr(expr parser.Expression) string {
 	switch e := expr.(type) {
 	case *parser.RelationalExpr:
+		if e.Operator == parser.OpIn {
+			return toExpr(e.Right) + ".In(" + toExpr(e.Left) + ")"
+		}
 		return toExpr(e.Left) + " " + translateOperator(string(e.Operator)) + " " + toExpr(e.Right)
 	case *parser.SimpleExpr:
+		if _, isSetType := e.First.Type().(*parser.SetType); isSetType {
+			return toSetSimpleExpr(e)
+		}
 		var buf strings.Builder
 		buf.WriteString(e.Sign)
 		buf.WriteString(toExpr(e.First))
@@ -212,6 +261,9 @@ func toExpr(expr parser.Expression) string {
 		}
 		return buf.String()
 	case *parser.TermExpr:
+		if _, isSetType := e.First.Type().(*parser.SetType); isSetType {
+			return toSetTermExpr(e)
+		}
 		var buf strings.Builder
 		buf.WriteString(toExpr(e.First))
 		for _, next := range e.Next {
@@ -250,8 +302,16 @@ func toExpr(expr parser.Expression) string {
 	case *parser.NotExpr:
 		return "!" + toExpr(e.Expr)
 	case *parser.SetExpr:
-		// TODO: implement
-		return "TODO: implement set expression"
+		var buf strings.Builder
+		buf.WriteString("system.Set[" + toGoType(e.Type().(*parser.SetType).ElementType) + "](")
+		for idx, expr := range e.Elements {
+			if idx > 0 {
+				buf.WriteString(", ")
+			}
+			buf.WriteString(toExpr(expr))
+		}
+		buf.WriteString(")")
+		return buf.String()
 	case *parser.SubExpr:
 		return "(" + toExpr(e.Expr) + ")"
 	case *parser.IndexedVariableExpr:
