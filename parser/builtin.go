@@ -86,6 +86,130 @@ var builtinFunctions = []*Routine{
 		},
 		ReturnType: &RealType{},
 	},
+	{
+		Name: "cos",
+		FormalParameters: []*FormalParameter{
+			{
+				Name: "r",
+				Type: &RealType{},
+			},
+		},
+		ReturnType: &RealType{},
+	},
+	{
+		Name: "exp",
+		FormalParameters: []*FormalParameter{
+			{
+				Name: "r",
+				Type: &RealType{},
+			},
+		},
+		ReturnType: &RealType{},
+	},
+	{
+		Name: "frac",
+		FormalParameters: []*FormalParameter{
+			{
+				Name: "r",
+				Type: &RealType{},
+			},
+		},
+		ReturnType: &RealType{},
+	},
+	{
+		Name: "int",
+		FormalParameters: []*FormalParameter{
+			{
+				Name: "r",
+				Type: &RealType{},
+			},
+		},
+		ReturnType: &RealType{},
+	},
+	{
+		Name: "ln",
+		FormalParameters: []*FormalParameter{
+			{
+				Name: "r",
+				Type: &RealType{},
+			},
+		},
+		ReturnType: &RealType{},
+	},
+	{
+		Name:       "pi",
+		ReturnType: &RealType{},
+	},
+	{
+		Name: "sin",
+		FormalParameters: []*FormalParameter{
+			{
+				Name: "r",
+				Type: &RealType{},
+			},
+		},
+		ReturnType: &RealType{},
+	},
+	{
+		Name: "sqr",
+		FormalParameters: []*FormalParameter{
+			{
+				Name: "r",
+				Type: &RealType{},
+			},
+		},
+		ReturnType: &RealType{},
+	},
+	{
+		Name: "sqrt",
+		FormalParameters: []*FormalParameter{
+			{
+				Name: "r",
+				Type: &RealType{},
+			},
+		},
+		ReturnType: &RealType{},
+	},
+	{
+		Name: "trunc",
+		FormalParameters: []*FormalParameter{
+			{
+				Name: "r",
+				Type: &RealType{},
+			},
+		},
+		ReturnType: &IntegerType{},
+	},
+	{
+		Name: "round",
+		FormalParameters: []*FormalParameter{
+			{
+				Name: "r",
+				Type: &RealType{},
+			},
+		},
+		ReturnType: &IntegerType{},
+	},
+	{
+		Name: "chr",
+		FormalParameters: []*FormalParameter{
+			{
+				Name: "i",
+				Type: &IntegerType{},
+			},
+		},
+		ReturnType: &CharType{},
+	},
+	{
+		Name: "odd",
+		FormalParameters: []*FormalParameter{
+			{
+				Name: "i",
+				Type: &IntegerType{},
+			},
+		},
+		ReturnType: &BooleanType{},
+	},
 }
 
 func getBuiltinType(identifier string) DataType {

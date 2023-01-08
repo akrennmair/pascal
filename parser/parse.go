@@ -2597,7 +2597,7 @@ func (p *parser) verifyWriteType(typ DataType, ln bool) {
 		funcName += "ln"
 	}
 
-	allowedWriteTypes := []DataType{&IntegerType{}, &RealType{}, &CharType{}, &StringType{}}
+	allowedWriteTypes := []DataType{&IntegerType{}, &RealType{}, &CharType{}, &StringType{}, &BooleanType{}}
 
 	for _, at := range allowedWriteTypes {
 		if at.Equals(typ) {

@@ -404,7 +404,34 @@ func toFunctionCallExpr(e *parser.FunctionCallExpr) string {
 		}
 	case "arctan":
 		return "system.Arctan" + actualParams(e.ActualParams, e.FormalParams)
+	case "cos":
+		return "system.Cos" + actualParams(e.ActualParams, e.FormalParams)
+	case "exp":
+		return "system.Exp" + actualParams(e.ActualParams, e.FormalParams)
+	case "frac":
+		return "system.Frac" + actualParams(e.ActualParams, e.FormalParams)
+	case "int":
+		return "system.Int" + actualParams(e.ActualParams, e.FormalParams)
+	case "ln":
+		return "system.Exp" + actualParams(e.ActualParams, e.FormalParams)
+	case "pi":
+		return "system.Pi" + actualParams(e.ActualParams, e.FormalParams)
+	case "sin":
+		return "system.Sin" + actualParams(e.ActualParams, e.FormalParams)
+	case "sqr":
+		return "system.Sqr" + actualParams(e.ActualParams, e.FormalParams)
+	case "sqrt":
+		return "system.Sqrt" + actualParams(e.ActualParams, e.FormalParams)
+	case "trunc":
+		return "system.Trunc" + actualParams(e.ActualParams, e.FormalParams)
+	case "round":
+		return "system.Round" + actualParams(e.ActualParams, e.FormalParams)
+	case "chr":
+		return "system.Chr" + actualParams(e.ActualParams, e.FormalParams)
+	case "odd":
+		return "system.Odd" + actualParams(e.ActualParams, e.FormalParams)
 	}
+
 	return e.Name + actualParams(e.ActualParams, e.FormalParams)
 }
 

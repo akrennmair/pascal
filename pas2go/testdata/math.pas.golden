@@ -1,0 +1,48 @@
+package main
+
+import (
+	"github.com/akrennmair/pascal/pas2go/system"
+)
+
+var _ = system.Write
+
+// program test
+func main() {
+	var (
+		r float64
+		i int
+		c byte
+		b bool
+	)
+	_ = r
+	_ = i
+	_ = c
+	_ = b
+
+	r = system.Cos(23.5e0)
+	system.Writeln("cos(23.5) = ", r)
+	r = system.Frac(23.5e0)
+	system.Writeln("frac(23.5) = ", r)
+	r = system.Int(23.5e0)
+	system.Writeln("int(23.5) = ", r)
+	r = system.Exp(23.5e0)
+	system.Writeln("ln(23.5) = ", r)
+	r = system.Pi()
+	system.Writeln("pi = ", r)
+	r = system.Sin(23.5e0)
+	system.Writeln("sin(23.5) = ", r)
+	r = system.Sqr(23.5e0)
+	system.Writeln("sqr(23.5) = ", r)
+	r = system.Sqrt(23.5e0)
+	system.Writeln("sqrt(23.5) = ", r)
+	i = system.Trunc(23.6e0)
+	system.Writeln("trunc(23.6) = ", i)
+	i = system.Round(23.6e0)
+	system.Writeln("round(23.6) = ", i)
+	c = system.Chr(40)
+	system.Writeln("chr(40) = ", c)
+	b = system.Odd(2)
+	system.Writeln("odd(2) = ", b)
+	b = system.Odd(23)
+	system.Writeln("odd(23) = ", b)
+}

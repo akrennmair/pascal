@@ -4,7 +4,11 @@ import "fmt"
 
 func Write(args ...any) {
 	for _, arg := range args {
-		fmt.Print(arg)
+		if b, isByte := arg.(byte); isByte {
+			fmt.Printf("%c", b)
+		} else {
+			fmt.Print(arg)
+		}
 	}
 }
 
