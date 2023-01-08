@@ -1,7 +1,17 @@
 package parser
 
+import "fmt"
+
 func findBuiltinProcedure(name string) *Routine {
-	for _, proc := range builtinProcedures {
+	return findBuiltinRoutine(builtinProcedures, name)
+}
+
+func findBuiltinFunction(name string) *Routine {
+	return findBuiltinRoutine(builtinFunctions, name)
+}
+
+func findBuiltinRoutine(list []*Routine, name string) *Routine {
+	for _, proc := range list {
 		if proc.Name == name {
 			return proc
 		}
@@ -11,7 +21,33 @@ func findBuiltinProcedure(name string) *Routine {
 }
 
 var builtinProcedures = []*Routine{
-	{Name: "writeln", varargs: true},
+	{
+		Name: "writeln",
+		validator: func(exprs []Expression) (DataType, error) {
+			// TODO: implement
+			return nil, nil
+		},
+	},
+}
+
+var builtinFunctions = []*Routine{
+	{
+		Name: "abs",
+		validator: func(exprs []Expression) (DataType, error) {
+			if len(exprs) != 1 {
+				return nil, fmt.Errorf("abs requires exactly 1 argument of type integer or real, got %d arguments instead", len(exprs))
+			}
+
+			switch exprs[0].Type().(type) {
+			case *IntegerType:
+				return &IntegerType{}, nil
+			case *RealType:
+				return &RealType{}, nil
+			}
+
+			return nil, fmt.Errorf("abs requires exactly 1 argument of type integer or real, got %s instead", exprs[0].Type().Type())
+		},
+	},
 }
 
 func getBuiltinType(identifier string) DataType {

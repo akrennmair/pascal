@@ -351,7 +351,7 @@ func toExpr(expr parser.Expression) string {
 		}
 		return buf.String()
 	case *parser.FunctionCallExpr:
-		return e.Name + actualParams(e.ActualParams, e.FormalParams)
+		return toFunctionCallExpr(e)
 	case *parser.FieldDesignatorExpr:
 		return toExpr(e.Expr) + "." + e.Field
 	case *parser.EnumValueExpr:
@@ -394,6 +394,19 @@ func toVariableExpr(e *parser.VariableExpr) string {
 	}
 
 	return str
+}
+
+func toFunctionCallExpr(e *parser.FunctionCallExpr) string {
+	switch e.Name {
+	case "abs":
+		switch e.ActualParams[0].Type().(type) {
+		case *parser.IntegerType:
+			return "system.AbsInt" + actualParams(e.ActualParams, nil)
+		case *parser.RealType:
+			return "system.AbsReal" + actualParams(e.ActualParams, nil)
+		}
+	}
+	return e.Name + actualParams(e.ActualParams, e.FormalParams)
 }
 
 func filterEnumTypes(typeDefs []*parser.TypeDefinition) (enumTypes []*parser.TypeDefinition) {

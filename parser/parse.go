@@ -274,7 +274,7 @@ func (b *Block) findProcedure(name string) *Routine {
 
 func (b *Block) findFunction(name string) *Routine {
 	if b == nil {
-		return nil
+		return findBuiltinFunction(name)
 	}
 
 	if b.Routine != nil {
@@ -985,8 +985,8 @@ type Routine struct {
 	FormalParameters []*FormalParameter
 	ReturnType       DataType
 	Forward          bool // if true, routine is only forward-declared.
-	varargs          bool // for builtin functions with variable arguments.
 	isParameter      bool // if true, indicates that this refers to a procedural or functional parameter
+	validator        func([]Expression) (DataType, error)
 }
 
 func (p *parser) parseProcedureDeclaration(b *Block) {
@@ -1366,7 +1366,7 @@ func (p *parser) parseAssignmentOrProcedureStatement(b *Block, label *string) St
 			p.errorf("unknown procedure %s", identifier)
 		}
 		actualParameterList := p.parseActualParameterList(b)
-		if err := p.validateParameters(proc.varargs, proc.FormalParameters, actualParameterList); err != nil {
+		if _, err := p.validateParameters(proc, actualParameterList); err != nil {
 			p.errorf("procedure %s: %v", identifier, err)
 		}
 		return &ProcedureCallStatement{label: label, Name: identifier, ActualParams: actualParameterList, FormalParams: proc.FormalParameters}
@@ -1380,7 +1380,7 @@ func (p *parser) parseAssignmentOrProcedureStatement(b *Block, label *string) St
 
 	proc := b.findProcedure(identifier)
 	if proc != nil {
-		if err := p.validateParameters(proc.varargs, proc.FormalParameters, []Expression{}); err != nil {
+		if _, err := p.validateParameters(proc, []Expression{}); err != nil {
 			p.errorf("procedure %s: %v", identifier, err)
 		}
 		return &ProcedureCallStatement{label: label, Name: identifier, FormalParams: proc.FormalParameters}
@@ -1880,20 +1880,22 @@ func (p *parser) parseFactor(b *Block) Expression {
 		if funcDecl := b.findFunction(ident); funcDecl != nil {
 			if p.peek().typ == itemOpenParen {
 				params := p.parseActualParameterList(b)
-				if err := p.validateParameters(funcDecl.varargs, funcDecl.FormalParameters, params); err != nil {
+				returnType, err := p.validateParameters(funcDecl, params)
+				if err != nil {
 					p.errorf("function %s: %v", ident, err)
 				}
-				return &FunctionCallExpr{Name: ident, ActualParams: params, Type_: funcDecl.ReturnType, FormalParams: funcDecl.FormalParameters}
+				return &FunctionCallExpr{Name: ident, ActualParams: params, Type_: returnType, FormalParams: funcDecl.FormalParameters}
 			}
 
 			if len(funcDecl.FormalParameters) > 0 { // function has formal parameter which are not provided -> it's a functional-parameter
 				return &VariableExpr{Name: ident, Type_: &FunctionType{FormalParams: funcDecl.FormalParameters, ReturnType: funcDecl.ReturnType}}
 			}
 			// TODO: what if function has no formal parameters? is it a functional parameter or a function call? needs resolved later, probably.
-			if err := p.validateParameters(funcDecl.varargs, funcDecl.FormalParameters, []Expression{}); err != nil {
+			returnType, err := p.validateParameters(funcDecl, []Expression{})
+			if err != nil {
 				p.errorf("function %s: %v", ident, err)
 			}
-			return &FunctionCallExpr{Name: ident, Type_: funcDecl.ReturnType}
+			return &FunctionCallExpr{Name: ident, Type_: returnType}
 
 		}
 		if constDecl := b.findConstantDeclaration(ident); constDecl != nil {
@@ -1945,7 +1947,7 @@ func (p *parser) parseVariable(b *Block, ident string) Expression {
 	}
 
 	if expr == nil {
-		p.errorf("unknown identifier %s, block = %p", ident, b)
+		p.errorf("unknown identifier %s", ident)
 	}
 
 	cont := true
@@ -2467,30 +2469,30 @@ func (p *parser) parseRecordSection(b *Block) []*RecordField {
 	return fields
 }
 
-func (p *parser) validateParameters(varargs bool, formalParams []*FormalParameter, actualParams []Expression) error {
-	if varargs {
-		return nil
+func (p *parser) validateParameters(proc *Routine, actualParams []Expression) (returnType DataType, err error) {
+	if proc.validator != nil {
+		return proc.validator(actualParams)
 	}
 
-	if len(formalParams) != len(actualParams) {
-		return fmt.Errorf("%d parameter(s) were declared, but %d were provided", len(formalParams), len(actualParams))
+	if len(proc.FormalParameters) != len(actualParams) {
+		return nil, fmt.Errorf("%d parameter(s) were declared, but %d were provided", len(proc.FormalParameters), len(actualParams))
 	}
 
-	for idx := range formalParams {
-		if !formalParams[idx].Type.Equals(actualParams[idx].Type()) {
-			return fmt.Errorf("parameter %s expects type %s, but %s was provided",
-				formalParams[idx].Name, formalParams[idx].Type.Type(), actualParams[idx].Type().Type())
+	for idx := range proc.FormalParameters {
+		if !proc.FormalParameters[idx].Type.Equals(actualParams[idx].Type()) {
+			return nil, fmt.Errorf("parameter %s expects type %s, but %s was provided",
+				proc.FormalParameters[idx].Name, proc.FormalParameters[idx].Type.Type(), actualParams[idx].Type().Type())
 		}
 
-		if formalParams[idx].VariableParameter {
+		if proc.FormalParameters[idx].VariableParameter {
 			if !actualParams[idx].IsVariableExpr() {
-				return fmt.Errorf("parameter %s is a variable parameter, but an actual parameter other than variable was provided",
-					formalParams[idx].Name)
+				return nil, fmt.Errorf("parameter %s is a variable parameter, but an actual parameter other than variable was provided",
+					proc.FormalParameters[idx].Name)
 			}
 		}
 	}
 
-	return nil
+	return proc.ReturnType, nil
 }
 
 func (p *parser) parseIndexVariableExpr(b *Block, expr Expression) *IndexedVariableExpr {
@@ -2595,7 +2597,7 @@ func (p *parser) verifyWriteType(typ DataType, ln bool) {
 		funcName += "ln"
 	}
 
-	allowedWriteTypes := []DataType{&IntegerType{}, &RealType{}, &CharType{}, getBuiltinType("string")}
+	allowedWriteTypes := []DataType{&IntegerType{}, &RealType{}, &CharType{}, &StringType{}}
 
 	for _, at := range allowedWriteTypes {
 		if at.Equals(typ) {
