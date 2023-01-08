@@ -8,6 +8,21 @@ var _ = system.Write
 
 // program test
 func main() {
+	var (
+		o int
+		p float64
+		q string
+		r bool
+		s bool
+		t byte
+	)
+	_ = o
+	_ = p
+	_ = q
+	_ = r
+	_ = s
+	_ = t
+
 	var x func(a int, b float64, c string, d bool, e bool, f byte)
 	x = func(a int, b float64, c string, d bool, e bool, f byte) {
 		a = 1
@@ -19,4 +34,5 @@ func main() {
 		return
 	}
 
+	x(o, p, q, r, s, t)
 }

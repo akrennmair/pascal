@@ -1655,7 +1655,6 @@ func (p *parser) parseWithStatement(b *Block, label *string) Statement {
 		recordVariables = append(recordVariables, ident)
 
 		for _, field := range recType.Fields {
-			fmt.Printf("with: adding %s.%s %t %t\n", ident, field.Identifier, varDecl != nil, paramDecl != nil)
 			withBlock.Variables = append(withBlock.Variables, &Variable{
 				Name:             field.Identifier,
 				Type:             field.Type,

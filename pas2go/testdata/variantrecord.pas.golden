@@ -12,7 +12,7 @@ func main() {
 		foo struct {
 			c   int
 			d   float64
-			bla integer `pas2go:"tagfield"`
+			bla int     `pas2go:"tagfield"`
 			a   float64 `pas2go:"caselabels,1,2,3"`
 			b   string  `pas2go:"caselabels,3,4,5"`
 		}

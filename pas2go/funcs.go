@@ -47,6 +47,9 @@ func toGoType(typ parser.DataType) string {
 	case *parser.SubrangeType:
 		return "int" // Go doesn't have subrange types, so that's the closest we can translate them to.
 	case *parser.EnumType:
+		if name := typ.TypeName(); name != "" {
+			return name
+		}
 		return "int" // Go doesn't have enum types, so we just define it as an alias to int, and declare constants and a string conversion method.
 	case *parser.SetType:
 		return fmt.Sprintf("system.SetType[%s]", toGoType(dt.ElementType))
@@ -122,7 +125,7 @@ func recordTypeToGoType(rec *parser.RecordType) string {
 			buf.WriteString("    ")
 			buf.WriteString(rec.VariantField.TagField)
 			buf.WriteString(" ")
-			buf.WriteString(rec.VariantField.Type.TypeName())
+			buf.WriteString(toGoType(rec.VariantField.Type))
 			buf.WriteString(" `pas2go:\"tagfield\"`")
 			buf.WriteString("\n")
 		}

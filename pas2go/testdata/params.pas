@@ -1,5 +1,11 @@
 program test;
 
+var o : integer;
+	p : real;
+	q : string;
+	r, s : boolean;
+	t : char;
+
 procedure x(a : integer; b : real; c : string; d, e : boolean; f : char);
 begin
 	a := 1;
@@ -10,5 +16,6 @@ begin
 	f := 'X'
 end;
 
-begin	
+begin
+	x(o, p, q, r, s, t)
 end.
