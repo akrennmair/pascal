@@ -288,11 +288,11 @@ func (e *ConstantExpr) Reduce() Expression {
 // VariableExpr describes an expression that refers to a variable or formal parameter (defined
 // elsewhere in the program) by its name and the type it represents.
 type VariableExpr struct {
-	Name              string
-	Type_             DataType
-	Decl              *Variable
-	IsReturnValue     bool
-	IsFormalParameter bool
+	Name          string
+	Type_         DataType
+	VarDecl       *Variable
+	ParamDecl     *FormalParameter
+	IsReturnValue bool
 }
 
 func (e *VariableExpr) String() string {

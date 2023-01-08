@@ -1,0 +1,22 @@
+package main
+
+import (
+	"github.com/akrennmair/pascal/pas2go/system"
+)
+
+var _ = system.Write
+
+// program test
+func main() {
+	var x func(a int, b float64, c string, d bool, e bool, f byte)
+	x = func(a int, b float64, c string, d bool, e bool, f byte) {
+		a = 1
+		b = 23.5e0
+		c = "hello world!"
+		d = true
+		e = false
+		f = 'X'
+		return
+	}
+
+}

@@ -1640,7 +1640,14 @@ func (p *parser) parseWithStatement(b *Block, label *string) Statement {
 		if varDecl = b.findVariable(ident); varDecl != nil {
 			typ = varDecl.Type
 		} else if paramDecl := b.findFormalParameter(ident); paramDecl != nil {
+			// when a formal parameter is referenced in a with statement, make it
+			// seem like a regular variable. Not sure this is a good idea in the
+			// long run, but for pas2go it should do the trick for now.
 			typ = paramDecl.Type
+			varDecl = &Variable{
+				Name: paramDecl.Name,
+				Type: paramDecl.Type,
+			}
 		} else {
 			p.errorf("unknown variable %s x", ident)
 		}
@@ -1934,11 +1941,11 @@ func (p *parser) parseVariable(b *Block, ident string) Expression {
 	var expr Expression
 
 	if paramDecl := b.findFormalParameter(ident); paramDecl != nil {
-		expr = &VariableExpr{Name: ident, Type_: paramDecl.Type, IsFormalParameter: true}
+		expr = &VariableExpr{Name: ident, Type_: paramDecl.Type, ParamDecl: paramDecl}
 	} else if procDecl := b.findProcedure(ident); procDecl != nil { // TODO: do we need a separate procedural parameter expression here?
 		expr = &VariableExpr{Name: ident, Type_: &ProcedureType{FormalParams: procDecl.FormalParameters}}
 	} else if varDecl := b.findVariable(ident); varDecl != nil {
-		expr = &VariableExpr{Name: ident, Type_: varDecl.Type, Decl: varDecl}
+		expr = &VariableExpr{Name: ident, Type_: varDecl.Type, VarDecl: varDecl}
 	}
 
 	if expr == nil {

@@ -294,8 +294,8 @@ func toExpr(expr parser.Expression) string {
 		return e.Name
 	case *parser.VariableExpr:
 		str := e.Name
-		if e.Decl != nil {
-			decl := e.Decl
+		if e.VarDecl != nil {
+			decl := e.VarDecl
 			for decl.BelongsTo != "" {
 				str = decl.BelongsTo + "." + str
 				decl = decl.BelongsToDecl
