@@ -401,10 +401,12 @@ func toFunctionCallExpr(e *parser.FunctionCallExpr) string {
 	case "abs":
 		switch e.ActualParams[0].Type().(type) {
 		case *parser.IntegerType:
-			return "system.AbsInt" + actualParams(e.ActualParams, nil)
+			return "system.AbsInt" + actualParams(e.ActualParams, e.FormalParams)
 		case *parser.RealType:
-			return "system.AbsReal" + actualParams(e.ActualParams, nil)
+			return "system.AbsReal" + actualParams(e.ActualParams, e.FormalParams)
 		}
+	case "arctan":
+		return "system.Arctan" + actualParams(e.ActualParams, e.FormalParams)
 	}
 	return e.Name + actualParams(e.ActualParams, e.FormalParams)
 }

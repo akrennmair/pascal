@@ -48,6 +48,16 @@ var builtinFunctions = []*Routine{
 			return nil, fmt.Errorf("abs requires exactly 1 argument of type integer or real, got %s instead", exprs[0].Type().Type())
 		},
 	},
+	{
+		Name: "arctan",
+		FormalParameters: []*FormalParameter{
+			{
+				Name: "r",
+				Type: &RealType{},
+			},
+		},
+		ReturnType: &RealType{},
+	},
 }
 
 func getBuiltinType(identifier string) DataType {

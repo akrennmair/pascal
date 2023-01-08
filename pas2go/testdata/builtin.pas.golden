@@ -1,0 +1,30 @@
+package main
+
+import (
+	"github.com/akrennmair/pascal/pas2go/system"
+)
+
+var _ = system.Write
+
+// program test
+func main() {
+	var (
+		i int
+		j int
+		r float64
+		s float64
+	)
+	_ = i
+	_ = j
+	_ = r
+	_ = s
+
+	i = -23
+	j = system.AbsInt(i)
+	r = -3.1415e0
+	s = system.AbsReal(r)
+	system.Writeln("abs(", i, ") = ", j)
+	system.Writeln("abs(", r, ") = ", s)
+	s = system.Arctan(r)
+	system.Writeln("arctan(", r, ") = ", s)
+}
