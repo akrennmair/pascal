@@ -25,9 +25,6 @@ func toGoType(typ parser.DataType) string {
 	case *parser.StringType:
 		return "string"
 	case *parser.PointerType:
-		if name := typ.TypeName(); name != "" {
-			return name
-		}
 		if dt.Name != "" {
 			return "*" + dt.Name
 		}
@@ -430,4 +427,18 @@ func generateEnumConstants(typeDef *parser.TypeDefinition) string {
 	buf.WriteString(")\n")
 
 	return buf.String()
+}
+
+func isBuiltinProcedure(name string) bool {
+	return parser.FindBuiltinProcedure(name) != nil
+}
+
+func generateBuiltinProcedure(stmt *parser.ProcedureCallStatement) string {
+	switch stmt.Name {
+	case "new":
+		return toExpr(stmt.ActualParams[0]) + " = new(" + toGoType(stmt.ActualParams[0].Type().(*parser.PointerType).Type_) + ")"
+	case "dispose":
+		return toExpr(stmt.ActualParams[0]) + " = nil"
+	}
+	return "BUG: missing builtin procedure " + stmt.Name
 }

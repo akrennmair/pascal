@@ -22,7 +22,13 @@ func main() {
 	)
 	_ = x
 
+	x.a = new(int)
+	x.b = new(y)
+	(*x.b).c = new(int)
 	(*x.a) = (*(*x.b).c)
 	(*(*x.b).c) = 23
 	(*(*x.b).c) = (*x.a)
+	(*x.b).c = nil
+	x.b = nil
+	x.a = nil
 }

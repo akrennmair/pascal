@@ -2,11 +2,11 @@ package parser
 
 import "fmt"
 
-func findBuiltinProcedure(name string) *Routine {
+func FindBuiltinProcedure(name string) *Routine {
 	return findBuiltinRoutine(builtinProcedures, name)
 }
 
-func findBuiltinFunction(name string) *Routine {
+func FindBuiltinFunction(name string) *Routine {
 	return findBuiltinRoutine(builtinFunctions, name)
 }
 
@@ -25,6 +25,34 @@ var builtinProcedures = []*Routine{
 		Name: "writeln",
 		validator: func(exprs []Expression) (DataType, error) {
 			// TODO: implement
+			return nil, nil
+		},
+	},
+	{
+		Name: "new",
+		validator: func(exprs []Expression) (DataType, error) {
+			if len(exprs) != 1 {
+				return nil, fmt.Errorf("new requires exactly 1 argument of a pointer type, got %d arguments instead", len(exprs))
+			}
+
+			if _, ok := exprs[0].Type().(*PointerType); !ok {
+				return nil, fmt.Errorf("new requires exactly 1 argument of a pointer type, got %s instead", exprs[0].Type().Type())
+			}
+
+			return nil, nil
+		},
+	},
+	{
+		Name: "dispose",
+		validator: func(exprs []Expression) (DataType, error) {
+			if len(exprs) != 1 {
+				return nil, fmt.Errorf("dispose requires exactly 1 argument of a pointer type, got %d arguments instead", len(exprs))
+			}
+
+			if _, ok := exprs[0].Type().(*PointerType); !ok {
+				return nil, fmt.Errorf("dispose requires exactly 1 argument of a pointer type, got %s instead", exprs[0].Type().Type())
+			}
+
 			return nil, nil
 		},
 	},

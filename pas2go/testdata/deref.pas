@@ -11,7 +11,13 @@ var x : record
 	end;
 
 begin
+	new(x.a);
+	new(x.b);
+	new(x.b^.c);
 	x.a^ := x.b^.c^;
 	x.b^.c^ := 23;
-	x.b^.c^ := x.a^
+	x.b^.c^ := x.a^;
+	dispose(x.b^.c);
+	dispose(x.b);
+	dispose(x.a)
 end.

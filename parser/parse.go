@@ -241,7 +241,7 @@ func (b *Block) findFormalParameter(name string) *FormalParameter {
 
 func (b *Block) findProcedure(name string) *Routine {
 	if b == nil {
-		return findBuiltinProcedure(name)
+		return FindBuiltinProcedure(name)
 	}
 
 	if b.Routine != nil {
@@ -274,7 +274,7 @@ func (b *Block) findProcedure(name string) *Routine {
 
 func (b *Block) findFunction(name string) *Routine {
 	if b == nil {
-		return findBuiltinFunction(name)
+		return FindBuiltinFunction(name)
 	}
 
 	if b.Routine != nil {
@@ -694,7 +694,7 @@ func (p *parser) parseTypeDefinitionPart(b *Block) {
 			continue
 		}
 		if pt.Name != "" && pt.Type_ == nil {
-			pt.Type_ = b.findType(pt.Name)
+			pt.Type_ = b.findType(pt.Name).Named(pt.Name)
 		}
 	}
 }
@@ -823,7 +823,7 @@ restartParseDataType:
 			ident = ""
 		}
 
-		return &PointerType{Name: ident, Type_: typeDecl}
+		return &PointerType{Name: ident, Type_: typeDecl.Named(ident)}
 	case itemOpenParen:
 		return p.parseEnumType(b)
 	case itemPacked:
@@ -1968,7 +1968,7 @@ func (p *parser) parseVariable(b *Block, ident string) Expression {
 
 			rt, ok := expr.Type().(*RecordType)
 			if !ok {
-				p.errorf("expression is a record type")
+				p.errorf("expression is not a record type, but a %s instead", expr.Type().Type())
 			}
 
 			if p.peek().typ != itemIdentifier {

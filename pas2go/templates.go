@@ -4,14 +4,16 @@ import "text/template"
 
 var (
 	tmplFuncs = template.FuncMap{
-		"toGoType":              toGoType,
-		"sortTypeDefs":          sortTypeDefs,
-		"constantLiteral":       constantLiteral,
-		"formalParams":          formalParams,
-		"actualParams":          actualParams,
-		"toExpr":                toExpr,
-		"filterEnumTypes":       filterEnumTypes,
-		"generateEnumConstants": generateEnumConstants,
+		"toGoType":                 toGoType,
+		"sortTypeDefs":             sortTypeDefs,
+		"constantLiteral":          constantLiteral,
+		"formalParams":             formalParams,
+		"actualParams":             actualParams,
+		"toExpr":                   toExpr,
+		"filterEnumTypes":          filterEnumTypes,
+		"generateEnumConstants":    generateEnumConstants,
+		"isBuiltinProcedure":       isBuiltinProcedure,
+		"generateBuiltinProcedure": generateBuiltinProcedure,
 	}
 	transpilerTemplate = template.Must(template.New("").Funcs(tmplFuncs).Parse(sourceTemplate))
 )
@@ -111,7 +113,11 @@ func main() {
 	{{- else if eq .Type 1 }}{{/* assignment */}}
 		{{ template "expr" .LeftExpr }} = {{ template "expr" .RightExpr }}
 	{{- else if eq .Type 2 }}{{/* procedure call */}}
-		{{ .Name }}{{  actualParams .ActualParams .FormalParams }}
+		{{ if isBuiltinProcedure .Name -}}
+			{{ generateBuiltinProcedure . }}
+		{{- else -}}
+			{{ .Name }}{{  actualParams .ActualParams .FormalParams }}
+		{{- end }}
 	{{- else if eq .Type 3 }}{{/* compound statement */}}
 		{{- template "statements" .Statements }}
 	{{- else if eq .Type 4 }}{{/* while statement */}}
