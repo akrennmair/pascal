@@ -111,7 +111,7 @@ func main() {
 	{{- else if eq .Type 1 }}{{/* assignment */}}
 		{{ template "expr" .LeftExpr }} = {{ template "expr" .RightExpr }}
 	{{- else if eq .Type 2 }}{{/* procedure call */}}
-		{{ .Name }}{{ .ActualParams | actualParams }}
+		{{ .Name }}{{  actualParams .ActualParams .FormalParams }}
 	{{- else if eq .Type 3 }}{{/* compound statement */}}
 		{{- template "statements" .Statements }}
 	{{- else if eq .Type 4 }}{{/* while statement */}}
@@ -143,7 +143,7 @@ func main() {
 	{{- else if eq .Type 9 }}{{/* with statement */}}
 		{{ template "statements" .Block.Statements }}
 	{{- else if eq .Type 10 }}{{/* write statement */}}
-		system.Write{{ if .AppendNewLine }}ln{{ end }}{{ .ActualParams | actualParams }}
+		system.Write{{ if .AppendNewLine }}ln{{ end }}{{ actualParams .ActualParams nil }}
 	{{- else }}
 	// bug: invalid statement type {{ .Type }}
 	{{- end }}

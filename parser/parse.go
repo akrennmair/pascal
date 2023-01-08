@@ -919,9 +919,10 @@ type Variable struct {
 	// the following fields are only set for variables that are looked up from within with statements,
 	// and they indicate that Name and Type describe the field of a record variable of name BelongsTo of
 	// type BelongsToType.
-	BelongsTo     string
-	BelongsToType DataType
-	BelongsToDecl *Variable
+	BelongsTo        string
+	BelongsToType    DataType
+	BelongsToVarDecl *Variable
+	BelongsToParam   *FormalParameter
 }
 
 func (p *parser) parseVarDeclarationPart(b *Block) {
@@ -1368,7 +1369,7 @@ func (p *parser) parseAssignmentOrProcedureStatement(b *Block, label *string) St
 		if err := p.validateParameters(proc.varargs, proc.FormalParameters, actualParameterList); err != nil {
 			p.errorf("procedure %s: %v", identifier, err)
 		}
-		return &ProcedureCallStatement{label: label, Name: identifier, ActualParams: actualParameterList}
+		return &ProcedureCallStatement{label: label, Name: identifier, ActualParams: actualParameterList, FormalParams: proc.FormalParameters}
 	}
 
 	if identifier == "writeln" {
@@ -1382,7 +1383,7 @@ func (p *parser) parseAssignmentOrProcedureStatement(b *Block, label *string) St
 		if err := p.validateParameters(proc.varargs, proc.FormalParameters, []Expression{}); err != nil {
 			p.errorf("procedure %s: %v", identifier, err)
 		}
-		return &ProcedureCallStatement{label: label, Name: identifier}
+		return &ProcedureCallStatement{label: label, Name: identifier, FormalParams: proc.FormalParameters}
 	}
 
 	var lexpr Expression
@@ -1633,21 +1634,15 @@ func (p *parser) parseWithStatement(b *Block, label *string) Statement {
 		ident := p.next().val
 
 		var (
-			typ     DataType
-			varDecl *Variable
+			typ       DataType
+			varDecl   *Variable
+			paramDecl *FormalParameter
 		)
 
 		if varDecl = b.findVariable(ident); varDecl != nil {
 			typ = varDecl.Type
-		} else if paramDecl := b.findFormalParameter(ident); paramDecl != nil {
-			// when a formal parameter is referenced in a with statement, make it
-			// seem like a regular variable. Not sure this is a good idea in the
-			// long run, but for pas2go it should do the trick for now.
+		} else if paramDecl = b.findFormalParameter(ident); paramDecl != nil {
 			typ = paramDecl.Type
-			varDecl = &Variable{
-				Name: paramDecl.Name,
-				Type: paramDecl.Type,
-			}
 		} else {
 			p.errorf("unknown variable %s x", ident)
 		}
@@ -1660,12 +1655,14 @@ func (p *parser) parseWithStatement(b *Block, label *string) Statement {
 		recordVariables = append(recordVariables, ident)
 
 		for _, field := range recType.Fields {
+			fmt.Printf("with: adding %s.%s %t %t\n", ident, field.Identifier, varDecl != nil, paramDecl != nil)
 			withBlock.Variables = append(withBlock.Variables, &Variable{
-				Name:          field.Identifier,
-				Type:          field.Type,
-				BelongsTo:     ident,
-				BelongsToType: recType,
-				BelongsToDecl: varDecl,
+				Name:             field.Identifier,
+				Type:             field.Type,
+				BelongsTo:        ident,
+				BelongsToType:    recType,
+				BelongsToVarDecl: varDecl,
+				BelongsToParam:   paramDecl,
 			})
 		}
 
@@ -1887,7 +1884,7 @@ func (p *parser) parseFactor(b *Block) Expression {
 				if err := p.validateParameters(funcDecl.varargs, funcDecl.FormalParameters, params); err != nil {
 					p.errorf("function %s: %v", ident, err)
 				}
-				return &FunctionCallExpr{Name: ident, ActualParams: params, Type_: funcDecl.ReturnType}
+				return &FunctionCallExpr{Name: ident, ActualParams: params, Type_: funcDecl.ReturnType, FormalParams: funcDecl.FormalParameters}
 			}
 
 			if len(funcDecl.FormalParameters) > 0 { // function has formal parameter which are not provided -> it's a functional-parameter
@@ -1949,7 +1946,7 @@ func (p *parser) parseVariable(b *Block, ident string) Expression {
 	}
 
 	if expr == nil {
-		p.errorf("unknown identifier %s", ident)
+		p.errorf("unknown identifier %s, block = %p", ident, b)
 	}
 
 	cont := true

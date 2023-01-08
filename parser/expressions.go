@@ -549,6 +549,7 @@ type FunctionCallExpr struct {
 	Name         string
 	Type_        DataType
 	ActualParams []Expression
+	FormalParams []*FormalParameter
 }
 
 func (e *FunctionCallExpr) String() string {

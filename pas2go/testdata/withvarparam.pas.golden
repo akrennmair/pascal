@@ -1,0 +1,34 @@
+package main
+
+import (
+	"github.com/akrennmair/pascal/pas2go/system"
+)
+
+var _ = system.Write
+
+// program test
+func main() {
+	type (
+		foox struct {
+			a int
+			b float64
+		}
+	)
+
+	var (
+		xx foox
+	)
+	_ = xx
+
+	var quux func(x *foox)
+	quux = func(x *foox) {
+
+		(*x).a = 42
+		(*x).b = 23.5e0
+		return
+	}
+
+	quux(&xx)
+	system.Writeln("xx.a = ", xx.a)
+	system.Writeln("xx.b = ", xx.b)
+}

@@ -59,6 +59,9 @@ func toGoType(typ parser.DataType) string {
 			if idx > 0 {
 				buf.WriteString(", ")
 			}
+			if param.VariableParameter {
+				buf.WriteString("*")
+			}
 			buf.WriteString(toGoType(param.Type))
 		}
 		buf.WriteString(")")
@@ -69,6 +72,9 @@ func toGoType(typ parser.DataType) string {
 		for idx, param := range dt.FormalParams {
 			if idx > 0 {
 				buf.WriteString(", ")
+			}
+			if param.VariableParameter {
+				buf.WriteString("*")
 			}
 			buf.WriteString(toGoType(param.Type))
 		}
@@ -169,13 +175,16 @@ func formalParams(params []*parser.FormalParameter) string {
 		}
 		buf.WriteString(param.Name)
 		buf.WriteString(" ")
+		if param.VariableParameter {
+			buf.WriteString("*")
+		}
 		buf.WriteString(toGoType(param.Type))
 	}
 
 	return buf.String()
 }
 
-func actualParams(params []parser.Expression) string {
+func actualParams(params []parser.Expression, formalParams []*parser.FormalParameter) string {
 	var buf strings.Builder
 
 	buf.WriteString("(")
@@ -183,6 +192,9 @@ func actualParams(params []parser.Expression) string {
 	for idx, param := range params {
 		if idx > 0 {
 			buf.WriteString(", ")
+		}
+		if formalParams != nil && formalParams[idx].VariableParameter {
+			buf.WriteString("&")
 		}
 		buf.WriteString(toExpr(param))
 	}
@@ -293,19 +305,7 @@ func toExpr(expr parser.Expression) string {
 	case *parser.ConstantExpr:
 		return e.Name
 	case *parser.VariableExpr:
-		str := e.Name
-		if e.VarDecl != nil {
-			decl := e.VarDecl
-			for decl.BelongsTo != "" {
-				str = decl.BelongsTo + "." + str
-				decl = decl.BelongsToDecl
-			}
-			return str
-		}
-		if e.IsReturnValue {
-			str = str + "_"
-		}
-		return str
+		return toVariableExpr(e)
 	case *parser.IntegerExpr:
 		return fmt.Sprint(e.Value)
 	case *parser.RealExpr:
@@ -348,7 +348,7 @@ func toExpr(expr parser.Expression) string {
 		}
 		return buf.String()
 	case *parser.FunctionCallExpr:
-		return e.Name + actualParams(e.ActualParams)
+		return e.Name + actualParams(e.ActualParams, e.FormalParams)
 	case *parser.FieldDesignatorExpr:
 		return toExpr(e.Expr) + "." + e.Field
 	case *parser.EnumValueExpr:
@@ -363,6 +363,34 @@ func toExpr(expr parser.Expression) string {
 	default:
 		return fmt.Sprintf("bug: invalid expression type %T", expr)
 	}
+}
+
+func toVariableExpr(e *parser.VariableExpr) string {
+	if e.IsReturnValue {
+		return e.Name + "_"
+	}
+
+	if e.ParamDecl != nil && e.ParamDecl.VariableParameter {
+		return "(*" + e.Name + ")"
+	}
+
+	str := e.Name
+	varDecl := e.VarDecl
+	for varDecl != nil && varDecl.BelongsTo != "" {
+		if varDecl.BelongsToVarDecl != nil {
+			str = varDecl.BelongsTo + "." + str
+			varDecl = varDecl.BelongsToVarDecl
+		} else if varDecl.BelongsToParam != nil {
+			if varDecl.BelongsToParam.VariableParameter {
+				str = "(*" + varDecl.BelongsToParam.Name + ")." + str
+			} else {
+				str = varDecl.BelongsToParam.Name + "." + str
+			}
+			varDecl = nil
+		}
+	}
+
+	return str
 }
 
 func filterEnumTypes(typeDefs []*parser.TypeDefinition) (enumTypes []*parser.TypeDefinition) {

@@ -104,6 +104,7 @@ type ProcedureCallStatement struct {
 	label        *string
 	Name         string
 	ActualParams []Expression
+	FormalParams []*FormalParameter
 }
 
 func (s *ProcedureCallStatement) Type() StatementType {
