@@ -483,6 +483,20 @@ func generateBuiltinProcedure(stmt *parser.ProcedureCallStatement) string {
 		return "system.Read" + toPointerParamList(stmt.ActualParams)
 	case "readln":
 		return "system.Readln" + toPointerParamList(stmt.ActualParams)
+	case "inc":
+		switch len(stmt.ActualParams) {
+		case 1:
+			return toExpr(stmt.ActualParams[0]) + "++"
+		case 2:
+			return toExpr(stmt.ActualParams[0]) + " += " + toExpr(stmt.ActualParams[1])
+		}
+	case "dec":
+		switch len(stmt.ActualParams) {
+		case 1:
+			return toExpr(stmt.ActualParams[0]) + "--"
+		case 2:
+			return toExpr(stmt.ActualParams[0]) + " -= " + toExpr(stmt.ActualParams[1])
+		}
 	}
 	return "BUG: missing builtin procedure " + stmt.Name
 }

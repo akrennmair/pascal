@@ -1,0 +1,33 @@
+package main
+
+import (
+	"github.com/akrennmair/pascal/pas2go/system"
+)
+
+var _ = system.Write
+
+// program test
+func main() {
+	var (
+		i int
+	)
+	_ = i
+
+	i = 0
+	i++
+	if i != 1 {
+		system.Writeln("Error: i should be 1, is actually ", i)
+	}
+	i += 23
+	if i != 24 {
+		system.Writeln("Error: i should be 24, is actually ", i)
+	}
+	i--
+	if i != 23 {
+		system.Writeln("Error: i should be 23, is actually ", i)
+	}
+	i -= 13
+	if i != 10 {
+		system.Writeln("Error: i should be 23, is actually ", i)
+	}
+}

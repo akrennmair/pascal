@@ -71,6 +71,44 @@ var builtinProcedures = []*Routine{
 			return nil, nil
 		},
 	},
+	{
+		Name: "inc",
+		validator: func(exprs []Expression) (DataType, error) {
+			switch len(exprs) {
+			case 2:
+				if _, ok := exprs[1].Type().(*IntegerType); !ok {
+					return nil, fmt.Errorf("inc: second argument has to be an integer expression")
+				}
+				fallthrough
+			case 1:
+				if _, isIntegerType := exprs[0].Type().(*IntegerType); !isIntegerType || !exprs[0].IsVariableExpr() {
+					return nil, fmt.Errorf("inc: first argument has to be an integer variable")
+				}
+			default:
+				return nil, fmt.Errorf("inc: wrong amount of arguments")
+			}
+			return nil, nil
+		},
+	},
+	{
+		Name: "dec",
+		validator: func(exprs []Expression) (DataType, error) {
+			switch len(exprs) {
+			case 2:
+				if _, ok := exprs[1].Type().(*IntegerType); !ok {
+					return nil, fmt.Errorf("dec: second argument has to be an integer expression")
+				}
+				fallthrough
+			case 1:
+				if _, isIntegerType := exprs[0].Type().(*IntegerType); !isIntegerType || !exprs[0].IsVariableExpr() {
+					return nil, fmt.Errorf("dec: first argument has to be an integer variable")
+				}
+			default:
+				return nil, fmt.Errorf("dec: wrong amount of arguments")
+			}
+			return nil, nil
+		},
+	},
 }
 
 var builtinFunctions = []*Routine{
