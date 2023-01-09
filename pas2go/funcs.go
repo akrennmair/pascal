@@ -166,6 +166,19 @@ func constantLiteral(cl parser.ConstantLiteral) string {
 	}
 }
 
+func constantLiteralList(labels []parser.ConstantLiteral) string {
+	var buf strings.Builder
+
+	for idx, l := range labels {
+		if idx > 0 {
+			buf.WriteString(", ")
+		}
+		buf.WriteString(constantLiteral(l))
+	}
+
+	return buf.String()
+}
+
 func formalParams(params []*parser.FormalParameter) string {
 	var buf strings.Builder
 

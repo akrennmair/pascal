@@ -1,0 +1,28 @@
+package main
+
+import (
+	"github.com/akrennmair/pascal/pas2go/system"
+)
+
+var _ = system.Write
+
+// program test
+func main() {
+	var (
+		i int
+	)
+	_ = i
+
+	i = 4
+L10:
+	switch i {
+	case 0:
+		system.Writeln("goodbye world")
+	case 1:
+		system.Writeln("hello world")
+	case 2, 3, 4:
+		system.Writeln("wait for it...")
+		i = i - 1
+		goto L10
+	}
+}

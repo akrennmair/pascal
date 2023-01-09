@@ -7,6 +7,7 @@ var (
 		"toGoType":                 toGoType,
 		"sortTypeDefs":             sortTypeDefs,
 		"constantLiteral":          constantLiteral,
+		"constantLiteralList":      constantLiteralList,
 		"formalParams":             formalParams,
 		"actualParams":             actualParams,
 		"toExpr":                   toExpr,
@@ -145,7 +146,12 @@ func main() {
 		}
 		{{- end }}
 	{{- else if eq .Type 8 }}{{/* case statement */}}
-		// TODO: implement case
+		switch {{ template "expr" .Expr }} {
+		{{- range $caseLimb := .CaseLimbs }}
+		case {{ $caseLimb.Label | constantLiteralList }}:
+			{{- template "statement" $caseLimb.Statement }}
+		{{- end }}
+		}
 	{{- else if eq .Type 9 }}{{/* with statement */}}
 		{{ template "statements" .Block.Statements }}
 	{{- else if eq .Type 10 }}{{/* write statement */}}
