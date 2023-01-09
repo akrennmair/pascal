@@ -1,0 +1,34 @@
+package main
+
+import (
+	"github.com/akrennmair/pascal/pas2go/system"
+)
+
+var _ = system.Write
+
+// program fib
+func main() {
+	var (
+		max     int
+		fib1    int
+		fib2    int
+		nextnum int
+	)
+	_ = max
+	_ = fib1
+	_ = fib2
+	_ = nextnum
+
+	system.Write("generating fibonacci numbers to what maximum? ")
+	system.Readln(&max)
+	fib1 = 1
+	fib2 = 1
+	system.Writeln(fib1)
+	for fib2 < max {
+
+		system.Writeln(fib2)
+		nextnum = fib1 + fib2
+		fib1 = fib2
+		fib2 = nextnum
+	}
+}

@@ -1,0 +1,40 @@
+package main
+
+import (
+	"github.com/akrennmair/pascal/pas2go/system"
+)
+
+var _ = system.Write
+
+// program ex42a
+func main() {
+	var (
+		i int
+		h int
+		t int
+		o int
+	)
+	_ = i
+	_ = h
+	_ = t
+	_ = o
+
+	var fac func(i int) int
+	fac = func(i int) (fac_ int) {
+		if i <= 1 {
+			fac_ = 1
+		} else {
+			fac_ = i * fac(i-1)
+		}
+		return
+	}
+
+	for i = 100; i <= 999; i++ {
+		h = i / 100
+		t = (i % 100) / 10
+		o = i % 10
+		if i == fac(h)+fac(t)+fac(o) {
+			system.Writeln(i, " = ", h, "! + ", t, "! + ", o, "!")
+		}
+	}
+}

@@ -1300,6 +1300,19 @@ func TestParserSuccesses(t *testing.T) {
 				writeln('10! = ', factorial(10))
 			end.`,
 		},
+		{
+			"new and dipose a pointer",
+			`program test;
+
+			var x : ^integer;
+			
+			begin
+				new(x);
+				x^ := 23;
+				writeln('x^ = ', x^);
+				dispose(x)
+			end.`,
+		},
 	}
 
 	for idx, testEntry := range testData {
@@ -2344,6 +2357,28 @@ func TestParserErrors(t *testing.T) {
 			
 			begin
 				writeln('x = ', x)
+			end.`,
+		},
+		{
+			"new an integer",
+			`new requires exactly 1 argument of a pointer type, got integer instead`,
+			`program test;
+
+			var x : integer;
+			
+			begin
+				new(x)
+			end.`,
+		},
+		{
+			"dispose a real",
+			`dispose requires exactly 1 argument of a pointer type, got real instead`,
+			`program test;
+
+			var x : real;
+			
+			begin
+				dispose(x)
 			end.`,
 		},
 	}
