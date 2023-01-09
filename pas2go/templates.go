@@ -100,7 +100,7 @@ func main() {
 {{- define "statements" }}
 	{{- range $statement := . }}
 		{{- if $statement.Label }}
-		{{ $statement.Label }}:
+		L{{ $statement.Label }}:
 		{{- end }}
 		{{- template "statement" $statement }}
 	{{- end -}}
@@ -109,7 +109,7 @@ func main() {
 
 {{- define "statement" }}
 	{{- if eq .Type 0 }}{{/* goto */}}
-		goto {{ .Target }}
+		goto L{{ .Target }}
 	{{- else if eq .Type 1 }}{{/* assignment */}}
 		{{ template "expr" .LeftExpr }} = {{ template "expr" .RightExpr }}
 	{{- else if eq .Type 2 }}{{/* procedure call */}}

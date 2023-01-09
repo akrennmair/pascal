@@ -1,0 +1,23 @@
+package main
+
+import (
+	"github.com/akrennmair/pascal/pas2go/system"
+)
+
+var _ = system.Write
+
+// program test
+func main() {
+	var (
+		i int
+	)
+	_ = i
+
+	i = 0
+L10:
+	i = i + 1
+	system.Writeln("i = ", i)
+	if i < 10 {
+		goto L10
+	}
+}
