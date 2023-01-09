@@ -453,6 +453,10 @@ func toFunctionCallExpr(e *parser.FunctionCallExpr) string {
 			param = ce
 		}
 		return "int(" + toExpr(param) + ")"
+	case "succ":
+		return "(" + toExpr(e.ActualParams[0]) + " + 1)"
+	case "pred":
+		return "(" + toExpr(e.ActualParams[0]) + " - 1)"
 	}
 
 	return e.Name + actualParams(e.ActualParams, e.FormalParams)

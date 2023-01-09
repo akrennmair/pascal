@@ -284,6 +284,40 @@ var builtinFunctions = []*Routine{
 			return nil, fmt.Errorf("ord requires exactly 1 argument of type enum or char, got %s instead", exprs[0].Type().Type())
 		},
 	},
+	{
+		Name: "succ",
+		validator: func(exprs []Expression) (DataType, error) {
+			if len(exprs) != 1 {
+				return nil, fmt.Errorf("succ requires exactly 1 argument of type enum or integer, got %d arguments instead", len(exprs))
+			}
+
+			switch exprs[0].Type().(type) {
+			case *IntegerType:
+				return exprs[0].Type(), nil
+			case *EnumType:
+				return exprs[0].Type(), nil
+			}
+
+			return nil, fmt.Errorf("succ requires exactly 1 argument of type enum or integer, got %s instead", exprs[0].Type().Type())
+		},
+	},
+	{
+		Name: "pred",
+		validator: func(exprs []Expression) (DataType, error) {
+			if len(exprs) != 1 {
+				return nil, fmt.Errorf("pred requires exactly 1 argument of type enum or integer, got %d arguments instead", len(exprs))
+			}
+
+			switch exprs[0].Type().(type) {
+			case *IntegerType:
+				return exprs[0].Type(), nil
+			case *EnumType:
+				return exprs[0].Type(), nil
+			}
+
+			return nil, fmt.Errorf("pred requires exactly 1 argument of type enum or integer, got %s instead", exprs[0].Type().Type())
+		},
+	},
 }
 
 func getBuiltinType(identifier string) DataType {

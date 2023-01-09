@@ -1,0 +1,42 @@
+package main
+
+import (
+	"github.com/akrennmair/pascal/pas2go/system"
+)
+
+var _ = system.Write
+
+// program test
+func main() {
+	type (
+		ttt int
+	)
+	const (
+		foo ttt = 0
+		bar ttt = 1
+		baz ttt = 2
+	)
+
+	var (
+		x ttt
+		i int
+	)
+	_ = x
+	_ = i
+
+	x = foo
+	system.Writeln("x = ", x)
+	x = (x + 1)
+	system.Writeln("x = ", x)
+	x = (x + 1)
+	system.Writeln("x = ", x)
+	x = (x - 1)
+	system.Writeln("x = ", x)
+	x = (x - 1)
+	system.Writeln("x = ", x)
+	i = 2
+	i = (i + 1)
+	system.Writeln("i = ", i)
+	i = (i - 1)
+	system.Writeln("i = ", i)
+}
