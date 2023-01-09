@@ -263,6 +263,27 @@ var builtinFunctions = []*Routine{
 		},
 		ReturnType: &BooleanType{},
 	},
+	{
+		Name: "ord",
+		validator: func(exprs []Expression) (DataType, error) {
+			if len(exprs) != 1 {
+				return nil, fmt.Errorf("ord requires exactly 1 argument of type enum or char, got %d arguments instead", len(exprs))
+			}
+
+			switch exprs[0].Type().(type) {
+			case *EnumType:
+				return &IntegerType{}, nil
+			case *CharType:
+				return &IntegerType{}, nil
+			}
+
+			if _, isStringLiteral := exprs[0].(*StringExpr); isStringLiteral {
+				return &IntegerType{}, nil
+			}
+
+			return nil, fmt.Errorf("ord requires exactly 1 argument of type enum or char, got %s instead", exprs[0].Type().Type())
+		},
+	},
 }
 
 func getBuiltinType(identifier string) DataType {

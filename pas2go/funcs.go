@@ -443,6 +443,16 @@ func toFunctionCallExpr(e *parser.FunctionCallExpr) string {
 		return "system.Chr" + actualParams(e.ActualParams, e.FormalParams)
 	case "odd":
 		return "system.Odd" + actualParams(e.ActualParams, e.FormalParams)
+	case "ord":
+		param := e.ActualParams[0]
+		if se, ok := param.(*parser.StringExpr); ok {
+			param = &parser.CharExpr{
+				Value: se.Value[0],
+			}
+		} else if ce, ok := param.(*parser.ConstantExpr); ok {
+			param = ce
+		}
+		return "int(" + toExpr(param) + ")"
 	}
 
 	return e.Name + actualParams(e.ActualParams, e.FormalParams)
