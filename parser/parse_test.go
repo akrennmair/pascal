@@ -2,10 +2,13 @@ package parser
 
 import (
 	"fmt"
+	"io/ioutil"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParserSuccesses(t *testing.T) {
@@ -1313,6 +1316,34 @@ func TestParserSuccesses(t *testing.T) {
 				dispose(x)
 			end.`,
 		},
+		{
+			"valid cases for assignment and comparison between integer and real",
+			`program test;
+
+			var i : integer;
+				r : real;
+			
+			begin
+				i := 23;
+				writeln('i = ', i);
+			
+				i := 23;
+				writeln('i = ', i);
+			
+				r := i;
+				writeln('r = ', r);
+			
+				if r <= 23 then
+					writeln('foo');
+			
+				if i <= 23.0 then
+					writeln('bar');
+			
+				if i <= r then
+					writeln('quux')
+			end.
+			`,
+		},
 	}
 
 	for idx, testEntry := range testData {
@@ -2242,20 +2273,6 @@ func TestParserErrors(t *testing.T) {
 			`,
 		},
 		{
-			"relational expression of incompatible types",
-			`can't integer <> real`,
-			`program test;
-
-			var x : integer;
-				y : real;
-				b : boolean;
-
-			begin
-				b := x <> y
-			end.
-			`,
-		},
-		{
 			"simple expression with OR and non-boolean first term",
 			`can't use or with integer`,
 			`program test;
@@ -2271,7 +2288,7 @@ func TestParserErrors(t *testing.T) {
 		},
 		{
 			"simple expression with OR and non-boolean second term",
-			`can't boolean or integer`,
+			`in simple expression involving operator or, types boolean and integer are incompatible`,
 			`program test;
 
 			var a : integer;
@@ -2285,7 +2302,7 @@ func TestParserErrors(t *testing.T) {
 		},
 		{
 			"simple expression with + and incompatible types",
-			`can't integer + string`,
+			`in simple expression involving operator +, types integer and string are incompatible`,
 			`program test;
 
 			var a : integer;
@@ -2299,7 +2316,7 @@ func TestParserErrors(t *testing.T) {
 		},
 		{
 			"term with AND and incompatible types",
-			`can't boolean and string`,
+			`in term involving operator and, types boolean and string are incompatible`,
 			`program test;
 
 			var a : boolean;
@@ -2394,6 +2411,22 @@ func TestParserErrors(t *testing.T) {
 			}
 			_ = p
 			t.Logf("error = %v", err)
+		})
+	}
+}
+
+func TestParserOnTranspileSet(t *testing.T) {
+	pascalFiles, err := filepath.Glob("../pas2go/testdata/*.pas")
+	require.NoError(t, err)
+
+	for _, pascalFile := range pascalFiles {
+		t.Run(filepath.Base(pascalFile), func(t *testing.T) {
+			fileContent, err := ioutil.ReadFile(pascalFile)
+			require.NoError(t, err)
+
+			ast, err := Parse(pascalFile, string(fileContent))
+			require.NoError(t, err, "parsing source file failed")
+			require.NotNil(t, ast, "parsing source succeeded, but ast is nil")
 		})
 	}
 }

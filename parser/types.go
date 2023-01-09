@@ -697,6 +697,28 @@ func typesCompatible(t1, t2 DataType) bool {
 		return true
 	}
 
+	if (isIntegerType(t1) && isRealType(t2)) || (isRealType(t1) && isIntegerType(t2)) {
+		return true
+	}
+
+	// TODO: implement more cases of compatibility
+
+	return false
+}
+
+func typesCompatibleForAssignment(lt, rt DataType) bool {
+	if lt.Equals(rt) {
+		return true
+	}
+
+	if isIntegerType(lt) && isIntegerType(rt) {
+		return true
+	}
+
+	if isRealType(lt) && isIntegerType(rt) {
+		return true
+	}
+
 	// TODO: implement more cases of compatibility
 
 	return false

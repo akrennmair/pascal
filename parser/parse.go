@@ -1400,7 +1400,7 @@ func (p *parser) parseAssignmentOrProcedureStatement(b *Block, label *string) St
 			p.errorf("assignment: unknown left expression %s", identifier)
 		}
 		rexpr := p.parseExpression(b)
-		if !typesCompatible(lexpr.Type(), rexpr.Type()) {
+		if !typesCompatibleForAssignment(lexpr.Type(), rexpr.Type()) {
 			if !isCharStringLiteralAssignment(b, lexpr, rexpr) {
 				p.errorf("incompatible types: got %s, expected %s", rexpr.Type().Type(), lexpr.Type().Type())
 			} else {
@@ -1749,9 +1749,8 @@ func (p *parser) parseExpression(b *Block) Expression {
 			p.errorf("type %s does not match set type %s", lt.Type(), st.ElementType.Type())
 		}
 	} else {
-		ok := lt.Equals(rt)
-		if !ok {
-			p.errorf("can't %s %s %s", lt.Type(), relExpr.Operator, rt.Type())
+		if !typesCompatible(lt, rt) {
+			p.errorf("in relational expression with operator %s, types %s and %s are incompatible", relExpr.Operator, lt.Type(), rt.Type())
 		}
 	}
 
@@ -1798,7 +1797,7 @@ func (p *parser) parseSimpleExpression(b *Block) *SimpleExpr {
 		nextTerm := p.parseTerm(b)
 
 		if !typesCompatible(simpleExpr.First.Type(), nextTerm.Type()) {
-			p.errorf("can't %s %s %s", simpleExpr.First.Type().Type(), operator, nextTerm.Type().Type())
+			p.errorf("in simple expression involving operator %s, types %s and %s are incompatible", operator, simpleExpr.First.Type().Type(), nextTerm.Type().Type())
 		}
 
 		simpleExpr.Next = append(simpleExpr.Next, &Addition{Operator: operator, Term: nextTerm})
@@ -1853,7 +1852,7 @@ func (p *parser) parseTerm(b *Block) *TermExpr {
 		nextFactor := p.parseFactor(b)
 
 		if !typesCompatible(term.First.Type(), nextFactor.Type()) {
-			p.errorf("can't %s %s %s", term.First.Type().Type(), operator, nextFactor.Type().Type())
+			p.errorf("in term involving operator %s, types %s and %s are incompatible", operator, term.First.Type().Type(), nextFactor.Type().Type())
 		}
 
 		term.Next = append(term.Next, &Multiplication{Operator: operator, Factor: nextFactor})
