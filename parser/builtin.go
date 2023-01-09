@@ -29,6 +29,21 @@ var builtinProcedures = []*Routine{
 		},
 	},
 	{
+		Name: "write",
+		validator: func(exprs []Expression) (DataType, error) {
+			// TODO: implement
+			return nil, nil
+		},
+	},
+	{
+		Name:      "readln",
+		validator: validateReadParameters,
+	},
+	{
+		Name:      "read",
+		validator: validateReadParameters,
+	},
+	{
 		Name: "new",
 		validator: func(exprs []Expression) (DataType, error) {
 			if len(exprs) != 1 {
@@ -237,4 +252,13 @@ func getBuiltinEnumValues(identifier string) (idx int, typ DataType) {
 	default:
 		return 0, nil
 	}
+}
+
+func validateReadParameters(exprs []Expression) (DataType, error) {
+	for idx, e := range exprs {
+		if !e.IsVariableExpr() {
+			return nil, fmt.Errorf("expression %d is not a variable expression", idx)
+		}
+	}
+	return nil, nil
 }

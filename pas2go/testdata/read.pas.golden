@@ -1,0 +1,22 @@
+package main
+
+import (
+	"github.com/akrennmair/pascal/pas2go/system"
+)
+
+var _ = system.Write
+
+// program test
+func main() {
+	var (
+		s string
+		i int
+	)
+	_ = s
+	_ = i
+
+	system.Write("enter integer, then string: ")
+	system.Read(&i, &s)
+	system.Writeln("s = ", s)
+	system.Writeln("i = ", i)
+}

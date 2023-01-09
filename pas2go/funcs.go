@@ -479,6 +479,28 @@ func generateBuiltinProcedure(stmt *parser.ProcedureCallStatement) string {
 		return toExpr(stmt.ActualParams[0]) + " = new(" + toGoType(stmt.ActualParams[0].Type().(*parser.PointerType).Type_) + ")"
 	case "dispose":
 		return toExpr(stmt.ActualParams[0]) + " = nil"
+	case "read":
+		return "system.Read" + toPointerParamList(stmt.ActualParams)
+	case "readln":
+		return "system.Readln" + toPointerParamList(stmt.ActualParams)
 	}
 	return "BUG: missing builtin procedure " + stmt.Name
+}
+
+func toPointerParamList(params []parser.Expression) string {
+	var buf strings.Builder
+
+	buf.WriteString("(")
+
+	for idx, param := range params {
+		if idx > 0 {
+			buf.WriteString(", ")
+		}
+		buf.WriteString("&")
+		buf.WriteString(toExpr(param))
+	}
+
+	buf.WriteString(")")
+
+	return buf.String()
 }
