@@ -985,27 +985,6 @@ func (p *parser) parseStatementSequence(b *Block) []Statement {
 	return statements
 }
 
-type StatementType int
-
-const (
-	StatementGoto StatementType = iota
-	StatementAssignment
-	StatementProcedureCall
-	StatementCompoundStatement
-	StatementWhile
-	StatementRepeat
-	StatementFor
-	StatementIf
-	StatementCase
-	StatementWith
-	StatementWrite
-)
-
-type Statement interface {
-	Type() StatementType
-	Label() *string
-}
-
 // parseStatement parses a statement.
 //
 //	statement =
