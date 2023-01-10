@@ -6,8 +6,14 @@ import (
 	"strings"
 )
 
+// PointerType describes a type that is a pointer to another type.
 type PointerType struct {
-	Name  string
+	// Name of the type. May be empty.
+	Name string
+
+	// Dereferenced type. If it is nil, it indicates that the associated value is
+	// compatible with any other pointer type. This is used to represent the type
+	// of the nil literal.
 	Type_ DataType
 }
 
@@ -44,6 +50,7 @@ func (t *PointerType) Named(_ string) DataType {
 	return t
 }
 
+// SubrangeType describes a type that is a range with a lower and an upper boundary of an integral type.
 type SubrangeType struct {
 	LowerBound int
 	UpperBound int
@@ -81,13 +88,14 @@ func (t *SubrangeType) TypeName() string {
 }
 
 func (t *SubrangeType) Named(name string) DataType {
-	var nt SubrangeType
-	nt = *t
+	nt := *t
 	nt.name = name
 	return &nt
 }
 
+// EnumType describes an enumerated type, consisting of a list of identifiers.
 type EnumType struct {
+	// List of identifiers. Their indexes are equal to their respective integer values.
 	Identifiers []string
 	name        string
 }
@@ -117,8 +125,7 @@ func (t *EnumType) TypeName() string {
 }
 
 func (t *EnumType) Named(name string) DataType {
-	var nt EnumType
-	nt = *t
+	nt := *t
 	nt.name = name
 	return &nt
 }
@@ -182,17 +189,23 @@ func (t *ArrayType) TypeName() string {
 }
 
 func (t *ArrayType) Named(name string) DataType {
-	var nt ArrayType
-	nt = *t
+	nt := *t
 	nt.name = name
 	return &nt
 }
 
+// RecordType describes a record type, consisting of 1 or more fixed record fields, and an optional variant field.
+// If a variant field is present, the fixed fields are optional.
 type RecordType struct {
-	Fields       []*RecordField
+	// Fixed record fields.
+	Fields []*RecordField
+
+	// If not nil, contains the variant field.
 	VariantField *RecordVariantField
-	Packed       bool
-	name         string
+
+	// If true, the record type was declared as packed.
+	Packed bool
+	name   string
 }
 
 func (t *RecordType) findField(name string) *RecordField {
@@ -289,16 +302,20 @@ func (t *RecordType) TypeName() string {
 }
 
 func (t *RecordType) Named(name string) DataType {
-	var nt RecordType
-	nt = *t
+	nt := *t
 	nt.name = name
 	return &nt
 }
 
+// SetType describes a type that consists of a set of elements of a particular type.
 type SetType struct {
+	// The element type.
 	ElementType DataType
-	Packed      bool
-	name        string
+
+	// If true, the set type was declared as packed.
+	Packed bool
+
+	name string
 }
 
 func (t *SetType) Type() string {
@@ -319,12 +336,12 @@ func (t *SetType) TypeName() string {
 }
 
 func (t *SetType) Named(name string) DataType {
-	var nt SetType
-	nt = *t
+	nt := *t
 	nt.name = name
 	return &nt
 }
 
+// IntegerType describes the integer type.
 type IntegerType struct {
 	name string
 }
@@ -343,12 +360,12 @@ func (t *IntegerType) TypeName() string {
 }
 
 func (t *IntegerType) Named(name string) DataType {
-	var nt IntegerType
-	nt = *t
+	nt := *t
 	nt.name = name
 	return &nt
 }
 
+// BooleanType describes the boolean type.
 type BooleanType struct {
 	name string
 }
@@ -367,12 +384,12 @@ func (t *BooleanType) TypeName() string {
 }
 
 func (t *BooleanType) Named(name string) DataType {
-	var nt BooleanType
-	nt = *t
+	nt := *t
 	nt.name = name
 	return &nt
 }
 
+// CharType describes the char type.
 type CharType struct {
 	name string
 }
@@ -391,12 +408,12 @@ func (t *CharType) TypeName() string {
 }
 
 func (t *CharType) Named(name string) DataType {
-	var nt CharType
-	nt = *t
+	nt := *t
 	nt.name = name
 	return &nt
 }
 
+// StringType describes the string type.
 type StringType struct {
 	name string
 }
@@ -421,6 +438,7 @@ func (t *StringType) Named(name string) DataType {
 	return &nt
 }
 
+// RealType describes the real type.
 type RealType struct {
 	name string
 }
@@ -445,10 +463,16 @@ func (t *RealType) Named(name string) DataType {
 	return &nt
 }
 
+// FileType describes a file type. A file type consists of elements of a particular
+// element type, which can be either read from the file or written to the file.
 type FileType struct {
+	// The element type.
 	ElementType DataType
-	Packed      bool
-	name        string
+
+	// If true, indicates that the file type was declared as packed.
+	Packed bool
+
+	name string
 }
 
 func (t *FileType) Type() string {
@@ -477,6 +501,8 @@ func (t *FileType) Named(name string) DataType {
 	return &nt
 }
 
+// ProcedureType describes a procedure by its formal parameters. This is only used
+// as the type of formal parameters itself, i.e. in procedure and function declarations.
 type ProcedureType struct {
 	FormalParams []*FormalParameter
 }
@@ -524,6 +550,9 @@ func (t *ProcedureType) Named(_ string) DataType {
 	return t
 }
 
+// FunctionType describes a function by its formal parameters and its return type.
+// This is only used as the type of formal parameters itself, i.e. in procedure and
+// function declarations.
 type FunctionType struct {
 	FormalParams []*FormalParameter
 	ReturnType   DataType
