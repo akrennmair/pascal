@@ -15,9 +15,20 @@ type PointerType struct {
 	// compatible with any other pointer type. This is used to represent the type
 	// of the nil literal.
 	Type_ DataType
+
+	block *Block
+}
+
+func (t *PointerType) resolve() {
+	// attempt resolution
+	if t.Type_ == nil && t.Name != "" {
+		t.Type_ = t.block.findType(t.Name)
+	}
 }
 
 func (t *PointerType) Type() string {
+	t.resolve()
+
 	if t.Type_ == nil {
 		return "nil" // compatible with any type; strictly speaking, this is not syntactically correct in Pascal as a type.
 	}
@@ -35,6 +46,8 @@ func (t *PointerType) Equals(dt DataType) bool {
 		return false
 	}
 
+	t.resolve()
+
 	if t.Type_ == nil || o.Type_ == nil { // means at least one of them is a nil pointer, and nil is compatible with any type.
 		return true
 	}
@@ -43,6 +56,7 @@ func (t *PointerType) Equals(dt DataType) bool {
 }
 
 func (t *PointerType) TypeName() string {
+	t.resolve()
 	return t.Type_.TypeName()
 }
 
@@ -387,8 +401,7 @@ func (t *StringType) TypeName() string {
 }
 
 func (t *StringType) Named(name string) DataType {
-	var nt StringType
-	nt = *t
+	nt := *t
 	nt.name = name
 	return &nt
 }
@@ -412,8 +425,7 @@ func (t *RealType) TypeName() string {
 }
 
 func (t *RealType) Named(name string) DataType {
-	var nt RealType
-	nt = *t
+	nt := *t
 	nt.name = name
 	return &nt
 }
@@ -730,6 +742,20 @@ func typesCompatible(t1, t2 DataType) bool {
 	return false
 }
 
+func exprCompatible(t DataType, expr Expression) bool {
+	if typesCompatible(t, expr.Type()) {
+		return true
+	}
+
+	str, isStringLiteral := expr.(*StringExpr)
+
+	if IsCharType(t) && isStringLiteral && str.IsCharLiteral() {
+		return true
+	}
+
+	return false
+}
+
 func typesCompatibleForAssignment(lt, rt DataType) bool {
 	if lt.Equals(rt) {
 		return true
@@ -788,9 +814,11 @@ func isCharStringLiteralAssignment(b *Block, lexpr Expression, rexpr Expression)
 	}
 
 	/*
-		fmt.Printf("rexpr = %s sl = %s isStringLiteral = %t\n", spew.Sdump(rexpr), sl, isStringLiteral)
+		fmt.Printf("=====\n")
+		fmt.Printf("lexpr = %s (%s)\n", spew.Sdump(lexpr), lexpr.Type().Type())
+		fmt.Printf("rexpr = %s (%s) sl = %s isStringLiteral = %t\n", spew.Sdump(rexpr), rexpr.Type().Type(), sl, isStringLiteral)
 		fmt.Printf("lexpr.IsVariabelExpr = %t\n", lexpr.IsVariableExpr())
-		fmt.Printf("lexpr is char = %t\n", lexpr.Type().Equals(&charType{}))
+		fmt.Printf("lexpr is char = %t\n", IsCharType(lexpr.Type()))
 		fmt.Printf("rexpr is string = %t\n", rexpr.Type().Equals(getBuiltinType("string")))
 	*/
 

@@ -358,7 +358,7 @@ func (p *parser) parseTypeDefinitionPart(b *Block) {
 			continue
 		}
 		if pt.Name != "" && pt.Type_ == nil {
-			pt.Type_ = b.findType(pt.Name).Named(pt.Name)
+			pt.Type_ = b.findType(pt.Name) //.Named(pt.Name)
 		}
 	}
 }
@@ -384,7 +384,7 @@ func (p *parser) parseTypeDefinition(b *Block) (*TypeDefinition, bool) {
 	}
 	p.next()
 
-	dataType := p.parseType(b, true)
+	dataType := p.parseType(b)
 
 	return &TypeDefinition{Name: typeName, Type: dataType}, true
 }
@@ -442,7 +442,7 @@ type RecordVariant struct {
 //	    "^" type-identifier .
 //	type-identifier =
 //	    identifier .
-func (p *parser) parseType(b *Block, resolvePointerTypesLater bool) DataType {
+func (p *parser) parseType(b *Block) DataType {
 	packed := false
 
 restartParseDataType:
@@ -472,22 +472,32 @@ restartParseDataType:
 
 		ident := p.next().val
 
-		typeDecl := b.findType(ident)
-		if typeDecl == nil {
-			if resolvePointerTypesLater {
-				return &PointerType{Name: ident}
+		return &PointerType{Name: ident, block: b}
+
+		/*
+
+			typeDecl := b.findType(ident)
+			if typeDecl == nil {
+				fmt.Printf("pointer type that needs resolving later: %s\n", ident)
+				if resolvePointerTypesLater {
+					return &PointerType{Name: ident}
+				}
+				p.errorf("unknown type %s", ident)
 			}
-			p.errorf("unknown type %s", ident)
-		}
 
-		// don't store names of built-in types, as they are fully represented in the type declaration already, and
-		// the name would only stand in the way for any code generation that assumes that non-empty names refer
-		// to non-builtin types.
-		if getBuiltinType(ident) != nil {
-			ident = ""
-		}
+			return &PointerType{Name: ident}
 
-		return &PointerType{Name: ident, Type_: typeDecl.Named(ident)}
+			// don't store names of built-in types, as they are fully represented in the type declaration already, and
+			// the name would only stand in the way for any code generation that assumes that non-empty names refer
+			// to non-builtin types.
+			if getBuiltinType(ident) != nil {
+				ident = ""
+			}
+
+			fmt.Printf("pointer type: %s : %s\n", ident, typeDecl.Type())
+
+			return &PointerType{Name: ident, Type_: typeDecl.Named(ident)}
+		*/
 	case itemOpenParen:
 		return p.parseEnumType(b)
 	case itemPacked:
@@ -507,7 +517,7 @@ restartParseDataType:
 			p.errorf("expected of after set, got %s", p.next())
 		}
 		p.next()
-		setDataType := p.parseType(b, resolvePointerTypesLater)
+		setDataType := p.parseType(b)
 		return &SetType{ElementType: setDataType, Packed: packed}
 	case itemFile:
 		p.next()
@@ -515,7 +525,7 @@ restartParseDataType:
 			p.errorf("expected of after file, got %s", p.next())
 		}
 		p.next()
-		fileDataType := p.parseType(b, resolvePointerTypesLater)
+		fileDataType := p.parseType(b)
 		return &FileType{ElementType: fileDataType, Packed: packed}
 	case itemSign, itemUnsignedDigitSequence, itemStringLiteral:
 		// if the type definition is a sign, digits or a string (really char) literal, it can only be a subrange type.
@@ -620,7 +630,7 @@ func (p *parser) parseVariableDeclaration(b *Block) {
 	}
 	p.next()
 
-	dataType := p.parseType(b, false)
+	dataType := p.parseType(b)
 
 	if p.peek().typ != itemSemicolon {
 		p.errorf("expected ;, got %s", p.next())
@@ -822,7 +832,11 @@ func (p *parser) parseFormalParameterSection(b *Block) []*FormalParameter {
 
 		name := p.next().val
 
-		params := p.parseFormalParameterList(b)
+		var params []*FormalParameter
+
+		if p.peek().typ == itemOpenParen {
+			params = p.parseFormalParameterList(b)
+		}
 
 		formalParameters = append(formalParameters, &FormalParameter{
 			Name: name,
@@ -837,7 +851,11 @@ func (p *parser) parseFormalParameterSection(b *Block) []*FormalParameter {
 
 		name := p.next().val
 
-		params := p.parseFormalParameterList(b)
+		var params []*FormalParameter
+
+		if p.peek().typ == itemOpenParen {
+			params = p.parseFormalParameterList(b)
+		}
 
 		if p.peek().typ != itemColon {
 			p.errorf("expected : after formal parameter list, got %s instead", p.peek())
@@ -845,7 +863,7 @@ func (p *parser) parseFormalParameterSection(b *Block) []*FormalParameter {
 
 		p.next()
 
-		returnType := p.parseType(b, false)
+		returnType := p.parseType(b)
 
 		formalParameters = append(formalParameters, &FormalParameter{
 			Name: name,
@@ -863,7 +881,7 @@ func (p *parser) parseFormalParameterSection(b *Block) []*FormalParameter {
 		}
 		p.next()
 
-		parameterType := p.parseType(b, false)
+		parameterType := p.parseType(b)
 
 		formalParameters = make([]*FormalParameter, 0, len(parameterNames))
 		for _, name := range parameterNames {
@@ -949,7 +967,7 @@ func (p *parser) parseFunctionHeading(b *Block) (string, []*FormalParameter, Dat
 
 	if p.peek().typ == itemColon {
 		p.next()
-		returnType = p.parseType(b, false)
+		returnType = p.parseType(b)
 	}
 
 	return procedureName, parameterList, returnType
@@ -962,25 +980,31 @@ func (p *parser) parseFunctionHeading(b *Block) (string, []*FormalParameter, Dat
 func (p *parser) parseStatementSequence(b *Block) []Statement {
 	var statements []Statement
 
-	first := true
+	// unlike EBNF, allow empty statement sequence.
+	if p.peek().typ == itemEnd || p.peek().typ == itemUntil {
+		return statements
+	}
+
+	statements = append(statements, p.parseStatement(b))
 
 	for {
+		// if there is no semicolon after the statement, end the loop
+		if p.peek().typ != itemSemicolon {
+			break
+		}
+
+		// consume any empty statement semicolons.
+		for p.peek().typ == itemSemicolon {
+			p.next()
+		}
+
+		// if we now find end or until, then we have also found the end of the statement sequence.
 		if p.peek().typ == itemEnd || p.peek().typ == itemUntil {
 			break
 		}
 
-		if !first {
-			if p.peek().typ != itemSemicolon {
-				break
-			}
-			p.next()
-		}
-
-		stmt := p.parseStatement(b)
-
-		statements = append(statements, stmt)
-
-		first = false
+		// now we should have a statement for sure, which we will parse.
+		statements = append(statements, p.parseStatement(b))
 	}
 
 	return statements
@@ -1020,7 +1044,11 @@ func (p *parser) parseStatement(b *Block) Statement {
 //	goto-statement =
 //		"goto" label .
 func (p *parser) parseUnlabelledStatement(b *Block, label *string) Statement {
+restart:
 	switch p.peek().typ {
+	case itemSemicolon: // ignore semicolons before statements.
+		p.next()
+		goto restart
 	case itemGoto:
 		p.next()
 		if p.peek().typ != itemUnsignedDigitSequence {
@@ -1948,7 +1976,7 @@ func (p *parser) parseArrayType(b *Block, packed bool) *ArrayType {
 	}
 	p.next()
 
-	elementType := p.parseType(b, false)
+	elementType := p.parseType(b)
 
 	return &ArrayType{
 		IndexTypes:  indexTypes,
@@ -2330,7 +2358,7 @@ func (p *parser) parseRecordSection(b *Block) []*RecordField {
 	}
 	p.next()
 
-	typ := p.parseType(b, false)
+	typ := p.parseType(b)
 
 	var fields []*RecordField
 
@@ -2350,7 +2378,7 @@ func (p *parser) validateParameters(proc *Routine, actualParams []Expression) (r
 	}
 
 	for idx := range proc.FormalParameters {
-		if !proc.FormalParameters[idx].Type.Equals(actualParams[idx].Type()) {
+		if !exprCompatible(proc.FormalParameters[idx].Type, actualParams[idx]) {
 			return nil, fmt.Errorf("parameter %s expects type %s, but %s was provided",
 				proc.FormalParameters[idx].Name, proc.FormalParameters[idx].Type.Type(), actualParams[idx].Type().Type())
 		}
@@ -2491,6 +2519,13 @@ func (p *parser) verifyWriteType(typ DataType, ln bool) {
 	// subranges of integers are also allowed.
 	if srt, ok := typ.(*SubrangeType); ok {
 		if srt.Type_.Equals(&IntegerType{}) {
+			return
+		}
+	}
+
+	// packed arrays of char are also allowed. TODO: actually implement in writeln.
+	if arr, ok := typ.(*ArrayType); ok {
+		if arr.Packed && IsCharType(arr.ElementType) {
 			return
 		}
 	}

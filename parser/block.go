@@ -218,12 +218,17 @@ func (b *Block) findEnumValue(ident string) (idx int, typ DataType) {
 }
 
 func (b *Block) isValidLabel(label string) bool {
+	if b == nil {
+		return false
+	}
+
 	for _, l := range b.Labels {
 		if l == label {
 			return true
 		}
 	}
-	return false
+
+	return b.Parent.isValidLabel(label)
 }
 
 func (b *Block) getIdentifiersInRegion() (identifiers []string) {

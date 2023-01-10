@@ -284,6 +284,8 @@ var builtinFunctions = []*Routine{
 			switch exprs[0].Type().(type) {
 			case *EnumType:
 				return &IntegerType{}, nil
+			case *SubrangeType:
+				return &IntegerType{}, nil
 			}
 
 			if _, isStringLiteral := exprs[0].(*StringExpr); isStringLiteral {

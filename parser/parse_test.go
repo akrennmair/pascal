@@ -1344,6 +1344,24 @@ func TestParserSuccesses(t *testing.T) {
 			end.
 			`,
 		},
+		{
+			"simple hello world with empty statement after writeln",
+			`program test;
+
+			begin
+				writeln('hello world!');
+			end.
+			`,
+		},
+		{
+			"simple hello world with multiple empty statements before and after writeln",
+			`program test;
+
+			begin
+				;;;;;writeln('hello world!');;;;;
+			end.
+			`,
+		},
 	}
 
 	for idx, testEntry := range testData {

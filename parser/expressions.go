@@ -297,7 +297,7 @@ type VariableExpr struct {
 }
 
 func (e *VariableExpr) String() string {
-	return fmt.Sprintf("variable:<%s>", e.Name)
+	return fmt.Sprintf("variable:<%s : %s>", e.Name, e.Type_.Type())
 }
 
 func (e *VariableExpr) Type() DataType {
