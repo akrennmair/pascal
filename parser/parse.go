@@ -353,12 +353,8 @@ func (p *parser) parseTypeDefinitionPart(b *Block) {
 
 	// resolve pointer types where the underlying type may have only been defined afterwards.
 	for _, typeDef := range b.Types {
-		pt, ok := typeDef.Type.(*PointerType)
-		if !ok {
-			continue
-		}
-		if pt.Name != "" && pt.Type_ == nil {
-			pt.Type_ = b.findType(pt.Name) //.Named(pt.Name)
+		if err := typeDef.Type.Resolve(b); err != nil {
+			p.errorf("couldn't resolve type: %v", err)
 		}
 	}
 }
@@ -394,6 +390,7 @@ type DataType interface {
 	Equals(dt DataType) bool
 	TypeName() string           // non-empty if type was looked up by name (not in type definition).
 	Named(name string) DataType // produces a copy of the data type but with a name.
+	Resolve(b *Block) error
 }
 
 type RecordField struct {
@@ -471,6 +468,10 @@ restartParseDataType:
 		}
 
 		ident := p.next().val
+
+		if typ := getBuiltinType(ident); typ != nil {
+			return &PointerType{Name: ident, Type_: typ}
+		}
 
 		return &PointerType{Name: ident, block: b}
 
@@ -632,6 +633,10 @@ func (p *parser) parseVariableDeclaration(b *Block) {
 
 	dataType := p.parseType(b)
 
+	if err := dataType.Resolve(b); err != nil {
+		p.errorf("variables %s: %s", strings.Join(variableNames, ", "), err)
+	}
+
 	if p.peek().typ != itemSemicolon {
 		p.errorf("expected ;, got %s", p.next())
 	}
@@ -706,6 +711,12 @@ func (p *parser) parseProcedureDeclaration(b *Block) {
 		}
 	} else if proc.FormalParameters == nil {
 		proc.FormalParameters = procDecl.FormalParameters
+	}
+
+	for _, param := range proc.FormalParameters {
+		if err := param.Type.Resolve(b); err != nil {
+			p.errorf("parameter %s: %v", param.Name, err)
+		}
 	}
 
 	proc.Block = p.parseBlock(b, proc)
@@ -934,6 +945,16 @@ func (p *parser) parseFunctionDeclaration(b *Block) {
 		proc.ReturnType = funcDecl.ReturnType
 	}
 
+	for _, param := range proc.FormalParameters {
+		if err := param.Type.Resolve(b); err != nil {
+			p.errorf("parameter %s: %v", param.Name, err)
+		}
+	}
+
+	if err := proc.ReturnType.Resolve(b); err != nil {
+		p.errorf("return type: %v", err)
+	}
+
 	proc.Block = p.parseBlock(b, proc)
 
 	if err := b.addFunction(proc); err != nil {
@@ -1140,6 +1161,12 @@ func (p *parser) parseAssignmentOrProcedureStatement(b *Block, label *string) St
 			p.errorf("assignment: unknown left expression %s", identifier)
 		}
 		rexpr := p.parseExpression(b)
+		if lexpr.Type() == nil {
+			p.errorf("in assignment, left expression type is nil")
+		}
+		if rexpr.Type() == nil {
+			p.errorf("in assignment, right expression type is nil")
+		}
 		if !typesCompatibleForAssignment(lexpr.Type(), rexpr.Type()) {
 			if !isCharStringLiteralAssignment(b, lexpr, rexpr) {
 				p.errorf("incompatible types: got %s, expected %s", rexpr.Type().Type(), lexpr.Type().Type())

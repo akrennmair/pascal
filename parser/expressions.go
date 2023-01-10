@@ -275,6 +275,9 @@ func (e *ConstantExpr) String() string {
 }
 
 func (e *ConstantExpr) Type() DataType {
+	if e.Type_ == nil {
+		fmt.Printf("constant expression %q type is nil\n", e.Name)
+	}
 	return e.Type_
 }
 
@@ -301,6 +304,9 @@ func (e *VariableExpr) String() string {
 }
 
 func (e *VariableExpr) Type() DataType {
+	if e.Type_ == nil {
+		fmt.Printf("variable expr %q type is nil", e.Name)
+	}
 	return e.Type_
 }
 
@@ -655,6 +661,9 @@ func (e *DerefExpr) Type() DataType {
 	t, ok := e.Expr.Type().(*PointerType)
 	if !ok {
 		panic("derefExpr was created with expression not of pointer type")
+	}
+	if t.Type_ == nil {
+		fmt.Printf("DerefExpr type is nil, name is %q\n", t.Name)
 	}
 	return t.Type_
 }

@@ -19,17 +19,8 @@ type PointerType struct {
 	block *Block
 }
 
-func (t *PointerType) resolve() {
-	// attempt resolution
-	if t.Type_ == nil && t.Name != "" {
-		t.Type_ = t.block.findType(t.Name)
-	}
-}
-
 func (t *PointerType) Type() string {
-	t.resolve()
-
-	if t.Type_ == nil {
+	if t.Name == "" && t.Type_ == nil {
 		return "nil" // compatible with any type; strictly speaking, this is not syntactically correct in Pascal as a type.
 	}
 
@@ -46,8 +37,6 @@ func (t *PointerType) Equals(dt DataType) bool {
 		return false
 	}
 
-	t.resolve()
-
 	if t.Type_ == nil || o.Type_ == nil { // means at least one of them is a nil pointer, and nil is compatible with any type.
 		return true
 	}
@@ -56,12 +45,25 @@ func (t *PointerType) Equals(dt DataType) bool {
 }
 
 func (t *PointerType) TypeName() string {
-	t.resolve()
 	return t.Type_.TypeName()
 }
 
 func (t *PointerType) Named(_ string) DataType {
 	return t
+}
+
+func (t *PointerType) Resolve(b *Block) error {
+	if t.Type_ == nil {
+		if t.Name != "" {
+			t.Type_ = b.findType(t.Name)
+			if t.Type_ == nil {
+				return fmt.Errorf("couldn't resolve type %q", t.Name)
+			}
+		} else {
+			return fmt.Errorf("nameless pointer type")
+		}
+	}
+	return nil
 }
 
 // SubrangeType describes a type that is a range with a lower and an upper boundary of an integral type.
@@ -107,6 +109,10 @@ func (t *SubrangeType) Named(name string) DataType {
 	return &nt
 }
 
+func (t *SubrangeType) Resolve(_ *Block) error {
+	return nil
+}
+
 // EnumType describes an enumerated type, consisting of a list of identifiers.
 type EnumType struct {
 	// List of identifiers. Their indexes are equal to their respective integer values.
@@ -145,6 +151,10 @@ func (t *EnumType) Named(name string) DataType {
 	nt := *t
 	nt.name = name
 	return &nt
+}
+
+func (t *EnumType) Resolve(_ *Block) error {
+	return nil
 }
 
 // ArrayType describes an array type. IndexTypes contains the types of the dimensions
@@ -209,6 +219,10 @@ func (t *ArrayType) Named(name string) DataType {
 	nt := *t
 	nt.name = name
 	return &nt
+}
+
+func (t *ArrayType) Resolve(b *Block) error {
+	return t.ElementType.Resolve(b)
 }
 
 // RecordType describes a record type, consisting of 1 or more fixed record fields, and an optional variant field.
@@ -324,6 +338,30 @@ func (t *RecordType) Named(name string) DataType {
 	return &nt
 }
 
+func (t *RecordType) Resolve(b *Block) error {
+	for _, field := range t.Fields {
+		if err := field.Type.Resolve(b); err != nil {
+			return err
+		}
+	}
+
+	if t.VariantField != nil {
+		if err := t.VariantField.Type.Resolve(b); err != nil {
+			return err
+		}
+
+		for _, variant := range t.VariantField.Variants {
+			for _, field := range variant.Fields.Fields {
+				if err := field.Type.Resolve(b); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 // SetType describes a type that consists of a set of elements of a particular type.
 type SetType struct {
 	// The element type.
@@ -358,6 +396,10 @@ func (t *SetType) Named(name string) DataType {
 	return &nt
 }
 
+func (t *SetType) Resolve(b *Block) error {
+	return t.ElementType.Resolve(b)
+}
+
 // IntegerType describes the integer type.
 type IntegerType struct {
 	name string
@@ -380,6 +422,10 @@ func (t *IntegerType) Named(name string) DataType {
 	nt := *t
 	nt.name = name
 	return &nt
+}
+
+func (t *IntegerType) Resolve(_ *Block) error {
+	return nil
 }
 
 // StringType describes the string type.
@@ -406,6 +452,10 @@ func (t *StringType) Named(name string) DataType {
 	return &nt
 }
 
+func (t *StringType) Resolve(_ *Block) error {
+	return nil
+}
+
 // RealType describes the real type.
 type RealType struct {
 	name string
@@ -428,6 +478,10 @@ func (t *RealType) Named(name string) DataType {
 	nt := *t
 	nt.name = name
 	return &nt
+}
+
+func (t *RealType) Resolve(_ *Block) error {
+	return nil
 }
 
 // FileType describes a file type. A file type consists of elements of a particular
@@ -467,6 +521,10 @@ func (t *FileType) Named(name string) DataType {
 	return &nt
 }
 
+func (t *FileType) Resolve(b *Block) error {
+	return t.ElementType.Resolve(b)
+}
+
 // TextType describes a text file.
 type TextType struct {
 	name string
@@ -489,6 +547,10 @@ func (t *TextType) Named(name string) DataType {
 	nt := *t
 	nt.name = name
 	return &nt
+}
+
+func (t *TextType) Resolve(b *Block) error {
+	return nil
 }
 
 // ProcedureType describes a procedure by its formal parameters. This is only used
@@ -538,6 +600,15 @@ func (t *ProcedureType) TypeName() string {
 
 func (t *ProcedureType) Named(_ string) DataType {
 	return t
+}
+
+func (t *ProcedureType) Resolve(b *Block) error {
+	for _, param := range t.FormalParams {
+		if err := param.Type.Resolve(b); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // FunctionType describes a function by its formal parameters and its return type.
@@ -595,6 +666,20 @@ func (t *FunctionType) TypeName() string {
 
 func (t *FunctionType) Named(_ string) DataType {
 	return t
+}
+
+func (t *FunctionType) Resolve(b *Block) error {
+	for _, param := range t.FormalParams {
+		if err := param.Type.Resolve(b); err != nil {
+			return err
+		}
+	}
+
+	if err := t.ReturnType.Resolve(b); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // ConstantLiteral very generally describes a constant literal.

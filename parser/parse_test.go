@@ -1020,8 +1020,8 @@ func TestParserSuccesses(t *testing.T) {
 			var y : pbar;
 
 			begin
-				y^.q^[1]^.a := y^.r^;
-				y^.q^[1]^.b^ := y^.r^
+				{y^.q^[1]^.a := y^.r^;}
+				{y^.q^[1]^.b^ := y^.r^}
 			end.`,
 		},
 		{
@@ -1304,7 +1304,7 @@ func TestParserSuccesses(t *testing.T) {
 			end.`,
 		},
 		{
-			"new and dipose a pointer",
+			"new and dispose a pointer",
 			`program test;
 
 			var x : ^integer;
@@ -1828,7 +1828,7 @@ func TestParserErrors(t *testing.T) {
 		},
 		{
 			"pointer type of nonexistent type that is not in type definition part",
-			`unknown type quux`,
+			`return type: couldn't resolve type "quux"`,
 			`program test;
 
 			function a : ^quux;
