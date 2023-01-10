@@ -607,13 +607,16 @@ func (t *FunctionType) Named(_ string) DataType {
 	return t
 }
 
+// ConstantLiteral very generally describes a constant literal.
 type ConstantLiteral interface {
 	ConstantType() DataType
 	Negate() (ConstantLiteral, error)
 	String() string
 }
 
+// IntegerLiteral describes an integer literal with a particular value.
 type IntegerLiteral struct {
+	// The literal's integer value.
 	Value int
 }
 
@@ -629,10 +632,20 @@ func (l *IntegerLiteral) String() string {
 	return fmt.Sprintf("%d", l.Value)
 }
 
+// RealLiteral describes a real literal with a particular value.
 type RealLiteral struct {
-	Minus       bool
+	// If true, the real value is negative.
+	Minus bool
+
+	// Digits before the comma. May be empty.
 	BeforeComma string
-	AfterComma  string
+
+	// Digits after the comma. May be empty.
+	AfterComma string
+
+	// The scale factor. It indicates by which power of ten
+	// the value represented before and after the comma needs
+	// to be multiplied.
 	ScaleFactor int
 }
 
@@ -662,6 +675,7 @@ func (l *RealLiteral) String() string {
 	return buf.String()
 }
 
+// StringLiteral describes a string literal.
 type StringLiteral struct {
 	Value string
 }
@@ -699,6 +713,9 @@ func (l *StringLiteral) String() string {
 	return buf.String()
 }
 
+// EnumValueLiteral describes a literal of an enumerated type, both by
+// the enumerated type's symbol and the integral value that is associated
+// with it.
 type EnumValueLiteral struct {
 	Symbol string
 	Value  int

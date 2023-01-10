@@ -5,6 +5,7 @@ import (
 	"strings"
 )
 
+// Expression very generally describes any expression in a Pascal program.
 type Expression interface {
 	// String returns a string representation of the expression for debugging purposes.
 	String() string

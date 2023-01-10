@@ -2,10 +2,14 @@ package parser
 
 import "fmt"
 
+// FindBuiltinProcedure returns the _builtin_ procedure with the
+// provided name. If no such procedure exists, it returns nil.
 func FindBuiltinProcedure(name string) *Routine {
 	return findBuiltinRoutine(builtinProcedures, name)
 }
 
+// FindBuiltinFunction returns the _builtin_ function with the
+// provided name. If no such function exists, it returns nil.
 func FindBuiltinFunction(name string) *Routine {
 	return findBuiltinRoutine(builtinFunctions, name)
 }
