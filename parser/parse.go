@@ -925,6 +925,10 @@ type Variable struct {
 	BelongsToParam   *FormalParameter
 }
 
+// parseVarDeclarationPart parses a variable declaration part.
+//
+//	variable-declaration-part =
+//		"var" variable-declaration ";" { variable-declaration ";" } .
 func (p *parser) parseVarDeclarationPart(b *Block) {
 	if p.peek().typ != itemVar {
 		p.errorf("expected var, got %s", p.next())
@@ -940,6 +944,10 @@ func (p *parser) parseVarDeclarationPart(b *Block) {
 	}
 }
 
+// parseVariableDeclaration parses a variable declaration.
+//
+//	variable-declaration =
+//		identifier-list ":" type .
 func (p *parser) parseVariableDeclaration(b *Block) {
 	variableNames := p.parseIdentifierList(b)
 
@@ -962,6 +970,10 @@ func (p *parser) parseVariableDeclaration(b *Block) {
 	}
 }
 
+// parseProcedureAndFunctionDeclarationPart parses a procedure and function declaration part.
+//
+//	procedure-and-function-declaration-part =
+//		{ (procedure-declaration | function-declaration) ";" } .
 func (p *parser) parseProcedureAndFunctionDeclarationPart(b *Block) {
 	for {
 		switch p.peek().typ {
@@ -989,6 +1001,12 @@ type Routine struct {
 	validator        func([]Expression) (DataType, error)
 }
 
+// parseProcedureDeclaration parses a procedure declaration.
+//
+//	procedure-declaration =
+//		procedure-heading ";" procedure-body |
+//		procedure-heading ";" directive |
+//		procedure-identification ";" procedure-body .
 func (p *parser) parseProcedureDeclaration(b *Block) {
 	procedureName, parameterList := p.parseProcedureHeading(b)
 
@@ -1023,6 +1041,10 @@ func (p *parser) parseProcedureDeclaration(b *Block) {
 	}
 }
 
+// parseProcedureHeading parses a procedure heading.
+//
+//	procedure-heading =
+//		"procedure" identifier [ formal-parameter-list ] .
 func (p *parser) parseProcedureHeading(b *Block) (string, []*FormalParameter) {
 	if p.peek().typ != itemProcedure {
 		p.errorf("expected procedure, got %s", p.next())
@@ -1072,6 +1094,10 @@ func (p *FormalParameter) String() string {
 	return buf.String()
 }
 
+// parseFormalParameterList parses a formal parameter list.
+//
+//	formal-parameter-list =
+//		"(" formal-parameter-section { ";" formal-parameter-section } ")" .
 func (p *parser) parseFormalParameterList(b *Block) []*FormalParameter {
 	if p.peek().typ != itemOpenParen {
 		p.errorf("expected (, got %s", p.next())
@@ -1083,7 +1109,7 @@ func (p *parser) parseFormalParameterList(b *Block) []*FormalParameter {
 parameterListLoop:
 	for {
 
-		formalParameters := p.parseFormalParameter(b)
+		formalParameters := p.parseFormalParameterSection(b)
 
 		parameterList = append(parameterList, formalParameters...)
 
@@ -1102,7 +1128,22 @@ parameterListLoop:
 	return parameterList
 }
 
-func (p *parser) parseFormalParameter(b *Block) []*FormalParameter {
+// parseFormalParameterSection parses a formal parameter section.
+//
+//	formal-parameter-section =
+//		value-parameter-section |
+//		variable-parameter-section |
+//		procedure-parameter-section |
+//		function-parameter-section .
+//	value-parameter-section =
+//		identifier-list ":" parameter-type .
+//	variable-parameter-section =
+//		var identifier-list ":" parameter-type .
+//	procedure-parameter-section =
+//		procedure-heading .
+//	function-parameter-section =
+//		function-heading .
+func (p *parser) parseFormalParameterSection(b *Block) []*FormalParameter {
 	variableParam := false
 
 	var formalParameters []*FormalParameter
@@ -1171,6 +1212,12 @@ func (p *parser) parseFormalParameter(b *Block) []*FormalParameter {
 	return formalParameters
 }
 
+// parseFunctionDeclaration parses a function declaration.
+//
+//	function-declaration =
+//		function-heading ";" function-body |
+//		function-heading ";" directive |
+//		function-identification ";" function-body .
 func (p *parser) parseFunctionDeclaration(b *Block) {
 	funcName, parameterList, returnType := p.parseFunctionHeading(b)
 
@@ -1212,6 +1259,10 @@ func (p *parser) parseFunctionDeclaration(b *Block) {
 	}
 }
 
+// parseFunctionHeading parses a function heading.
+//
+//	function-heading =
+//		"function" identifier [ formal-parameter-list ] ":" result-type .
 func (p *parser) parseFunctionHeading(b *Block) (string, []*FormalParameter, DataType) {
 	if p.peek().typ != itemFunction {
 		p.errorf("expected function, got %s", p.next())
@@ -1240,6 +1291,10 @@ func (p *parser) parseFunctionHeading(b *Block) (string, []*FormalParameter, Dat
 	return procedureName, parameterList, returnType
 }
 
+// parseStatementSequence parses a statement sequence.
+//
+//	statement-sequence =
+//		statement { ";" statement } .
 func (p *parser) parseStatementSequence(b *Block) []Statement {
 	var statements []Statement
 
@@ -1288,6 +1343,10 @@ type Statement interface {
 	Label() *string
 }
 
+// parseStatement parses a statement.
+//
+//	statement =
+//		[ label ":" ] (simple-statement | structured-statement) .
 func (p *parser) parseStatement(b *Block) Statement {
 	var label *string
 	if p.peek().typ == itemUnsignedDigitSequence {
@@ -1304,11 +1363,19 @@ func (p *parser) parseStatement(b *Block) Statement {
 		p.next()
 	}
 
-	stmt := p.parseUnlabelledStatement(b, label)
-
-	return stmt
+	return p.parseUnlabelledStatement(b, label)
 }
 
+// parseUnlabelledStatement parses a statement without the prepended label.
+//
+//	simple-statement =
+//		[ assignment-statement | procedure-statement | goto-statement ] .
+//	assignment-statement =
+//		(variable | function-identifier) ":=" expression .
+//	procedure-statement =
+//		procedure-identifier [ actual-parameter-list ] .
+//	goto-statement =
+//		"goto" label .
 func (p *parser) parseUnlabelledStatement(b *Block, label *string) Statement {
 	switch p.peek().typ {
 	case itemGoto:
@@ -1348,6 +1415,8 @@ func (p *parser) parseUnlabelledStatement(b *Block, label *string) Statement {
 	return nil
 }
 
+// parseAssignmentOrProcedureStatement parses an assignment or a procedure statement. Please
+// note that the structure of the program doesn't strictly match the structure of the EBNF.
 func (p *parser) parseAssignmentOrProcedureStatement(b *Block, label *string) Statement {
 	if p.peek().typ != itemIdentifier {
 		p.errorf("expected identifier, got %s", p.next())
@@ -1430,6 +1499,10 @@ func (p *parser) stringToCharLiteralExpr(expr Expression) Expression {
 	return nil
 }
 
+// parseWhileStatement parses a while statement.
+//
+//	while-statement =
+//		"while" expression "do" statement .
 func (p *parser) parseWhileStatement(b *Block, label *string) *WhileStatement {
 	if p.peek().typ != itemWhile {
 		p.errorf("expected while, got %s", p.next())
@@ -1452,6 +1525,10 @@ func (p *parser) parseWhileStatement(b *Block, label *string) *WhileStatement {
 	return &WhileStatement{label: label, Condition: condition, Statement: stmt}
 }
 
+// parseRepeatStatement parses a repeat statement.
+//
+//	repeat-statement =
+//		"repeat" statement-sequence "until" expression .
 func (p *parser) parseRepeatStatement(b *Block, label *string) *RepeatStatement {
 	if p.peek().typ != itemRepeat {
 		p.errorf("expected repeat, got %s", p.next())
@@ -1473,6 +1550,14 @@ func (p *parser) parseRepeatStatement(b *Block, label *string) *RepeatStatement 
 	return &RepeatStatement{label: label, Condition: condition, Statements: stmts}
 }
 
+// parseForStatement parses a for statement.
+//
+//	for-statement =
+//		"for" variable-identifier ":=" initial-expression ("to" | "downto") final-expression "do" statement .
+//	initial-expression =
+//		expression .
+//	final-expression =
+//		expression .
 func (p *parser) parseForStatement(b *Block, label *string) *ForStatement {
 	if p.peek().typ != itemFor {
 		p.errorf("expected for, got %s", p.next())
@@ -1519,6 +1604,10 @@ func (p *parser) parseForStatement(b *Block, label *string) *ForStatement {
 	return &ForStatement{label: label, Name: variable, InitialExpr: initialExpr, FinalExpr: finalExpr, Statement: stmt, DownTo: down}
 }
 
+// parseIfStatement parses an if statement.
+//
+//	if-statement =
+//		"if" expression "then" statement [ "else" statement ] .
 func (p *parser) parseIfStatement(b *Block, label *string) *IfStatement {
 	if p.peek().typ != itemIf {
 		p.errorf("expected if, got %s", p.next())
@@ -1547,6 +1636,12 @@ func (p *parser) parseIfStatement(b *Block, label *string) *IfStatement {
 	return &IfStatement{label: label, Condition: condition, Statement: stmt, ElseStatement: elseStmt}
 }
 
+// parseCaseStatement parses a case statement.
+//
+//	case-statement =
+//		"case" expression "of"
+//		case-limb { ";" case-limb } [ ";" ]
+//		"end" .
 func (p *parser) parseCaseStatement(b *Block, label *string) Statement {
 	if p.peek().typ != itemCase {
 		p.errorf("expected case, got %s instead", p.peek())
@@ -1597,6 +1692,10 @@ func (p *parser) parseCaseStatement(b *Block, label *string) Statement {
 	return &CaseStatement{label: label, Expr: expr, CaseLimbs: caseLimbs}
 }
 
+// parseCaseLimb parses a case limb.
+//
+//	case-limb =
+//		case-label-list ":" statement .
 func (p *parser) parseCaseLimb(b *Block) *CaseLimb {
 	labels := p.parseCaseLabelList(b)
 
@@ -1613,6 +1712,10 @@ func (p *parser) parseCaseLimb(b *Block) *CaseLimb {
 	}
 }
 
+// parseWithStatement parses a with statement.
+//
+//	with-statement =
+//		"with" record-variable { "," record-variable } "do" statement .
 func (p *parser) parseWithStatement(b *Block, label *string) Statement {
 	if p.peek().typ != itemWith {
 		p.errorf("expected with, got %s instead", p.peek())
@@ -1687,6 +1790,18 @@ func (p *parser) parseWithStatement(b *Block, label *string) Statement {
 	}
 }
 
+// parseActualParameterList parses an actual parameter list.
+//
+//	actual-parameter-list =
+//		"(" actual-parameter { "," actual-parameter } ")" .
+//	actual-parameter =
+//		actual-value | actual-variable | actual-procedure | actual-function .
+//	actual-value =
+//		expression .
+//	actual-procedure =
+//		procedure-identifier .
+//	actual-function =
+//		function-identifier .
 func (p *parser) parseActualParameterList(b *Block) []Expression {
 	if p.peek().typ != itemOpenParen {
 		p.errorf("expected (, got %s", p.next())
@@ -1714,6 +1829,10 @@ func (p *parser) parseActualParameterList(b *Block) []Expression {
 	return params
 }
 
+// parseExpression parses an expression.
+//
+//	expression =
+//		simple-expression [ relational-operator simple-expression ] .
 func (p *parser) parseExpression(b *Block) Expression {
 	p.logger.Printf("Parsing expression")
 
@@ -1757,6 +1876,10 @@ func (p *parser) parseExpression(b *Block) Expression {
 	return relExpr.Reduce()
 }
 
+// parseSimpleExpression parses a simple expression.
+//
+//	simple-expression =
+//		[ sign ] term { addition-operator term } .
 func (p *parser) parseSimpleExpression(b *Block) *SimpleExpr {
 	p.logger.Printf("Parsing simple expression")
 	var sign string
@@ -1812,6 +1935,10 @@ func (p *parser) parseSimpleExpression(b *Block) *SimpleExpr {
 	return simpleExpr
 }
 
+// parseTerm parses a term.
+//
+//	term =
+//		factor { multiplication-operator factor } .
 func (p *parser) parseTerm(b *Block) *TermExpr {
 	p.logger.Printf("Parsing term")
 	factor := p.parseFactor(b)
@@ -1867,6 +1994,10 @@ func (p *parser) parseTerm(b *Block) *TermExpr {
 	return term
 }
 
+// parseFactor parses a factor.
+//
+//	factor =
+//		variable | number | string | set | "nil" | constant-identifier | bound-identifier | function-designator | "(" expression ")" | "not" factor .
 func (p *parser) parseFactor(b *Block) Expression {
 	p.logger.Printf("Parsing factor")
 	defer p.logger.Printf("Finished parsing factor")
@@ -1934,6 +2065,10 @@ func (p *parser) parseFactor(b *Block) Expression {
 	return nil
 }
 
+// parseVariable parses a variable.
+//
+//	variable =
+//		entire-variable | component-variable | referenced-variable .
 func (p *parser) parseVariable(b *Block, ident string) Expression {
 	var expr Expression
 
@@ -1961,7 +2096,7 @@ func (p *parser) parseVariable(b *Block, ident string) Expression {
 			p.next()
 			expr = &DerefExpr{Expr: expr}
 		case itemOpenBracket:
-			expr = p.parseIndexVariableExpr(b, expr)
+			expr = p.parseIndexedVariableExpr(b, expr)
 		case itemDot:
 			p.next()
 
@@ -1988,6 +2123,15 @@ func (p *parser) parseVariable(b *Block, ident string) Expression {
 	return expr
 }
 
+// parseNumber parses a number.
+//
+//	number =
+//		integer-number | real-number .
+//	integer-number =
+//		digit-sequence .
+//	real-number =
+//		digit-sequence "." [ digit-sequence ] [ scale-factor ] |
+//		digit-sequence scale-factor .
 func (p *parser) parseNumber(minus bool) Expression {
 	p.logger.Printf("Parsing number")
 
@@ -2024,6 +2168,10 @@ func (p *parser) parseNumber(minus bool) Expression {
 	return &IntegerExpr{intValue}
 }
 
+// parseScaleFactor parses a scale factor.
+//
+//	scale-factor =
+//		("E" | "e") [ sign ] digit-sequence .
 func (p *parser) parseScaleFactor() int {
 	minus := false
 	if typ := p.peek().typ; typ == itemSign {
@@ -2043,6 +2191,10 @@ func (p *parser) parseScaleFactor() int {
 	return int(scaleFactor)
 }
 
+// parseSet parses a set.
+//
+//	set =
+//		"[ " element-list " ]" .
 func (p *parser) parseSet(b *Block) *SetExpr {
 	if p.peek().typ != itemOpenBracket {
 		p.errorf("expected [, found %s instead", p.next())
@@ -2073,6 +2225,9 @@ loop:
 	return set
 }
 
+// parseSubExpr parses a sub expression.
+//
+// "(" expression ")"
 func (p *parser) parseSubExpr(b *Block) *SubExpr {
 	if p.peek().typ != itemOpenParen {
 		p.errorf("expected (, got %s instead", p.peek())
@@ -2089,6 +2244,10 @@ func (p *parser) parseSubExpr(b *Block) *SubExpr {
 	return &SubExpr{expr}
 }
 
+// parseExpressionList parses an expression list.
+//
+//	expression-list =
+//		expression { "," expression } .
 func (p *parser) parseExpressionList(b *Block) []Expression {
 	var exprs []Expression
 
@@ -2110,6 +2269,10 @@ func (p *parser) parseExpressionList(b *Block) []Expression {
 	return exprs
 }
 
+// parseArrayType parses an array type.
+//
+//	array-type =
+//		"array" "[ " index-type { "," index-type } "]" "of" element-type .
 func (p *parser) parseArrayType(b *Block, packed bool) *ArrayType {
 	if p.peek().typ != itemArray {
 		p.errorf("expected array, got %s instead", p.peek())
@@ -2153,6 +2316,10 @@ func (p *parser) parseArrayType(b *Block, packed bool) *ArrayType {
 	}
 }
 
+// parseSimpleType parses a simple type.
+//
+//	simple-type =
+//		subrange-type | enumerated-type .
 func (p *parser) parseSimpleType(b *Block) DataType {
 	if p.peek().typ == itemOpenParen {
 		return p.parseEnumType(b)
@@ -2161,6 +2328,14 @@ func (p *parser) parseSimpleType(b *Block) DataType {
 	return p.parseSubrangeType(b)
 }
 
+// parseSubrangeType parses a sub-range type.
+//
+//	subrange-type =
+//		lower-bound ".." upper-bound .
+//	lower-bound =
+//		constant .
+//	upper-bound =
+//		constant .
 func (p *parser) parseSubrangeType(b *Block) DataType {
 	lowerBound := p.parseConstant(b)
 	var (
@@ -2210,6 +2385,10 @@ func (p *parser) parseSubrangeType(b *Block) DataType {
 	}
 }
 
+// parseConstant parses a constant.
+//
+//	constant =
+//		[ sign ] (constant-identifier | number) | string .
 func (p *parser) parseConstant(b *Block) ConstantLiteral {
 	minus := false
 	if p.peek().typ == itemSign {
@@ -2275,6 +2454,10 @@ func (p *parser) parseConstantWithoutSign(b *Block, minus bool) ConstantLiteral 
 	return v
 }
 
+// parseRecordType parses a record type.
+//
+//	record-type =
+//		"record" field-list "end" .
 func (p *parser) parseRecordType(b *Block, packed bool) *RecordType {
 	if p.peek().typ != itemRecord {
 		p.errorf("expected record, got %s instead.", p.peek())
@@ -2291,6 +2474,10 @@ func (p *parser) parseRecordType(b *Block, packed bool) *RecordType {
 	return record
 }
 
+// parseFieldList parses a field list.
+//
+//	field-list =
+//		[ (fixed-part [ ";" variant-part ] | variant-part) [ ";" ] ] .
 func (p *parser) parseFieldList(b *Block, packed bool) *RecordType {
 	record := &RecordType{Packed: packed}
 
@@ -2304,7 +2491,7 @@ func (p *parser) parseFieldList(b *Block, packed bool) *RecordType {
 	}
 
 	if p.peek().typ == itemCase {
-		record.VariantField = p.parseVariantField(b, packed)
+		record.VariantField = p.parseVariantPart(b, packed)
 	}
 
 	if p.peek().typ == itemSemicolon {
@@ -2334,6 +2521,10 @@ func (p *parser) parseFieldList(b *Block, packed bool) *RecordType {
 	return record
 }
 
+// parseFixedPart parses the fixed part of a record type.
+//
+//	fixed-part =
+//		record-section { ";" record-section } .
 func (p *parser) parsedFixedPart(b *Block) (fields []*RecordField) {
 	sectionFields := p.parseRecordSection(b)
 	fields = append(fields, sectionFields...)
@@ -2355,7 +2546,11 @@ func (p *parser) parsedFixedPart(b *Block) (fields []*RecordField) {
 	return fields
 }
 
-func (p *parser) parseVariantField(b *Block, packed bool) (field *RecordVariantField) {
+// parseVariantPart parses the variant field of a record type.
+//
+//	variant-part =
+//		"case" tag-field type-identifier "of" variant { ";" variant } .
+func (p *parser) parseVariantPart(b *Block, packed bool) (field *RecordVariantField) {
 	if p.peek().typ != itemCase {
 		p.errorf("expected case, got %s instead", p.peek())
 	}
@@ -2410,6 +2605,10 @@ func (p *parser) parseVariantField(b *Block, packed bool) (field *RecordVariantF
 	return field
 }
 
+// parseVariant parses a variant.
+//
+//	variant =
+//		case-label-list ":" "(" field-list ")" .
 func (p *parser) parseVariant(b *Block, packed bool) *RecordVariant {
 	labels := p.parseCaseLabelList(b)
 
@@ -2436,6 +2635,10 @@ func (p *parser) parseVariant(b *Block, packed bool) *RecordVariant {
 	}
 }
 
+// parseCaseLabelList parses a case label list.
+//
+//	case-label-list =
+//		constant { "," constant } .
 func (p *parser) parseCaseLabelList(b *Block) (labels []ConstantLiteral) {
 	label := p.parseConstant(b)
 	labels = append(labels, label)
@@ -2450,6 +2653,10 @@ func (p *parser) parseCaseLabelList(b *Block) (labels []ConstantLiteral) {
 	return labels
 }
 
+// parseRecordSection parses a record section.
+//
+//	record-section =
+//		identifier-list ":" type .
 func (p *parser) parseRecordSection(b *Block) []*RecordField {
 	identifierList := p.parseIdentifierList(b)
 
@@ -2494,7 +2701,11 @@ func (p *parser) validateParameters(proc *Routine, actualParams []Expression) (r
 	return proc.ReturnType, nil
 }
 
-func (p *parser) parseIndexVariableExpr(b *Block, expr Expression) *IndexedVariableExpr {
+// parseIndexedVariableExpr parses an indexed variable.
+//
+//	indexed-variable =
+//		array-variable "[ " expression-list " ]" .
+func (p *parser) parseIndexedVariableExpr(b *Block, expr Expression) *IndexedVariableExpr {
 	p.next()
 	indexes := p.parseExpressionList(b)
 	if p.peek().typ != itemCloseBracket {
@@ -2535,6 +2746,9 @@ func (p *parser) parseIndexVariableExpr(b *Block, expr Expression) *IndexedVaria
 	return &IndexedVariableExpr{Expr: expr, IndexExprs: indexes, Type_: arrType.ElementType}
 }
 
+// parseWrite parses a write statement.
+//
+// TODO: add EBNF.
 func (p *parser) parseWrite(b *Block, ln bool, label *string) *WriteStatement {
 	if p.peek().typ != itemOpenParen {
 		p.errorf("expected (, got %s instead", p.peek())
