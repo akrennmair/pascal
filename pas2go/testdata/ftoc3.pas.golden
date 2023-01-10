@@ -1,0 +1,31 @@
+package main
+
+import (
+	"github.com/akrennmair/pascal/pas2go/system"
+)
+
+var _ = system.Write
+
+// program ftoc
+func main() {
+	var (
+		fgr       float64
+		cgr       float64
+		thirtytwo int
+		five      int
+		nine      int
+	)
+	_ = fgr
+	_ = cgr
+	_ = thirtytwo
+	_ = five
+	_ = nine
+
+	thirtytwo = 32
+	five = 5
+	nine = 9
+	system.Write("Degree F: ")
+	system.Readln(&fgr)
+	cgr = (fgr - float64(thirtytwo)) * float64(five) / float64(nine)
+	system.Writeln("Degree C: ", cgr)
+}

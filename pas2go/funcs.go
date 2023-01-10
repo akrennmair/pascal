@@ -285,6 +285,31 @@ func toSetTermExpr(e *parser.TermExpr) string {
 	return buf.String()
 }
 
+func findTypeConversion(leftExpr parser.Expression, rightExpr parser.Expression) string {
+	_, leftIsReal := leftExpr.Type().(*parser.RealType)
+	_, rightIsInt := rightExpr.Type().(*parser.IntegerType)
+	_, rightIsIntLiteral := rightExpr.(*parser.IntegerExpr)
+
+	if leftIsReal && rightIsInt && !rightIsIntLiteral {
+		return "float64"
+	}
+
+	return ""
+}
+
+func applyTypeConversion(newType string, expr string) string {
+	var buf strings.Builder
+	if newType != "" {
+		buf.WriteString(newType)
+		buf.WriteString("(")
+	}
+	buf.WriteString(expr)
+	if newType != "" {
+		buf.WriteString(")")
+	}
+	return buf.String()
+}
+
 func toExpr(expr parser.Expression) string {
 	switch e := expr.(type) {
 	case *parser.RelationalExpr:
@@ -300,8 +325,9 @@ func toExpr(expr parser.Expression) string {
 		buf.WriteString(e.Sign)
 		buf.WriteString(toExpr(e.First))
 		for _, next := range e.Next {
+			typeConv := findTypeConversion(e.First, next.Term)
 			buf.WriteString(translateOperator(string(next.Operator)))
-			buf.WriteString(toExpr(next.Term))
+			buf.WriteString(applyTypeConversion(typeConv, toExpr(next.Term)))
 		}
 		return buf.String()
 	case *parser.TermExpr:
@@ -311,8 +337,9 @@ func toExpr(expr parser.Expression) string {
 		var buf strings.Builder
 		buf.WriteString(toExpr(e.First))
 		for _, next := range e.Next {
+			typeConv := findTypeConversion(e.First, next.Factor)
 			buf.WriteString(translateOperator(string(next.Operator)))
-			buf.WriteString(toExpr(next.Factor))
+			buf.WriteString(applyTypeConversion(typeConv, toExpr(next.Factor)))
 		}
 		return buf.String()
 	case *parser.ConstantExpr:
