@@ -67,6 +67,14 @@ func TestLexer(t *testing.T) {
 				end { of AddVectors };`,
 		`begin z := x ; x := y ; y := z end`,
 		`type foo = ^int;`,
+		`{ hello world } program test;`,
+		`(* hello world *) program test;`,
+		`program test;
+
+		begin
+			writeln('hello world)
+		end.
+		`,
 	}
 
 testLoop:

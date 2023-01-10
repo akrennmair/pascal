@@ -190,11 +190,6 @@ func (b *Block) findType(name string) DataType {
 }
 
 func (b *Block) findEnumValue(ident string) (idx int, typ DataType) {
-	idx, typ = getBuiltinEnumValues(ident)
-	if typ != nil {
-		return idx, typ
-	}
-
 	if b == nil {
 		return 0, nil
 	}

@@ -1633,17 +1633,6 @@ func TestParserErrors(t *testing.T) {
 			begin
 				writeln('hello world)
 			end.
-
-			`,
-		},
-		{
-			"unterminated string",
-			`unexpected EOF while parsing factor`,
-			`program test;
-
-			begin
-				writeln('hello world)
-			end.
 			`,
 		},
 		{

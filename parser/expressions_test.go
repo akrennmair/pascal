@@ -100,11 +100,11 @@ func TestParseExpressions(t *testing.T) {
 			},
 			{
 				Name: "d",
-				Type: &BooleanType{},
+				Type: booleanTypeDef.Type,
 			},
 			{
 				Name: "e",
-				Type: &BooleanType{},
+				Type: booleanTypeDef.Type,
 			},
 			{
 				Name: "foo",

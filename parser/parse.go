@@ -115,7 +115,8 @@ func (p *parser) parse() (ast *AST, err error) {
 	ast = &AST{}
 
 	p.parseProgramHeading(ast)
-	ast.Block = p.parseBlock(nil, nil)
+
+	ast.Block = p.parseBlock(builtinBlock, nil)
 
 	if p.peek().typ != itemDot {
 		p.errorf("expected ., got %s instead", p.next())
@@ -516,8 +517,8 @@ restartParseDataType:
 		p.next()
 		fileDataType := p.parseType(b, resolvePointerTypesLater)
 		return &FileType{ElementType: fileDataType, Packed: packed}
-	case itemSign, itemUnsignedDigitSequence:
-		// if the type definition is a sign or digits, it can only be a subrange type.
+	case itemSign, itemUnsignedDigitSequence, itemStringLiteral:
+		// if the type definition is a sign, digits or a string (really char) literal, it can only be a subrange type.
 		return p.parseSubrangeType(b)
 	default:
 		p.errorf("unknown type %s", p.next().val)
@@ -1153,7 +1154,7 @@ func (p *parser) parseWhileStatement(b *Block, label *string) *WhileStatement {
 
 	condition := p.parseExpression(b)
 
-	if !condition.Type().Equals(&BooleanType{}) {
+	if !IsBooleanType(condition.Type()) {
 		p.errorf("condition is not boolean, but %s", condition.Type().Type())
 	}
 
@@ -1185,7 +1186,7 @@ func (p *parser) parseRepeatStatement(b *Block, label *string) *RepeatStatement 
 	p.next()
 
 	condition := p.parseExpression(b)
-	if !condition.Type().Equals(&BooleanType{}) {
+	if !IsBooleanType(condition.Type()) {
 		p.errorf("condition is not boolean, but %s", condition.Type().Type())
 	}
 
@@ -1257,7 +1258,7 @@ func (p *parser) parseIfStatement(b *Block, label *string) *IfStatement {
 	p.next()
 
 	condition := p.parseExpression(b)
-	if !condition.Type().Equals(&BooleanType{}) {
+	if !IsBooleanType(condition.Type()) {
 		p.errorf("condition is not boolean, but %s", condition.Type().Type())
 	}
 
@@ -1547,8 +1548,7 @@ func (p *parser) parseSimpleExpression(b *Block) *SimpleExpr {
 		operator := tokenToAdditionOperator(operatorToken)
 
 		if operator == OperatorOr {
-			_, ok := simpleExpr.First.Type().(*BooleanType)
-			if !ok {
+			if !IsBooleanType(simpleExpr.First.Type()) {
 				p.errorf("can't use or with %s", simpleExpr.First.Type().Type())
 			}
 		} else {
@@ -1600,8 +1600,7 @@ func (p *parser) parseTerm(b *Block) *TermExpr {
 
 		switch operator {
 		case OperatorAnd:
-			_, ok := term.First.Type().(*BooleanType)
-			if !ok {
+			if !IsBooleanType(term.First.Type()) {
 				p.errorf("can't use and with %s", term.First.Type().Type())
 			}
 		case OperatorMultiply:
@@ -1696,7 +1695,7 @@ func (p *parser) parseFactor(b *Block) Expression {
 	case itemNot:
 		p.next()
 		expr := p.parseFactor(b)
-		if !expr.Type().Equals(&BooleanType{}) {
+		if !IsBooleanType(expr.Type()) {
 			p.errorf("can't NOT %s", expr.Type().Type())
 		}
 		return &NotExpr{expr}
@@ -1967,6 +1966,18 @@ func (p *parser) parseSimpleType(b *Block) DataType {
 		return p.parseEnumType(b)
 	}
 
+	if typ := b.findType(p.peek().val); typ != nil {
+		if _, ok := typ.(*EnumType); ok {
+			p.next()
+			return typ
+		}
+
+		if _, ok := typ.(*SubrangeType); ok {
+			p.next()
+			return typ
+		}
+	}
+
 	return p.parseSubrangeType(b)
 }
 
@@ -1994,8 +2005,14 @@ func (p *parser) parseSubrangeType(b *Block) DataType {
 	case *EnumValueLiteral:
 		lowerValue = lb.Value
 		typ = lb.Type
+	case *StringLiteral:
+		if len(lb.Value) != 1 {
+			p.errorf("expected lower bound to be an integer, an enum value or a char, got a %s instead", lb.ConstantType().Type())
+		}
+		lowerValue = int(lb.Value[0])
+		typ = charTypeDef.Type
 	default:
-		p.errorf("expected lower bound to be an integer or an enum value, got a %s instead", lb.ConstantType().Type())
+		p.errorf("expected lower bound to be an integer, an enum value or a char, got a %s instead", lb.ConstantType().Type())
 	}
 
 	if p.peek().typ != itemDoubleDot {
@@ -2012,8 +2029,14 @@ func (p *parser) parseSubrangeType(b *Block) DataType {
 	case *EnumValueLiteral:
 		upperValue = ub.Value
 		upperType = ub.Type
+	case *StringLiteral:
+		if len(ub.Value) != 1 {
+			p.errorf("expected upper bound to be an integer, an enum value or a char, got a %s instead", ub.ConstantType().Type())
+		}
+		upperValue = int(ub.Value[0])
+		upperType = charTypeDef.Type
 	default:
-		p.errorf("expected upper bound to be an integer or an enum value, got a %s instead", ub.ConstantType().Type())
+		p.errorf("expected upper bound to be an integer, an enum value or a char, got a %s instead", ub.ConstantType().Type())
 	}
 
 	if !upperType.Equals(typ) {
@@ -2365,7 +2388,7 @@ func (p *parser) parseIndexedVariableExpr(b *Block, expr Expression) *IndexedVar
 			p.errorf("string index needs to be an integer type, actually got %s", indexes[0].Type().Type())
 		}
 
-		return &IndexedVariableExpr{Expr: expr, IndexExprs: indexes, Type_: &CharType{}}
+		return &IndexedVariableExpr{Expr: expr, IndexExprs: indexes, Type_: charTypeDef.Type}
 	}
 
 	arrType, ok := expr.Type().(*ArrayType)
@@ -2452,7 +2475,7 @@ func (p *parser) verifyWriteType(typ DataType, ln bool) {
 		funcName += "ln"
 	}
 
-	allowedWriteTypes := []DataType{&IntegerType{}, &RealType{}, &CharType{}, &StringType{}, &BooleanType{}}
+	allowedWriteTypes := []DataType{&IntegerType{}, &RealType{}, charTypeDef.Type, &StringType{}, booleanTypeDef.Type}
 
 	for _, at := range allowedWriteTypes {
 		if at.Equals(typ) {

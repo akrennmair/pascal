@@ -8,11 +8,16 @@ import (
 )
 
 func toGoType(typ parser.DataType) string {
+	if parser.IsBooleanType(typ) {
+		return "bool"
+	}
+	if parser.IsCharType(typ) {
+		return "byte"
+	}
+
 	switch dt := typ.(type) {
 	case *parser.IntegerType:
 		return "int"
-	case *parser.BooleanType:
-		return "bool"
 	case *parser.RealType:
 		return "float64"
 	case *parser.RecordType:
@@ -20,8 +25,6 @@ func toGoType(typ parser.DataType) string {
 			return name
 		}
 		return recordTypeToGoType(dt)
-	case *parser.CharType:
-		return "byte"
 	case *parser.StringType:
 		return "string"
 	case *parser.PointerType:

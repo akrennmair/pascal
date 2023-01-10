@@ -77,7 +77,7 @@ func (e *RelationalExpr) String() string {
 }
 
 func (e *RelationalExpr) Type() DataType {
-	return &BooleanType{}
+	return booleanTypeDef.Type
 }
 
 func (e *RelationalExpr) IsVariableExpr() bool {
@@ -391,7 +391,7 @@ func (e *CharExpr) String() string {
 }
 
 func (e *CharExpr) Type() DataType {
-	return &CharType{}
+	return charTypeDef.Type
 }
 
 func (e *CharExpr) IsVariableExpr() bool {

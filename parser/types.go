@@ -101,6 +101,9 @@ type EnumType struct {
 }
 
 func (t *EnumType) Type() string {
+	if t.name != "" {
+		return t.name
+	}
 	return fmt.Sprintf("(%s)", strings.Join(t.Identifiers, ", "))
 }
 
@@ -365,54 +368,6 @@ func (t *IntegerType) Named(name string) DataType {
 	return &nt
 }
 
-// BooleanType describes the boolean type.
-type BooleanType struct {
-	name string
-}
-
-func (t *BooleanType) Type() string {
-	return "boolean"
-}
-
-func (t *BooleanType) Equals(dt DataType) bool {
-	_, ok := dt.(*BooleanType)
-	return ok
-}
-
-func (t *BooleanType) TypeName() string {
-	return t.name
-}
-
-func (t *BooleanType) Named(name string) DataType {
-	nt := *t
-	nt.name = name
-	return &nt
-}
-
-// CharType describes the char type.
-type CharType struct {
-	name string
-}
-
-func (t *CharType) Type() string {
-	return "char"
-}
-
-func (t *CharType) Equals(dt DataType) bool {
-	_, ok := dt.(*CharType)
-	return ok
-}
-
-func (t *CharType) TypeName() string {
-	return t.name
-}
-
-func (t *CharType) Named(name string) DataType {
-	nt := *t
-	nt.name = name
-	return &nt
-}
-
 // StringType describes the string type.
 type StringType struct {
 	name string
@@ -495,8 +450,31 @@ func (t *FileType) TypeName() string {
 }
 
 func (t *FileType) Named(name string) DataType {
-	var nt FileType
-	nt = *t
+	nt := *t
+	nt.name = name
+	return &nt
+}
+
+// TextType describes a text file.
+type TextType struct {
+	name string
+}
+
+func (t *TextType) Type() string {
+	return "text"
+}
+
+func (t *TextType) Equals(dt DataType) bool {
+	_, ok := dt.(*TextType)
+	return ok
+}
+
+func (t *TextType) TypeName() string {
+	return t.name
+}
+
+func (t *TextType) Named(name string) DataType {
+	nt := *t
 	nt.name = name
 	return &nt
 }
@@ -817,7 +795,7 @@ func isCharStringLiteralAssignment(b *Block, lexpr Expression, rexpr Expression)
 	*/
 
 	return lexpr.IsVariableExpr() &&
-		lexpr.Type().Equals(&CharType{}) &&
+		IsCharType(lexpr.Type()) &&
 		rexpr.Type().Equals(&StringType{}) &&
 		((isStringExpr && se.IsCharLiteral()) || isStringLiteral && sl.IsCharLiteral())
 }

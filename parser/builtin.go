@@ -1,6 +1,9 @@
 package parser
 
-import "fmt"
+import (
+	"fmt"
+	"math"
+)
 
 // FindBuiltinProcedure returns the _builtin_ procedure with the
 // provided name. If no such procedure exists, it returns nil.
@@ -255,7 +258,7 @@ var builtinFunctions = []*Routine{
 				Type: &IntegerType{},
 			},
 		},
-		ReturnType: &CharType{},
+		ReturnType: charTypeDef.Type,
 	},
 	{
 		Name: "odd",
@@ -265,7 +268,7 @@ var builtinFunctions = []*Routine{
 				Type: &IntegerType{},
 			},
 		},
-		ReturnType: &BooleanType{},
+		ReturnType: booleanTypeDef.Type,
 	},
 	{
 		Name: "ord",
@@ -274,10 +277,12 @@ var builtinFunctions = []*Routine{
 				return nil, fmt.Errorf("ord requires exactly 1 argument of type enum or char, got %d arguments instead", len(exprs))
 			}
 
+			if IsCharType(exprs[0].Type()) {
+				return &IntegerType{}, nil
+			}
+
 			switch exprs[0].Type().(type) {
 			case *EnumType:
-				return &IntegerType{}, nil
-			case *CharType:
 				return &IntegerType{}, nil
 			}
 
@@ -326,29 +331,16 @@ var builtinFunctions = []*Routine{
 
 func getBuiltinType(identifier string) DataType {
 	switch identifier {
-	case "boolean":
-		return &BooleanType{}
 	case "integer":
 		return &IntegerType{}
 	case "real":
 		return &RealType{}
-	case "char":
-		return &CharType{}
 	case "string":
 		return &StringType{}
+	case "text":
+		return &TextType{}
 	}
 	return nil
-}
-
-func getBuiltinEnumValues(identifier string) (idx int, typ DataType) {
-	switch identifier {
-	case "false":
-		return 0, &BooleanType{}
-	case "true":
-		return 1, &BooleanType{}
-	default:
-		return 0, nil
-	}
 }
 
 func validateReadParameters(exprs []Expression) (DataType, error) {
@@ -358,4 +350,45 @@ func validateReadParameters(exprs []Expression) (DataType, error) {
 		}
 	}
 	return nil, nil
+}
+
+var booleanTypeDef = &TypeDefinition{
+	Name: "boolean",
+	Type: &EnumType{
+		Identifiers: []string{"false", "true"},
+		name:        "boolean",
+	},
+}
+
+var charTypeDef = &TypeDefinition{
+	Name: "char",
+	Type: &SubrangeType{
+		LowerBound: 0,
+		UpperBound: 255,
+		name:       "char",
+		Type_:      &IntegerType{},
+	},
+}
+
+// IsBooleanType returns true if the provided type is the boolean type, false otherwise.
+func IsBooleanType(dt DataType) bool {
+	return booleanTypeDef.Type.Equals(dt)
+}
+
+// IsCharType returns true if the provided type is the char type, false otherwise.
+func IsCharType(dt DataType) bool {
+	return charTypeDef.Type.Equals(dt)
+}
+
+var builtinBlock = &Block{
+	Constants: []*ConstantDefinition{
+		{
+			Name:  "maxint",
+			Value: &IntegerLiteral{Value: math.MaxInt},
+		},
+	},
+	Types: []*TypeDefinition{
+		booleanTypeDef,
+		charTypeDef,
+	},
 }

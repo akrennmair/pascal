@@ -181,7 +181,7 @@ func (l *lexer) ignore() {
 }
 
 func (l *lexer) accept(valid string) bool {
-	if strings.IndexRune(valid, l.next()) >= 0 {
+	if strings.ContainsRune(valid, l.next()) {
 		return true
 	}
 	l.backup()
@@ -189,7 +189,7 @@ func (l *lexer) accept(valid string) bool {
 }
 
 func (l *lexer) acceptRun(valid string) {
-	for strings.IndexRune(valid, l.next()) >= 0 {
+	for strings.ContainsRune(valid, l.next()) {
 	}
 	l.backup()
 }
@@ -255,6 +255,15 @@ func lexText(l *lexer) stateFn {
 		return lexText
 	case r == '(':
 		l.next()
+		switch l.peek() {
+		case '*':
+			l.next()
+			return lexDigraphComment
+		case '.':
+			l.next()
+			l.emit(itemOpenBracket)
+			return lexText
+		}
 		l.emit(itemOpenParen)
 		return lexText
 	case r == ')':
@@ -288,14 +297,22 @@ func lexText(l *lexer) stateFn {
 	case r == '.':
 		l.next()
 		r = l.peek()
-		if r == '.' {
+		switch r {
+		case '.':
 			l.next()
 			l.emit(itemDoubleDot)
-		} else {
+		case ')':
+			l.next()
+			l.emit(itemCloseBracket)
+		default:
 			l.emit(itemDot)
 		}
 		return lexText
 	case r == '^':
+		l.next()
+		l.emit(itemCaret)
+		return lexText
+	case r == '@':
 		l.next()
 		l.emit(itemCaret)
 		return lexText
@@ -386,9 +403,18 @@ func lexStringLiteral(l *lexer) stateFn {
 }
 
 func lexComment(l *lexer) stateFn {
-	r := l.next()
-	for r = l.next(); r != eof && r != '}'; r = l.next() {
+	l.next()
+	for r := l.next(); r != eof && r != '}'; r = l.next() {
 	}
+	l.ignore()
+	return lexText
+}
+
+func lexDigraphComment(l *lexer) stateFn {
+	l.next()
+	for r := l.next(); r != eof && !(r == '*' && l.peek() == ')'); r = l.next() {
+	}
+	l.next()
 	l.ignore()
 	return lexText
 }
