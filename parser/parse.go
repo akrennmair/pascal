@@ -511,6 +511,9 @@ restartParseDataType:
 		}
 		p.next()
 		setDataType := p.parseType(b)
+		if !isOrdinalType(setDataType) {
+			p.errorf("sets require an ordinal type, got %s instead", setDataType.TypeString())
+		}
 		return &SetType{ElementType: setDataType, Packed: packed}
 	case itemFile:
 		p.next()
@@ -1559,11 +1562,12 @@ func (p *parser) parseExpression(b *Block) Expression {
 		if !ok {
 			p.errorf("in: expected set type, got %s instead.", rt.TypeString())
 		}
-		if !typesCompatible(lt, st.ElementType) {
+
+		if !lt.IsCompatibleWith(st.ElementType) {
 			p.errorf("type %s does not match set type %s", lt.TypeString(), st.ElementType.TypeString())
 		}
 	} else {
-		if !typesCompatible(lt, rt) {
+		if !lt.IsCompatibleWith(rt) {
 			p.errorf("in relational expression with operator %s, types %s and %s are incompatible", relExpr.Operator, lt.TypeString(), rt.TypeString())
 		}
 	}
@@ -1613,7 +1617,7 @@ func (p *parser) parseSimpleExpression(b *Block) *SimpleExpr {
 
 		nextTerm := p.parseTerm(b)
 
-		if !typesCompatible(simpleExpr.First.Type(), nextTerm.Type()) {
+		if !simpleExpr.First.Type().IsCompatibleWith(nextTerm.Type()) {
 			p.errorf("in simple expression involving operator %s, types %s and %s are incompatible", operator, simpleExpr.First.Type().TypeString(), nextTerm.Type().TypeString())
 		}
 
@@ -1671,7 +1675,7 @@ func (p *parser) parseTerm(b *Block) *TermExpr {
 
 		nextFactor := p.parseFactor(b)
 
-		if !typesCompatible(term.First.Type(), nextFactor.Type()) {
+		if !term.First.Type().IsCompatibleWith(nextFactor.Type()) {
 			p.errorf("in term involving operator %s, types %s and %s are incompatible", operator, term.First.Type().TypeString(), nextFactor.Type().TypeString())
 		}
 
@@ -2463,7 +2467,7 @@ func (p *parser) parseIndexedVariableExpr(b *Block, expr Expression) *IndexedVar
 	}
 
 	for idx, idxType := range arrType.IndexTypes {
-		if !typesCompatible(idxType, indexes[idx].Type()) {
+		if !idxType.IsCompatibleWith(indexes[idx].Type()) {
 			p.errorf("array dimension %d is of type %s, but index expression type %s was provided", idx, idxType.TypeString(), indexes[idx].Type().TypeString())
 		}
 	}

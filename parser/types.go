@@ -12,6 +12,7 @@ type DataType interface {
 	TypeName() string           // non-empty if type was looked up by name (not in type definition).
 	Named(name string) DataType // produces a copy of the data type but with a name.
 	Resolve(b *Block) error
+	IsCompatibleWith(dt DataType) bool
 }
 
 // PointerType describes a type that is a pointer to another type.
@@ -74,6 +75,19 @@ func (t *PointerType) Resolve(b *Block) error {
 	return nil
 }
 
+func (t *PointerType) IsCompatibleWith(dt DataType) bool {
+	o, ok := dt.(*PointerType)
+	if !ok {
+		return false
+	}
+
+	if t.Type_ == nil || o.Type_ == nil { // means at least one of them is a nil pointer, and nil is compatible with any type.
+		return true
+	}
+
+	return t.Type_.IsCompatibleWith(o.Type_)
+}
+
 // SubrangeType describes a type that is a range with a lower and an upper boundary of an integral type.
 type SubrangeType struct {
 	LowerBound int
@@ -121,6 +135,17 @@ func (t *SubrangeType) Resolve(_ *Block) error {
 	return nil
 }
 
+func (t *SubrangeType) IsCompatibleWith(dt DataType) bool {
+	switch ot := dt.(type) {
+	case *SubrangeType:
+		return t.Type_.IsCompatibleWith(ot)
+	case *IntegerType:
+		return t.Type_.IsCompatibleWith(&IntegerType{})
+	}
+
+	return false
+}
+
 // EnumType describes an enumerated type, consisting of a list of identifiers.
 type EnumType struct {
 	// List of identifiers. Their indexes are equal to their respective integer values.
@@ -163,6 +188,15 @@ func (t *EnumType) Named(name string) DataType {
 
 func (t *EnumType) Resolve(_ *Block) error {
 	return nil
+}
+
+func (t *EnumType) IsCompatibleWith(dt DataType) bool {
+	_, ok := dt.(*EnumType)
+	if !ok {
+		return false
+	}
+	// TODO: determine compatibility of enum types.
+	return true
 }
 
 // ArrayType describes an array type. IndexTypes contains the types of the dimensions
@@ -231,6 +265,31 @@ func (t *ArrayType) Named(name string) DataType {
 
 func (t *ArrayType) Resolve(b *Block) error {
 	return t.ElementType.Resolve(b)
+}
+
+func (t *ArrayType) IsCompatibleWith(dt DataType) bool {
+	o, ok := dt.(*ArrayType)
+	if !ok {
+		return false
+	}
+	if t.Packed != o.Packed {
+		return false
+	}
+
+	if !t.ElementType.IsCompatibleWith(o.ElementType) {
+		return false
+	}
+
+	if len(t.IndexTypes) != len(o.IndexTypes) {
+		return false
+	}
+	for idx := range t.IndexTypes {
+		if !t.IndexTypes[idx].Equals(o.IndexTypes[idx]) {
+			return false
+		}
+	}
+
+	return true
 }
 
 // RecordType describes a record type, consisting of 1 or more fixed record fields, and an optional variant field.
@@ -370,6 +429,10 @@ func (t *RecordType) Resolve(b *Block) error {
 	return nil
 }
 
+func (t *RecordType) IsCompatibleWith(dt DataType) bool {
+	return t.Equals(dt)
+}
+
 // SetType describes a type that consists of a set of elements of a particular type.
 type SetType struct {
 	// The element type.
@@ -408,6 +471,20 @@ func (t *SetType) Resolve(b *Block) error {
 	return t.ElementType.Resolve(b)
 }
 
+func (t *SetType) IsCompatibleWith(dt DataType) bool {
+	if t.Equals(dt) {
+		return true
+	}
+
+	if isSetType(dt) {
+		if t.ElementType.IsCompatibleWith(dt.(*SetType).ElementType) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // IntegerType describes the integer type.
 type IntegerType struct {
 	name string
@@ -434,6 +511,17 @@ func (t *IntegerType) Named(name string) DataType {
 
 func (t *IntegerType) Resolve(_ *Block) error {
 	return nil
+}
+
+func (t *IntegerType) IsCompatibleWith(dt DataType) bool {
+	if t.Equals(dt) {
+		return true
+	}
+
+	// TODO: is there a danger for infinite recursion? As long as types
+	// other than integer define their integer compatibility,
+	// this shouldn't happen.
+	return dt.IsCompatibleWith(t)
 }
 
 // StringType describes the string type.
@@ -464,6 +552,25 @@ func (t *StringType) Resolve(_ *Block) error {
 	return nil
 }
 
+func (t *StringType) IsCompatibleWith(dt DataType) bool {
+	if t.Equals(dt) {
+		return true
+	}
+
+	arrType, ok := dt.(*ArrayType)
+	if !ok {
+		return false
+	}
+
+	// packed arrays of char are compatible with strings.
+	// TODO: only packed ones?
+	if arrType.Packed && len(arrType.IndexTypes) == 1 && arrType.ElementType.Equals(charTypeDef.Type) {
+		return true
+	}
+
+	return false
+}
+
 // RealType describes the real type.
 type RealType struct {
 	name string
@@ -490,6 +597,18 @@ func (t *RealType) Named(name string) DataType {
 
 func (t *RealType) Resolve(_ *Block) error {
 	return nil
+}
+
+func (t *RealType) IsCompatibleWith(dt DataType) bool {
+	if t.Equals(dt) {
+		return true
+	}
+
+	if dt.Equals(&IntegerType{}) {
+		return true
+	}
+
+	return false
 }
 
 // FileType describes a file type. A file type consists of elements of a particular
@@ -533,6 +652,10 @@ func (t *FileType) Resolve(b *Block) error {
 	return t.ElementType.Resolve(b)
 }
 
+func (t *FileType) IsCompatibleWith(dt DataType) bool {
+	return t.Equals(dt)
+}
+
 // TextType describes a text file.
 type TextType struct {
 	name string
@@ -559,6 +682,10 @@ func (t *TextType) Named(name string) DataType {
 
 func (t *TextType) Resolve(b *Block) error {
 	return nil
+}
+
+func (t *TextType) IsCompatibleWith(dt DataType) bool {
+	return t.Equals(dt)
 }
 
 // ProcedureType describes a procedure by its formal parameters. This is only used
@@ -617,6 +744,10 @@ func (t *ProcedureType) Resolve(b *Block) error {
 		}
 	}
 	return nil
+}
+
+func (t *ProcedureType) IsCompatibleWith(dt DataType) bool {
+	return t.Equals(dt)
 }
 
 // FunctionType describes a function by its formal parameters and its return type.
@@ -688,6 +819,10 @@ func (t *FunctionType) Resolve(b *Block) error {
 	}
 
 	return nil
+}
+
+func (t *FunctionType) IsCompatibleWith(dt DataType) bool {
+	return t.Equals(dt)
 }
 
 // ConstantLiteral very generally describes a constant literal.
@@ -840,6 +975,7 @@ func (l *EnumValueLiteral) String() string {
 	return l.Symbol
 }
 
+/*
 func typesCompatible(t1, t2 DataType) bool {
 	if t1.Equals(t2) {
 		return true
@@ -869,9 +1005,10 @@ func typesCompatible(t1, t2 DataType) bool {
 
 	return false
 }
+*/
 
 func exprCompatible(t DataType, expr Expression) bool {
-	if typesCompatible(t, expr.Type()) {
+	if t.IsCompatibleWith(expr.Type()) {
 		return true
 	}
 
@@ -912,7 +1049,7 @@ func typesCompatibleForAssignment(lt, rt DataType) bool {
 			return true
 		}
 
-		if typesCompatible(lt.(*SetType).ElementType, rt.(*SetType).ElementType) {
+		if lt.(*SetType).ElementType.IsCompatibleWith(rt.(*SetType).ElementType) {
 			return true
 		}
 	}
@@ -973,6 +1110,18 @@ func isRealType(dt DataType) bool {
 func isSetType(dt DataType) bool {
 	_, ok := dt.(*SetType)
 	return ok
+}
+
+func isOrdinalType(dt DataType) bool {
+	switch dt.(type) {
+	case *IntegerType:
+		return true
+	case *SubrangeType:
+		return true
+	case *EnumType:
+		return true
+	}
+	return false
 }
 
 func isCharStringLiteralAssignment(b *Block, lexpr Expression, rexpr Expression) bool {

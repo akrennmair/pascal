@@ -89,16 +89,16 @@ func TestParserSuccesses(t *testing.T) {
 			end.`,
 		},
 		{
-			"type declaration set of pointers",
+			"type declaration set of enumerated",
 			`program test;
-			type foo = set of ^integer;
+			type foo = set of ( bar, baz, quux );
 			begin
 			end.`,
 		},
 		{
-			"type declaration set of enumerated",
+			"type declaration set of subrange",
 			`program test;
-			type foo = set of ( bar, baz, quux );
+			type foo = set of 1..100;
 			begin
 			end.`,
 		},
@@ -2278,7 +2278,7 @@ func TestParserErrors(t *testing.T) {
 		},
 		{
 			"in operator set type of wrong type",
-			`type integer does not match set type real`,
+			`sets require an ordinal type, got real instead`,
 			`program test;
 
 			var x : boolean;
