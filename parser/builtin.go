@@ -58,7 +58,7 @@ var builtinProcedures = []*Routine{
 			}
 
 			if _, ok := exprs[0].Type().(*PointerType); !ok {
-				return nil, fmt.Errorf("new requires exactly 1 argument of a pointer type, got %s instead", exprs[0].Type().Type())
+				return nil, fmt.Errorf("new requires exactly 1 argument of a pointer type, got %s instead", exprs[0].Type().TypeString())
 			}
 
 			return nil, nil
@@ -72,7 +72,7 @@ var builtinProcedures = []*Routine{
 			}
 
 			if _, ok := exprs[0].Type().(*PointerType); !ok {
-				return nil, fmt.Errorf("dispose requires exactly 1 argument of a pointer type, got %s instead", exprs[0].Type().Type())
+				return nil, fmt.Errorf("dispose requires exactly 1 argument of a pointer type, got %s instead", exprs[0].Type().TypeString())
 			}
 
 			return nil, nil
@@ -131,7 +131,7 @@ var builtinProcedures = []*Routine{
 				return nil, nil
 			}
 
-			return nil, fmt.Errorf("rewrite: need exactly 1 argument of file type, got %s instead", exprs[0].Type().Type())
+			return nil, fmt.Errorf("rewrite: need exactly 1 argument of file type, got %s instead", exprs[0].Type().TypeString())
 		},
 	},
 }
@@ -153,7 +153,7 @@ var builtinFunctions = []*Routine{
 				return exprs[0].Type(), nil
 			}
 
-			return nil, fmt.Errorf("abs requires exactly 1 argument of type integer or real, got %s instead", exprs[0].Type().Type())
+			return nil, fmt.Errorf("abs requires exactly 1 argument of type integer or real, got %s instead", exprs[0].Type().TypeString())
 		},
 	},
 	{
@@ -312,7 +312,7 @@ var builtinFunctions = []*Routine{
 				return &IntegerType{}, nil
 			}
 
-			return nil, fmt.Errorf("ord requires exactly 1 argument of type enum or char, got %s instead", exprs[0].Type().Type())
+			return nil, fmt.Errorf("ord requires exactly 1 argument of type enum or char, got %s instead", exprs[0].Type().TypeString())
 		},
 	},
 	{
@@ -331,7 +331,7 @@ var builtinFunctions = []*Routine{
 				return exprs[0].Type(), nil
 			}
 
-			return nil, fmt.Errorf("succ requires exactly 1 argument of type enum or integer, got %s instead", exprs[0].Type().Type())
+			return nil, fmt.Errorf("succ requires exactly 1 argument of type enum or integer, got %s instead", exprs[0].Type().TypeString())
 		},
 	},
 	{
@@ -350,7 +350,7 @@ var builtinFunctions = []*Routine{
 				return exprs[0].Type(), nil
 			}
 
-			return nil, fmt.Errorf("pred requires exactly 1 argument of type enum or integer, got %s instead", exprs[0].Type().Type())
+			return nil, fmt.Errorf("pred requires exactly 1 argument of type enum or integer, got %s instead", exprs[0].Type().TypeString())
 		},
 	},
 }

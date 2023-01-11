@@ -385,14 +385,6 @@ func (p *parser) parseTypeDefinition(b *Block) (*TypeDefinition, bool) {
 	return &TypeDefinition{Name: typeName, Type: dataType}, true
 }
 
-type DataType interface {
-	Type() string // TODO: rename to TypeString
-	Equals(dt DataType) bool
-	TypeName() string           // non-empty if type was looked up by name (not in type definition).
-	Named(name string) DataType // produces a copy of the data type but with a name.
-	Resolve(b *Block) error
-}
-
 type RecordField struct {
 	Identifier string
 	Type       DataType
@@ -402,7 +394,7 @@ func (f *RecordField) String() string {
 	var buf strings.Builder
 	buf.WriteString(f.Identifier)
 	buf.WriteString(" : ")
-	buf.WriteString(f.Type.Type())
+	buf.WriteString(f.Type.TypeString())
 	return buf.String()
 }
 
@@ -765,15 +757,15 @@ func (p *FormalParameter) String() string {
 	case *FunctionType:
 		buf.WriteString("function ")
 		buf.WriteString(p.Name)
-		buf.WriteString(p.Type.Type())
+		buf.WriteString(p.Type.TypeString())
 	case *ProcedureType:
 		buf.WriteString("procedure ")
 		buf.WriteString(p.Name)
-		buf.WriteString(p.Type.Type())
+		buf.WriteString(p.Type.TypeString())
 	default:
 		buf.WriteString(p.Name)
 		buf.WriteString(" : ")
-		buf.WriteString(p.Type.Type())
+		buf.WriteString(p.Type.TypeString())
 	}
 
 	return buf.String()
@@ -1174,7 +1166,7 @@ func (p *parser) parseAssignmentOrProcedureStatement(b *Block, label *string) St
 		}
 		if !typesCompatibleForAssignment(lexpr.Type(), rexpr.Type()) {
 			if !isCharStringLiteralAssignment(b, lexpr, rexpr) {
-				p.errorf("incompatible types: got %s, expected %s", rexpr.Type().Type(), lexpr.Type().Type())
+				p.errorf("incompatible types: got %s, expected %s", rexpr.Type().TypeString(), lexpr.Type().TypeString())
 			} else {
 				rexpr = p.stringToCharLiteralExpr(rexpr)
 			}
@@ -1215,7 +1207,7 @@ func (p *parser) parseWhileStatement(b *Block, label *string) *WhileStatement {
 	condition := p.parseExpression(b)
 
 	if !IsBooleanType(condition.Type()) {
-		p.errorf("condition is not boolean, but %s", condition.Type().Type())
+		p.errorf("condition is not boolean, but %s", condition.Type().TypeString())
 	}
 
 	if p.peek().typ != itemDo {
@@ -1247,7 +1239,7 @@ func (p *parser) parseRepeatStatement(b *Block, label *string) *RepeatStatement 
 
 	condition := p.parseExpression(b)
 	if !IsBooleanType(condition.Type()) {
-		p.errorf("condition is not boolean, but %s", condition.Type().Type())
+		p.errorf("condition is not boolean, but %s", condition.Type().TypeString())
 	}
 
 	return &RepeatStatement{label: label, Condition: condition, Statements: stmts}
@@ -1319,7 +1311,7 @@ func (p *parser) parseIfStatement(b *Block, label *string) *IfStatement {
 
 	condition := p.parseExpression(b)
 	if !IsBooleanType(condition.Type()) {
-		p.errorf("condition is not boolean, but %s", condition.Type().Type())
+		p.errorf("condition is not boolean, but %s", condition.Type().TypeString())
 	}
 
 	if p.peek().typ != itemThen {
@@ -1363,7 +1355,7 @@ func (p *parser) parseCaseStatement(b *Block, label *string) Statement {
 	limb := p.parseCaseLimb(b)
 	for _, label := range limb.Label {
 		if !labelCompatibleWithType(label, expr.Type()) {
-			p.errorf("case label %s doesn't match case expression type %s", label.String(), expr.Type().Type())
+			p.errorf("case label %s doesn't match case expression type %s", label.String(), expr.Type().TypeString())
 		}
 	}
 	caseLimbs = append(caseLimbs, limb)
@@ -1381,7 +1373,7 @@ func (p *parser) parseCaseStatement(b *Block, label *string) Statement {
 		limb := p.parseCaseLimb(b)
 		for _, label := range limb.Label {
 			if !labelCompatibleWithType(label, expr.Type()) {
-				p.errorf("case label %s doesn't match case expression type %s", label.String(), expr.Type().Type())
+				p.errorf("case label %s doesn't match case expression type %s", label.String(), expr.Type().TypeString())
 			}
 		}
 		caseLimbs = append(caseLimbs, limb)
@@ -1565,14 +1557,14 @@ func (p *parser) parseExpression(b *Block) Expression {
 	if operator == OpIn {
 		st, ok := rt.(*SetType)
 		if !ok {
-			p.errorf("in: expected set type, got %s instead.", rt.Type())
+			p.errorf("in: expected set type, got %s instead.", rt.TypeString())
 		}
 		if !typesCompatible(lt, st.ElementType) {
-			p.errorf("type %s does not match set type %s", lt.Type(), st.ElementType.Type())
+			p.errorf("type %s does not match set type %s", lt.TypeString(), st.ElementType.TypeString())
 		}
 	} else {
 		if !typesCompatible(lt, rt) {
-			p.errorf("in relational expression with operator %s, types %s and %s are incompatible", relExpr.Operator, lt.Type(), rt.Type())
+			p.errorf("in relational expression with operator %s, types %s and %s are incompatible", relExpr.Operator, lt.TypeString(), rt.TypeString())
 		}
 	}
 
@@ -1609,20 +1601,20 @@ func (p *parser) parseSimpleExpression(b *Block) *SimpleExpr {
 
 		if operator == OperatorOr {
 			if !IsBooleanType(simpleExpr.First.Type()) {
-				p.errorf("can't use or with %s", simpleExpr.First.Type().Type())
+				p.errorf("can't use or with %s", simpleExpr.First.Type().TypeString())
 			}
 		} else {
 			if !isIntegerType(simpleExpr.First.Type()) &&
 				!isRealType(simpleExpr.First.Type()) &&
 				((operator != OperatorAdd && operator != OperatorSubtract) || !isSetType(simpleExpr.First.Type())) {
-				p.errorf("can only use %s operator with integer or real types, got %s instead", operator, simpleExpr.First.Type().Type())
+				p.errorf("can only use %s operator with integer or real types, got %s instead", operator, simpleExpr.First.Type().TypeString())
 			}
 		}
 
 		nextTerm := p.parseTerm(b)
 
 		if !typesCompatible(simpleExpr.First.Type(), nextTerm.Type()) {
-			p.errorf("in simple expression involving operator %s, types %s and %s are incompatible", operator, simpleExpr.First.Type().Type(), nextTerm.Type().Type())
+			p.errorf("in simple expression involving operator %s, types %s and %s are incompatible", operator, simpleExpr.First.Type().TypeString(), nextTerm.Type().TypeString())
 		}
 
 		simpleExpr.Next = append(simpleExpr.Next, &Addition{Operator: operator, Term: nextTerm})
@@ -1661,26 +1653,26 @@ func (p *parser) parseTerm(b *Block) *TermExpr {
 		switch operator {
 		case OperatorAnd:
 			if !IsBooleanType(term.First.Type()) {
-				p.errorf("can't use and with %s", term.First.Type().Type())
+				p.errorf("can't use and with %s", term.First.Type().TypeString())
 			}
 		case OperatorMultiply:
 			if !isIntegerType(term.First.Type()) && !isRealType(term.First.Type()) && !isSetType(term.First.Type()) {
-				p.errorf("can only use %s operator with integer, real or set types, got %s instead", operator, term.First.Type().Type())
+				p.errorf("can only use %s operator with integer, real or set types, got %s instead", operator, term.First.Type().TypeString())
 			}
 		case OperatorFloatDivide:
 			if !isRealType(term.First.Type()) {
-				p.errorf("can only use %s operator with real types, got %s instead", operator, term.First.Type().Type())
+				p.errorf("can only use %s operator with real types, got %s instead", operator, term.First.Type().TypeString())
 			}
 		case OperatorDivide, OperatorModulo:
 			if !isIntegerType(term.First.Type()) {
-				p.errorf("can only use %s operator with integer types, got %s intead", operator, term.First.Type().Type())
+				p.errorf("can only use %s operator with integer types, got %s intead", operator, term.First.Type().TypeString())
 			}
 		}
 
 		nextFactor := p.parseFactor(b)
 
 		if !typesCompatible(term.First.Type(), nextFactor.Type()) {
-			p.errorf("in term involving operator %s, types %s and %s are incompatible", operator, term.First.Type().Type(), nextFactor.Type().Type())
+			p.errorf("in term involving operator %s, types %s and %s are incompatible", operator, term.First.Type().TypeString(), nextFactor.Type().TypeString())
 		}
 
 		term.Next = append(term.Next, &Multiplication{Operator: operator, Factor: nextFactor})
@@ -1760,7 +1752,7 @@ func (p *parser) parseFactor(b *Block) Expression {
 		p.next()
 		expr := p.parseFactor(b)
 		if !IsBooleanType(expr.Type()) {
-			p.errorf("can't NOT %s", expr.Type().Type())
+			p.errorf("can't NOT %s", expr.Type().TypeString())
 		}
 		return &NotExpr{expr}
 	default:
@@ -1807,7 +1799,7 @@ func (p *parser) parseVariable(b *Block, ident string) Expression {
 
 			rt, ok := expr.Type().(*RecordType)
 			if !ok {
-				p.errorf("expression is not a record type, but a %s instead", expr.Type().Type())
+				p.errorf("expression is not a record type, but a %s instead", expr.Type().TypeString())
 			}
 
 			if p.peek().typ != itemIdentifier {
@@ -2078,7 +2070,7 @@ func (p *parser) parseSubrangeType(b *Block) DataType {
 		lowerValue = int(lb.Value)
 		typ = charTypeDef.Type
 	default:
-		p.errorf("expected lower bound to be an integer, an enum value or a char, got a %s instead", lb.ConstantType().Type())
+		p.errorf("expected lower bound to be an integer, an enum value or a char, got a %s instead", lb.ConstantType().TypeString())
 	}
 
 	if p.peek().typ != itemDoubleDot {
@@ -2099,11 +2091,11 @@ func (p *parser) parseSubrangeType(b *Block) DataType {
 		upperValue = int(ub.Value)
 		upperType = charTypeDef.Type
 	default:
-		p.errorf("expected upper bound to be an integer, an enum value or a char, got a %s instead", ub.ConstantType().Type())
+		p.errorf("expected upper bound to be an integer, an enum value or a char, got a %s instead", ub.ConstantType().TypeString())
 	}
 
 	if !upperType.Equals(typ) {
-		p.errorf("type of lower bound differs from upper bound: %s vs %s", typ.Type(), upperType.Type())
+		p.errorf("type of lower bound differs from upper bound: %s vs %s", typ.TypeString(), upperType.TypeString())
 	}
 
 	return &SubrangeType{
@@ -2420,7 +2412,7 @@ func (p *parser) validateParameters(proc *Routine, actualParams []Expression) (r
 	for idx := range proc.FormalParameters {
 		if !exprCompatible(proc.FormalParameters[idx].Type, actualParams[idx]) {
 			return nil, fmt.Errorf("parameter %s expects type %s, but %s was provided",
-				proc.FormalParameters[idx].Name, proc.FormalParameters[idx].Type.Type(), actualParams[idx].Type().Type())
+				proc.FormalParameters[idx].Name, proc.FormalParameters[idx].Type.TypeString(), actualParams[idx].Type().TypeString())
 		}
 
 		if proc.FormalParameters[idx].VariableParameter {
@@ -2453,7 +2445,7 @@ func (p *parser) parseIndexedVariableExpr(b *Block, expr Expression) *IndexedVar
 		}
 
 		if !isIntegerType(indexes[0].Type()) {
-			p.errorf("string index needs to be an integer type, actually got %s", indexes[0].Type().Type())
+			p.errorf("string index needs to be an integer type, actually got %s", indexes[0].Type().TypeString())
 		}
 
 		return &IndexedVariableExpr{Expr: expr, IndexExprs: indexes, Type_: charTypeDef.Type}
@@ -2472,7 +2464,7 @@ func (p *parser) parseIndexedVariableExpr(b *Block, expr Expression) *IndexedVar
 
 	for idx, idxType := range arrType.IndexTypes {
 		if !typesCompatible(idxType, indexes[idx].Type()) {
-			p.errorf("array dimension %d is of type %s, but index expression type %s was provided", idx, idxType.Type(), indexes[idx].Type().Type())
+			p.errorf("array dimension %d is of type %s, but index expression type %s was provided", idx, idxType.TypeString(), indexes[idx].Type().TypeString())
 		}
 	}
 
@@ -2531,7 +2523,7 @@ func (p *parser) parseWritelnFormat(expr Expression, b *Block) (widthExpr Expres
 	}
 
 	if decimalPlacesExpr != nil && !expr.Type().Equals(&RealType{}) {
-		p.errorf("decimal places format is not allowed for type %s", expr.Type().Type())
+		p.errorf("decimal places format is not allowed for type %s", expr.Type().TypeString())
 	}
 
 	return widthExpr, decimalPlacesExpr
@@ -2570,5 +2562,5 @@ func (p *parser) verifyWriteType(typ DataType, ln bool) {
 		}
 	}
 
-	p.errorf("can't use variables of type %s with %s", typ.Type(), funcName)
+	p.errorf("can't use variables of type %s with %s", typ.TypeString(), funcName)
 }

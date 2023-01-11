@@ -278,7 +278,7 @@ type ConstantExpr struct {
 }
 
 func (e *ConstantExpr) String() string {
-	return fmt.Sprintf("constant:<%s : %s>", e.Name, e.Type_.Type())
+	return fmt.Sprintf("constant:<%s : %s>", e.Name, e.Type_.TypeString())
 }
 
 func (e *ConstantExpr) Type() DataType {
@@ -307,7 +307,7 @@ type VariableExpr struct {
 }
 
 func (e *VariableExpr) String() string {
-	return fmt.Sprintf("variable:<%s : %s>", e.Name, e.Type_.Type())
+	return fmt.Sprintf("variable:<%s : %s>", e.Name, e.Type_.TypeString())
 }
 
 func (e *VariableExpr) Type() DataType {
@@ -641,7 +641,7 @@ type EnumValueExpr struct {
 }
 
 func (e *EnumValueExpr) String() string {
-	return fmt.Sprintf("enum-value-expr:<%s %d of type %s>", e.Name, e.Value, e.Type_.Type())
+	return fmt.Sprintf("enum-value-expr:<%s %d of type %s>", e.Name, e.Value, e.Type_.TypeString())
 }
 
 func (e *EnumValueExpr) Type() DataType {

@@ -6,6 +6,14 @@ import (
 	"strings"
 )
 
+type DataType interface {
+	TypeString() string // TODO: rename to TypeString
+	Equals(dt DataType) bool
+	TypeName() string           // non-empty if type was looked up by name (not in type definition).
+	Named(name string) DataType // produces a copy of the data type but with a name.
+	Resolve(b *Block) error
+}
+
 // PointerType describes a type that is a pointer to another type.
 type PointerType struct {
 	// Name of the type. May be empty.
@@ -19,7 +27,7 @@ type PointerType struct {
 	block *Block
 }
 
-func (t *PointerType) Type() string {
+func (t *PointerType) TypeString() string {
 	if t.Name == "" && t.Type_ == nil {
 		return "nil" // compatible with any type; strictly speaking, this is not syntactically correct in Pascal as a type.
 	}
@@ -28,7 +36,7 @@ func (t *PointerType) Type() string {
 		return fmt.Sprintf("^%s", t.Name)
 	}
 
-	return fmt.Sprintf("^%s", t.Type_.Type())
+	return fmt.Sprintf("^%s", t.Type_.TypeString())
 }
 
 func (t *PointerType) Equals(dt DataType) bool {
@@ -74,7 +82,7 @@ type SubrangeType struct {
 	name       string
 }
 
-func (t *SubrangeType) Type() string {
+func (t *SubrangeType) TypeString() string {
 	lb := fmt.Sprint(t.LowerBound)
 	ub := fmt.Sprint(t.UpperBound)
 	if et, ok := t.Type_.(*EnumType); ok {
@@ -120,7 +128,7 @@ type EnumType struct {
 	name        string
 }
 
-func (t *EnumType) Type() string {
+func (t *EnumType) TypeString() string {
 	if t.name != "" {
 		return t.name
 	}
@@ -168,7 +176,7 @@ type ArrayType struct {
 	name        string
 }
 
-func (t *ArrayType) Type() string {
+func (t *ArrayType) TypeString() string {
 	var buf strings.Builder
 
 	if t.Packed {
@@ -181,11 +189,11 @@ func (t *ArrayType) Type() string {
 		if idx > 0 {
 			buf.WriteString(", ")
 		}
-		buf.WriteString(it.Type())
+		buf.WriteString(it.TypeString())
 	}
 
 	buf.WriteString("] of ")
-	buf.WriteString(t.ElementType.Type())
+	buf.WriteString(t.ElementType.TypeString())
 	return buf.String()
 }
 
@@ -197,7 +205,7 @@ func (t *ArrayType) Equals(dt DataType) bool {
 	if t.Packed != o.Packed {
 		return false
 	}
-	if t.ElementType.Type() != o.ElementType.Type() {
+	if t.ElementType.TypeString() != o.ElementType.TypeString() {
 		return false
 	}
 	if len(t.IndexTypes) != len(o.IndexTypes) {
@@ -264,7 +272,7 @@ func (t *RecordType) findField(name string) *RecordField {
 	return nil
 }
 
-func (t *RecordType) Type() string {
+func (t *RecordType) TypeString() string {
 	var buf strings.Builder
 	if t.Packed {
 		buf.WriteString("packed ")
@@ -373,12 +381,12 @@ type SetType struct {
 	name string
 }
 
-func (t *SetType) Type() string {
+func (t *SetType) TypeString() string {
 	packed := ""
 	if t.Packed {
 		packed = "packed "
 	}
-	return fmt.Sprintf("%sset of %s", packed, t.ElementType.Type())
+	return fmt.Sprintf("%sset of %s", packed, t.ElementType.TypeString())
 }
 
 func (t *SetType) Equals(dt DataType) bool {
@@ -405,7 +413,7 @@ type IntegerType struct {
 	name string
 }
 
-func (t *IntegerType) Type() string {
+func (t *IntegerType) TypeString() string {
 	return "integer"
 }
 
@@ -433,7 +441,7 @@ type StringType struct {
 	name string
 }
 
-func (t *StringType) Type() string {
+func (t *StringType) TypeString() string {
 	return "string"
 }
 
@@ -461,7 +469,7 @@ type RealType struct {
 	name string
 }
 
-func (t *RealType) Type() string {
+func (t *RealType) TypeString() string {
 	return "real"
 }
 
@@ -496,13 +504,13 @@ type FileType struct {
 	name string
 }
 
-func (t *FileType) Type() string {
+func (t *FileType) TypeString() string {
 	var buf strings.Builder
 	if t.Packed {
 		buf.WriteString("packed ")
 	}
 	buf.WriteString("file of ")
-	buf.WriteString(t.ElementType.Type())
+	buf.WriteString(t.ElementType.TypeString())
 	return buf.String()
 }
 
@@ -530,7 +538,7 @@ type TextType struct {
 	name string
 }
 
-func (t *TextType) Type() string {
+func (t *TextType) TypeString() string {
 	return "text"
 }
 
@@ -559,7 +567,7 @@ type ProcedureType struct {
 	FormalParams []*FormalParameter
 }
 
-func (t *ProcedureType) Type() string {
+func (t *ProcedureType) TypeString() string {
 	var buf strings.Builder
 	buf.WriteString("(")
 
@@ -619,7 +627,7 @@ type FunctionType struct {
 	ReturnType   DataType
 }
 
-func (t *FunctionType) Type() string {
+func (t *FunctionType) TypeString() string {
 	var buf strings.Builder
 	buf.WriteString("(")
 
@@ -632,7 +640,7 @@ func (t *FunctionType) Type() string {
 
 	buf.WriteString(") : ")
 
-	buf.WriteString(t.ReturnType.Type())
+	buf.WriteString(t.ReturnType.TypeString())
 
 	return buf.String()
 }
