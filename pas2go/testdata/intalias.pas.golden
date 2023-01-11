@@ -1,0 +1,22 @@
+package main
+
+import (
+	"github.com/akrennmair/pascal/pas2go/system"
+)
+
+var _ = system.Write
+
+// program test
+func main() {
+	type (
+		intalias byte
+		pt       *intalias
+	)
+
+	var (
+		p pt
+	)
+	_ = p
+
+	p = new(intalias)
+}
