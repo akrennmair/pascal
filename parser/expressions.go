@@ -481,9 +481,11 @@ func (e *SetExpr) String() string {
 }
 
 func (e *SetExpr) Type() DataType {
-	return &SetType{
-		ElementType: e.Elements[0].Type(),
+	t := &SetType{}
+	if len(e.Elements) > 0 {
+		t.ElementType = e.Elements[0].Type()
 	}
+	return t
 }
 
 func (e *SetExpr) IsVariableExpr() bool {

@@ -1567,7 +1567,7 @@ func (p *parser) parseExpression(b *Block) Expression {
 		if !ok {
 			p.errorf("in: expected set type, got %s instead.", rt.Type())
 		}
-		if !lt.Equals(st.ElementType) {
+		if !typesCompatible(lt, st.ElementType) {
 			p.errorf("type %s does not match set type %s", lt.Type(), st.ElementType.Type())
 		}
 	} else {
@@ -1907,6 +1907,11 @@ func (p *parser) parseSet(b *Block) *SetExpr {
 	p.next()
 
 	set := &SetExpr{}
+
+	if p.peek().typ == itemCloseBracket {
+		p.next()
+		return set
+	}
 
 	expr := p.parseExpression(b)
 	set.Elements = append(set.Elements, expr)

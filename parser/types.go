@@ -851,6 +851,12 @@ func typesCompatible(t1, t2 DataType) bool {
 		}
 	}
 
+	if isSetType(t1) && isSetType(t2) {
+		if typesCompatible(t1.(*SetType).ElementType, t2.(*SetType).ElementType) {
+			return true
+		}
+	}
+
 	// TODO: implement more cases of compatibility
 
 	return false
@@ -887,6 +893,24 @@ func labelCompatibleWithType(label ConstantLiteral, typ DataType) bool {
 
 func typesCompatibleForAssignment(lt, rt DataType) bool {
 	if lt.Equals(rt) {
+		return true
+	}
+
+	if isSetType(lt) && isSetType(rt) {
+		// if left and right side are both sets, and the right side has an empty type (b/c it's an empty literal)
+		// then types are compatible for assignment. In addition, we assign the element type to the set type.
+		if rt.(*SetType).ElementType == nil {
+			rt.(*SetType).ElementType = lt.(*SetType).ElementType
+			return true
+		}
+
+		if typesCompatible(lt.(*SetType).ElementType, rt.(*SetType).ElementType) {
+			return true
+		}
+	}
+
+	if rightSetType, ok := rt.(*SetType); isSetType(lt) && ok && rightSetType.ElementType == nil {
+		rightSetType.ElementType = lt.(*SetType).ElementType
 		return true
 	}
 
