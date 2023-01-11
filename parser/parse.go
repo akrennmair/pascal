@@ -1452,6 +1452,7 @@ func (p *parser) parseWithStatement(b *Block, label *string) Statement {
 				Name:          field.Identifier,
 				Type:          field.Type,
 				IsRecordField: true,
+				BelongsToExpr: expr,
 				BelongsToType: recType,
 				//BelongsToVarDecl: varDecl, // TODO: set these correctly.
 				//BelongsToParam:   paramDecl,

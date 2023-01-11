@@ -384,13 +384,28 @@ func toExpr(expr parser.Expression) string {
 		return "!" + toExpr(e.Expr)
 	case *parser.SetExpr:
 		var buf strings.Builder
-		buf.WriteString("system.Set[" + toGoType(e.Type().(*parser.SetType).ElementType) + "](")
+		buf.WriteString("system.Set")
+
+		if elemTyp := e.Type().(*parser.SetType).ElementType; elemTyp != nil {
+			buf.WriteString("[")
+			buf.WriteString(toGoType(elemTyp))
+			buf.WriteString("]")
+		}
+		buf.WriteString("(")
 		for idx, expr := range e.Elements {
 			if idx > 0 {
 				buf.WriteString(", ")
 			}
 			buf.WriteString(toExpr(expr))
 		}
+		buf.WriteString(")")
+		return buf.String()
+	case *parser.RangeExpr:
+		var buf strings.Builder
+		buf.WriteString(fmt.Sprintf("system.Range[%s](", toGoType(e.LowerBound.Type())))
+		buf.WriteString(toExpr(e.LowerBound))
+		buf.WriteString(", ")
+		buf.WriteString(toExpr(e.UpperBound))
 		buf.WriteString(")")
 		return buf.String()
 	case *parser.SubExpr:
