@@ -116,6 +116,24 @@ var builtinProcedures = []*Routine{
 			return nil, nil
 		},
 	},
+	{
+		Name: "rewrite",
+		validator: func(exprs []Expression) (DataType, error) {
+			if len(exprs) != 1 {
+				return nil, fmt.Errorf("rewrite: need exactly 1 argument of file type")
+			}
+
+			if _, ok := exprs[0].Type().(*FileType); ok {
+				return nil, nil
+			}
+
+			if _, ok := exprs[0].Type().(*TextType); ok {
+				return nil, nil
+			}
+
+			return nil, fmt.Errorf("rewrite: need exactly 1 argument of file type, got %s instead", exprs[0].Type().Type())
+		},
+	},
 }
 
 var builtinFunctions = []*Routine{
@@ -131,6 +149,8 @@ var builtinFunctions = []*Routine{
 				return &IntegerType{}, nil
 			case *RealType:
 				return &RealType{}, nil
+			case *SubrangeType:
+				return exprs[0].Type(), nil
 			}
 
 			return nil, fmt.Errorf("abs requires exactly 1 argument of type integer or real, got %s instead", exprs[0].Type().Type())
@@ -307,6 +327,8 @@ var builtinFunctions = []*Routine{
 				return exprs[0].Type(), nil
 			case *EnumType:
 				return exprs[0].Type(), nil
+			case *SubrangeType:
+				return exprs[0].Type(), nil
 			}
 
 			return nil, fmt.Errorf("succ requires exactly 1 argument of type enum or integer, got %s instead", exprs[0].Type().Type())
@@ -323,6 +345,8 @@ var builtinFunctions = []*Routine{
 			case *IntegerType:
 				return exprs[0].Type(), nil
 			case *EnumType:
+				return exprs[0].Type(), nil
+			case *SubrangeType:
 				return exprs[0].Type(), nil
 			}
 

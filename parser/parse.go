@@ -1076,6 +1076,11 @@ restart:
 			p.errorf("expected label after goto, got %s", p.next())
 		}
 		tl := p.next().val
+		i, err := strconv.ParseInt(tl, 10, 64)
+		if err != nil {
+			p.errorf("invalid label %q: %v", tl, err)
+		}
+		tl = fmt.Sprint(i)
 		if !b.isValidLabel(tl) {
 			p.errorf("invalid goto label %s", tl)
 		}
@@ -1357,7 +1362,7 @@ func (p *parser) parseCaseStatement(b *Block, label *string) Statement {
 
 	limb := p.parseCaseLimb(b)
 	for _, label := range limb.Label {
-		if !expr.Type().Equals(label.ConstantType()) {
+		if !labelCompatibleWithType(label, expr.Type()) {
 			p.errorf("case label %s doesn't match case expression type %s", label.String(), expr.Type().Type())
 		}
 	}
@@ -1375,7 +1380,7 @@ func (p *parser) parseCaseStatement(b *Block, label *string) Statement {
 
 		limb := p.parseCaseLimb(b)
 		for _, label := range limb.Label {
-			if !expr.Type().Equals(label.ConstantType()) {
+			if !labelCompatibleWithType(label, expr.Type()) {
 				p.errorf("case label %s doesn't match case expression type %s", label.String(), expr.Type().Type())
 			}
 		}
@@ -1739,7 +1744,11 @@ func (p *parser) parseFactor(b *Block) Expression {
 		return p.parseNumber(false)
 	case itemStringLiteral:
 		p.logger.Printf("parseFactor: got string literal %s", p.peek())
-		return &StringExpr{decodeStringLiteral(p.next().val)}
+		se := &StringExpr{decodeStringLiteral(p.next().val)}
+		if se.IsCharLiteral() {
+			return &CharExpr{Value: se.Value[0]}
+		}
+		return se
 	case itemOpenBracket:
 		return p.parseSet(b)
 	case itemNil:
@@ -2060,11 +2069,8 @@ func (p *parser) parseSubrangeType(b *Block) DataType {
 	case *EnumValueLiteral:
 		lowerValue = lb.Value
 		typ = lb.Type
-	case *StringLiteral:
-		if len(lb.Value) != 1 {
-			p.errorf("expected lower bound to be an integer, an enum value or a char, got a %s instead", lb.ConstantType().Type())
-		}
-		lowerValue = int(lb.Value[0])
+	case *CharLiteral:
+		lowerValue = int(lb.Value)
 		typ = charTypeDef.Type
 	default:
 		p.errorf("expected lower bound to be an integer, an enum value or a char, got a %s instead", lb.ConstantType().Type())
@@ -2084,11 +2090,8 @@ func (p *parser) parseSubrangeType(b *Block) DataType {
 	case *EnumValueLiteral:
 		upperValue = ub.Value
 		upperType = ub.Type
-	case *StringLiteral:
-		if len(ub.Value) != 1 {
-			p.errorf("expected upper bound to be an integer, an enum value or a char, got a %s instead", ub.ConstantType().Type())
-		}
-		upperValue = int(ub.Value[0])
+	case *CharLiteral:
+		upperValue = int(ub.Value)
 		upperType = charTypeDef.Type
 	default:
 		p.errorf("expected upper bound to be an integer, an enum value or a char, got a %s instead", ub.ConstantType().Type())
@@ -2158,7 +2161,12 @@ func (p *parser) parseConstantWithoutSign(b *Block, minus bool) ConstantLiteral 
 			v = &RealLiteral{Minus: n.Minus, BeforeComma: n.BeforeComma, AfterComma: n.AfterComma, ScaleFactor: n.ScaleFactor}
 		}
 	} else if p.peek().typ == itemStringLiteral {
-		v = &StringLiteral{Value: decodeStringLiteral(p.next().val)}
+		sl := &StringLiteral{Value: decodeStringLiteral(p.next().val)}
+		if sl.IsCharLiteral() {
+			v = &CharLiteral{Value: sl.Value[0]}
+		} else {
+			v = sl
+		}
 	} else {
 		p.errorf("got unexpected %s while parsing constant", p.peek())
 	}

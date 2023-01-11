@@ -1362,6 +1362,17 @@ func TestParserSuccesses(t *testing.T) {
 			end.
 			`,
 		},
+		{
+			"writeln formatting of real",
+			`program test;
+			
+			var i : integer;
+
+			begin
+				i := 3;
+				writeln(i + 3.1415:10:10);
+			end.`,
+		},
 	}
 
 	for idx, testEntry := range testData {

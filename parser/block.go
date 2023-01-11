@@ -1,6 +1,9 @@
 package parser
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+)
 
 // Block describes a program block. A program block consists of
 // declarations (label declarations, constant definitions, type definitions,
@@ -263,6 +266,11 @@ func (b *Block) isIdentifierUsed(name string) bool {
 }
 
 func (b *Block) addLabel(label string) error {
+	i, err := strconv.ParseInt(label, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid label: %w", err)
+	}
+	label = fmt.Sprint(i)
 	if b.isIdentifierUsed(label) {
 		return fmt.Errorf("duplicate label identifier %q", label)
 	}

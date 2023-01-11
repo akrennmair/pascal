@@ -788,6 +788,29 @@ func (l *StringLiteral) String() string {
 	return buf.String()
 }
 
+// CharLiteral describes a char literal
+type CharLiteral struct {
+	Value byte
+}
+
+func (l *CharLiteral) ConstantType() DataType {
+	return charTypeDef.Type
+}
+
+func (l *CharLiteral) Negate() (ConstantLiteral, error) {
+	return nil, errors.New("can't negate char literal")
+}
+
+func (l *CharLiteral) String() string {
+	var buf strings.Builder
+
+	buf.WriteString("'")
+	buf.WriteByte(l.Value)
+	buf.WriteString("'")
+
+	return buf.String()
+}
+
 // EnumValueLiteral describes a literal of an enumerated type, both by
 // the enumerated type's symbol and the integral value that is associated
 // with it.
@@ -822,6 +845,12 @@ func typesCompatible(t1, t2 DataType) bool {
 		return true
 	}
 
+	if srt, isSubrangeType := t1.(*SubrangeType); isSubrangeType {
+		if typesCompatible(srt.Type_, t2) {
+			return true
+		}
+	}
+
 	// TODO: implement more cases of compatibility
 
 	return false
@@ -832,11 +861,26 @@ func exprCompatible(t DataType, expr Expression) bool {
 		return true
 	}
 
-	str, isStringLiteral := expr.(*StringExpr)
+	strLiteral, isStringLiteral := expr.(*StringExpr)
 
-	if IsCharType(t) && isStringLiteral && str.IsCharLiteral() {
+	if IsCharType(t) && (isStringLiteral && strLiteral.IsCharLiteral()) {
 		return true
 	}
+
+	return false
+}
+
+func labelCompatibleWithType(label ConstantLiteral, typ DataType) bool {
+	if typ.Equals(label.ConstantType()) {
+		return true
+	}
+
+	sl, ok := label.(*StringLiteral)
+	if ok && sl.IsCharLiteral() && typ.Equals(charTypeDef.Type) {
+		return true
+	}
+
+	//fmt.Printf("label type %s, expression type is %s\n", label.ConstantType().Type(), typ.Type())
 
 	return false
 }
@@ -854,9 +898,26 @@ func typesCompatibleForAssignment(lt, rt DataType) bool {
 		return true
 	}
 
+	if isPackedCharArray(lt) && rt.Equals(&StringType{}) {
+		return true
+	}
+
 	// TODO: implement more cases of compatibility
 
 	return false
+}
+
+func isPackedCharArray(typ DataType) bool {
+	arrType, ok := typ.(*ArrayType)
+	if !ok {
+		return false
+	}
+
+	if !arrType.Packed {
+		return false
+	}
+
+	return arrType.Packed && len(arrType.IndexTypes) == 1 && IsCharType(arrType.ElementType)
 }
 
 func isIntegerType(dt DataType) bool {
