@@ -359,6 +359,8 @@ func (p *parser) parseTypeDefinitionPart(b *Block) {
 			p.errorf("couldn't resolve type: %v", err)
 		}
 	}
+
+	fmt.Printf("====\ntype definition = %s\n", spew.Sdump(b.Types))
 }
 
 type TypeDefinition struct {
@@ -382,7 +384,7 @@ func (p *parser) parseTypeDefinition(b *Block) (*TypeDefinition, bool) {
 	}
 	p.next()
 
-	dataType := p.parseType(b)
+	dataType := p.parseType(b, typeName)
 
 	return &TypeDefinition{Name: typeName, Type: dataType}, true
 }
@@ -433,7 +435,7 @@ type RecordVariant struct {
 //	    "^" type-identifier .
 //	type-identifier =
 //	    identifier .
-func (p *parser) parseType(b *Block) DataType {
+func (p *parser) parseType(b *Block, typeDefName string) DataType {
 	packed := false
 
 restartParseDataType:
@@ -443,6 +445,9 @@ restartParseDataType:
 		// if identifier is an already existing type name, it's an alias.
 		if typ := b.findType(ident); typ != nil {
 			p.next()
+			if typeDefName != "" {
+				return typ.Named(typeDefName)
+			}
 			return typ.Named(ident)
 		}
 
@@ -464,9 +469,9 @@ restartParseDataType:
 		ident := p.next().val
 
 		if typ := getBuiltinType(ident); typ != nil {
-			return &PointerType{Type_: typ}
+			return &PointerType{Type_: typ, name: typeDefName}
 		}
-		return &PointerType{Name: ident, block: b}
+		return &PointerType{TargetName: ident, name: typeDefName, block: b}
 	case itemOpenParen:
 		return p.parseEnumType(b)
 	case itemPacked:
@@ -486,7 +491,7 @@ restartParseDataType:
 			p.errorf("expected of after set, got %s", p.next())
 		}
 		p.next()
-		setDataType := p.parseType(b)
+		setDataType := p.parseType(b, "")
 		if !isOrdinalType(setDataType) {
 			p.errorf("sets require an ordinal type, got %s instead", setDataType.TypeString())
 		}
@@ -497,7 +502,7 @@ restartParseDataType:
 			p.errorf("expected of after file, got %s", p.next())
 		}
 		p.next()
-		fileDataType := p.parseType(b)
+		fileDataType := p.parseType(b, "")
 		return &FileType{ElementType: fileDataType, Packed: packed}
 	case itemSign, itemUnsignedDigitSequence, itemStringLiteral:
 		// if the type definition is a sign, digits or a string (really char) literal, it can only be a subrange type.
@@ -601,7 +606,7 @@ func (p *parser) parseVariableDeclaration(b *Block) {
 	}
 	p.next()
 
-	dataType := p.parseType(b)
+	dataType := p.parseType(b, "")
 
 	if err := dataType.Resolve(b); err != nil {
 		p.errorf("variables %s: %s", strings.Join(variableNames, ", "), err)
@@ -844,7 +849,7 @@ func (p *parser) parseFormalParameterSection(b *Block) []*FormalParameter {
 
 		p.next()
 
-		returnType := p.parseType(b)
+		returnType := p.parseType(b, "")
 
 		formalParameters = append(formalParameters, &FormalParameter{
 			Name: name,
@@ -862,7 +867,7 @@ func (p *parser) parseFormalParameterSection(b *Block) []*FormalParameter {
 		}
 		p.next()
 
-		parameterType := p.parseType(b)
+		parameterType := p.parseType(b, "")
 
 		formalParameters = make([]*FormalParameter, 0, len(parameterNames))
 		for _, name := range parameterNames {
@@ -958,7 +963,7 @@ func (p *parser) parseFunctionHeading(b *Block) (string, []*FormalParameter, Dat
 
 	if p.peek().typ == itemColon {
 		p.next()
-		returnType = p.parseType(b)
+		returnType = p.parseType(b, "")
 	}
 
 	return procedureName, parameterList, returnType
@@ -2001,7 +2006,7 @@ func (p *parser) parseArrayType(b *Block, packed bool) *ArrayType {
 	}
 	p.next()
 
-	elementType := p.parseType(b)
+	elementType := p.parseType(b, "")
 
 	for isArrayType(elementType) {
 		arrType := elementType.(*ArrayType)
@@ -2388,7 +2393,7 @@ func (p *parser) parseRecordSection(b *Block) []*RecordField {
 	}
 	p.next()
 
-	typ := p.parseType(b)
+	typ := p.parseType(b, "")
 
 	var fields []*RecordField
 

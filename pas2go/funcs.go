@@ -7,14 +7,21 @@ import (
 	"github.com/akrennmair/pascal/parser"
 )
 
-func toGoType(typ parser.DataType) string {
-	if parser.IsBooleanType(typ) {
-		return "bool"
-	}
-	if parser.IsCharType(typ) {
-		return "byte"
-	}
+func toGoTypeDef(typeDef *parser.TypeDefinition) string {
+	var buf strings.Builder
 
+	buf.WriteString(typeDef.Name)
+	buf.WriteString(" ")
+	buf.WriteString(toGoTypeExcludeTypeName(typeDef.Type, typeDef.Name))
+
+	return buf.String()
+}
+
+func toGoType(typ parser.DataType) string {
+	return toGoTypeExcludeTypeName(typ, "")
+}
+
+func toGoTypeExcludeTypeName(typ parser.DataType, excludeTypeName string) string {
 	switch dt := typ.(type) {
 	case *parser.IntegerType:
 		return "int"
@@ -28,8 +35,8 @@ func toGoType(typ parser.DataType) string {
 	case *parser.StringType:
 		return "string"
 	case *parser.PointerType:
-		if dt.Name != "" {
-			return "*" + dt.Name
+		if dt.TypeName() != "" && dt.TypeName() != excludeTypeName {
+			return dt.TypeName()
 		}
 		return "*" + toGoType(dt.Type_)
 	case *parser.ArrayType:
@@ -45,8 +52,16 @@ func toGoType(typ parser.DataType) string {
 		buf.WriteString(toGoType(dt.ElementType))
 		return buf.String()
 	case *parser.SubrangeType:
+		if parser.IsCharType(typ) {
+			return "byte"
+		}
+
 		return "int" // Go doesn't have subrange types, so that's the closest we can translate them to.
 	case *parser.EnumType:
+		if parser.IsBooleanType(typ) {
+			return "bool"
+		}
+
 		if name := typ.TypeName(); name != "" {
 			return name
 		}
@@ -96,7 +111,7 @@ func sortTypeDefs(typeDefs []*parser.TypeDefinition) []*parser.TypeDefinition {
 
 	for _, typeDef := range typeDefs {
 		if pt, ok := typeDef.Type.(*parser.PointerType); ok {
-			if pt.Name != "" {
+			if pt.TargetName != "" {
 				typesToAppend = append(typesToAppend, typeDef)
 				continue
 			}
@@ -547,7 +562,8 @@ func isBuiltinProcedure(name string) bool {
 func generateBuiltinProcedure(stmt *parser.ProcedureCallStatement) string {
 	switch stmt.Name {
 	case "new":
-		return toExpr(stmt.ActualParams[0]) + " = new(" + toGoType(stmt.ActualParams[0].Type().(*parser.PointerType).Type_) + ")"
+		typ := stmt.ActualParams[0].Type().(*parser.PointerType).Type_
+		return toExpr(stmt.ActualParams[0]) + " = new(" + toGoType(typ) + ")"
 	case "dispose":
 		return toExpr(stmt.ActualParams[0]) + " = nil"
 	case "read":
@@ -569,7 +585,7 @@ func generateBuiltinProcedure(stmt *parser.ProcedureCallStatement) string {
 			return toExpr(stmt.ActualParams[0]) + " -= " + toExpr(stmt.ActualParams[1])
 		}
 	case "rewrite", "reset", "unpack", "pack", "get", "put":
-		return fmt.Sprintf("/* TODO: %s(%s) */", stmt.Name, toExpr(stmt.ActualParams[0]))
+		return fmt.Sprintf("/* TODO: %s%s */", stmt.Name, actualParams(stmt.ActualParams, nil))
 	}
 	return "BUG: missing builtin procedure " + stmt.Name
 }

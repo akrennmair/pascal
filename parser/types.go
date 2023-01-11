@@ -18,23 +18,25 @@ type DataType interface {
 // PointerType describes a type that is a pointer to another type.
 type PointerType struct {
 	// Name of the type. May be empty.
-	Name string
+	TargetName string
 
 	// Dereferenced type. If it is nil, it indicates that the associated value is
 	// compatible with any other pointer type. This is used to represent the type
 	// of the nil literal.
 	Type_ DataType
 
+	name string
+
 	block *Block
 }
 
 func (t *PointerType) TypeString() string {
-	if t.Name == "" && t.Type_ == nil {
+	if t.TargetName == "" && t.Type_ == nil {
 		return "nil" // compatible with any type; strictly speaking, this is not syntactically correct in Pascal as a type.
 	}
 
-	if t.Name != "" { // if there is a name, print name (even if it has been resolved) to avoid infinite recursion.
-		return fmt.Sprintf("^%s", t.Name)
+	if t.TargetName != "" { // if there is a name, print name (even if it has been resolved) to avoid infinite recursion.
+		return fmt.Sprintf("^%s", t.TargetName)
 	}
 
 	return fmt.Sprintf("^%s", t.Type_.TypeString())
@@ -54,21 +56,26 @@ func (t *PointerType) Equals(dt DataType) bool {
 }
 
 func (t *PointerType) TypeName() string {
-	return t.Type_.TypeName()
+	return t.name
 }
 
-func (t *PointerType) Named(_ string) DataType {
-	return t
+func (t *PointerType) Named(name string) DataType {
+	return &PointerType{
+		TargetName: t.TargetName,
+		Type_:      t.Type_,
+		name:       name,
+		block:      t.block,
+	}
 }
 
 func (t *PointerType) Resolve(b *Block) error {
 	if t.Type_ == nil {
-		if t.Name != "" {
-			t.Type_ = b.findType(t.Name)
+		if t.TargetName != "" {
+			t.Type_ = b.findType(t.TargetName)
 			if t.Type_ == nil {
-				return fmt.Errorf("couldn't resolve type %q", t.Name)
+				return fmt.Errorf("couldn't resolve type %q", t.TargetName)
 			}
-			t.Type_ = t.Type_.Named(t.Name)
+			t.Type_ = t.Type_.Named(t.TargetName)
 		} else {
 			return fmt.Errorf("nameless pointer type")
 		}

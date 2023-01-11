@@ -4,6 +4,7 @@ import "text/template"
 
 var (
 	tmplFuncs = template.FuncMap{
+		"toGoTypeDef":              toGoTypeDef,
 		"toGoType":                 toGoType,
 		"sortTypeDefs":             sortTypeDefs,
 		"constantLiteral":          constantLiteral,
@@ -59,7 +60,7 @@ func main() {
 	{{- if . }}
 	type (
 	{{- range $type := . | sortTypeDefs }}
-	{{ $type.Name }} {{ $type.Type | toGoType }}
+	{{ $type| toGoTypeDef }}
 	{{- end }}
 	)
 	{{ end -}}

@@ -431,6 +431,12 @@ func getBuiltinType(identifier string) DataType {
 		return &RealType{}
 	case "string":
 		return &StringType{}
+	case "char":
+		return charTypeDef.Type
+	case "boolean":
+		return booleanTypeDef.Type
+	case "text":
+		return textTypeDef.Type
 	}
 	return nil
 }
