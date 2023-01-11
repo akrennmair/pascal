@@ -464,35 +464,9 @@ restartParseDataType:
 		ident := p.next().val
 
 		if typ := getBuiltinType(ident); typ != nil {
-			return &PointerType{Name: ident, Type_: typ}
+			return &PointerType{Type_: typ}
 		}
-
 		return &PointerType{Name: ident, block: b}
-
-		/*
-
-			typeDecl := b.findType(ident)
-			if typeDecl == nil {
-				fmt.Printf("pointer type that needs resolving later: %s\n", ident)
-				if resolvePointerTypesLater {
-					return &PointerType{Name: ident}
-				}
-				p.errorf("unknown type %s", ident)
-			}
-
-			return &PointerType{Name: ident}
-
-			// don't store names of built-in types, as they are fully represented in the type declaration already, and
-			// the name would only stand in the way for any code generation that assumes that non-empty names refer
-			// to non-builtin types.
-			if getBuiltinType(ident) != nil {
-				ident = ""
-			}
-
-			fmt.Printf("pointer type: %s : %s\n", ident, typeDecl.Type())
-
-			return &PointerType{Name: ident, Type_: typeDecl.Named(ident)}
-		*/
 	case itemOpenParen:
 		return p.parseEnumType(b)
 	case itemPacked:

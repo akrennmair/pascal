@@ -1632,7 +1632,7 @@ func TestParserErrors(t *testing.T) {
 		},
 		{
 			"dereferencing a record and using a field, nested, but it's attempting to dereference an integer field",
-			"attempting to ^ but expression is not a pointer type",
+			"attempting to ^ but expression is not a pointer or file type",
 			`program test;
 
 			type foo = record
@@ -2221,7 +2221,7 @@ func TestParserErrors(t *testing.T) {
 		},
 		{
 			"with statement with unknown record variable",
-			`unknown variable y`,
+			`unknown identifier y`,
 			`program test;
 
 			var x : integer;
@@ -2235,7 +2235,7 @@ func TestParserErrors(t *testing.T) {
 		},
 		{
 			"with statement with non-record variable",
-			`variable x is not a record variable`,
+			`variable access not a record type`,
 			`program test;
 
 			var x : integer;

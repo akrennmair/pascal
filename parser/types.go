@@ -68,6 +68,7 @@ func (t *PointerType) Resolve(b *Block) error {
 			if t.Type_ == nil {
 				return fmt.Errorf("couldn't resolve type %q", t.Name)
 			}
+			t.Type_ = t.Type_.Named(t.Name)
 		} else {
 			return fmt.Errorf("nameless pointer type")
 		}

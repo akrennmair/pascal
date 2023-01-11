@@ -554,16 +554,18 @@ func (e *IndexedVariableExpr) String() string {
 }
 
 func (e *IndexedVariableExpr) Type() DataType {
-	arrType := e.Expr.Type().(*ArrayType)
-	if len(e.IndexExprs) == len(arrType.IndexTypes) {
-		return e.Type_
+	if arrType, ok := e.Expr.Type().(*ArrayType); ok {
+		if len(e.IndexExprs) == len(arrType.IndexTypes) {
+			return e.Type_
+		}
+		return &ArrayType{
+			IndexTypes:  arrType.IndexTypes[len(e.IndexExprs):],
+			ElementType: arrType.ElementType,
+			Packed:      arrType.Packed,
+			name:        "",
+		}
 	}
-	return &ArrayType{
-		IndexTypes:  arrType.IndexTypes[len(e.IndexExprs):],
-		ElementType: arrType.ElementType,
-		Packed:      arrType.Packed,
-		name:        "",
-	}
+	return e.Type_
 }
 
 func (e *IndexedVariableExpr) IsVariableExpr() bool {

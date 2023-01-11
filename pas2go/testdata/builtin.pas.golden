@@ -19,9 +19,9 @@ func main() {
 	_ = r
 	_ = s
 
-	i = -23
+	i = (-23)
 	j = system.AbsInt(i)
-	r = -3.1415e0
+	r = (-3.1415e0)
 	s = system.AbsReal(r)
 	system.Writeln("abs(", i, ") = ", j)
 	system.Writeln("abs(", r, ") = ", s)

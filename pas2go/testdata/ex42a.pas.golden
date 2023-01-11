@@ -34,7 +34,7 @@ func main() {
 		t = (i % 100) / 10
 		o = i % 10
 		if i == fac(h)+fac(t)+fac(o) {
-			system.Writeln(i, " = ", h, "! + ", t, "! + ", o, "!")
+			system.Writeln(i, " = ", h, "! + ", t, "! + ", o, '!')
 		}
 	}
 }
