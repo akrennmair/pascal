@@ -30,6 +30,8 @@ func TestTranspile(t *testing.T) {
 			ast, err := parser.Parse(pascalFile, string(fileContent))
 			require.NoError(t, err, "parsing source file failed")
 
+			//fmt.Printf("ast = %s\n", spew.Sdump(ast))
+
 			goSource, err := Transpile(ast)
 			require.NoError(t, err, "transpile failed")
 

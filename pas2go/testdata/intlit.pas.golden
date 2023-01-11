@@ -1,0 +1,12 @@
+package main
+
+import (
+	"github.com/akrennmair/pascal/pas2go/system"
+)
+
+var _ = system.Write
+
+// program test
+func main() {
+	system.Writeln("hello: ", (-50)-(-14))
+}

@@ -127,11 +127,49 @@ var builtinProcedures = []*Routine{
 				return nil, nil
 			}
 
-			if _, ok := exprs[0].Type().(*TextType); ok {
+			return nil, fmt.Errorf("rewrite: need exactly 1 argument of file type, got %s instead", exprs[0].Type().TypeString())
+		},
+	},
+	{
+		Name: "reset",
+		validator: func(exprs []Expression) (DataType, error) {
+			if len(exprs) != 1 {
+				return nil, fmt.Errorf("reset: need exactly 1 argument of file type")
+			}
+
+			if _, ok := exprs[0].Type().(*FileType); ok {
 				return nil, nil
 			}
 
-			return nil, fmt.Errorf("rewrite: need exactly 1 argument of file type, got %s instead", exprs[0].Type().TypeString())
+			return nil, fmt.Errorf("reset: need exactly 1 argument of file type, got %s instead", exprs[0].Type().TypeString())
+		},
+	},
+	{
+		Name: "unpack",
+		validator: func(exprs []Expression) (DataType, error) {
+			// TODO: implement
+			return nil, nil
+		},
+	},
+	{
+		Name: "pack",
+		validator: func(exprs []Expression) (DataType, error) {
+			// TODO: implement
+			return nil, nil
+		},
+	},
+	{
+		Name: "get",
+		validator: func(exprs []Expression) (DataType, error) {
+			// TODO: implement
+			return nil, nil
+		},
+	},
+	{
+		Name: "put",
+		validator: func(exprs []Expression) (DataType, error) {
+			// TODO: implement
+			return nil, nil
 		},
 	},
 }
@@ -353,6 +391,36 @@ var builtinFunctions = []*Routine{
 			return nil, fmt.Errorf("pred requires exactly 1 argument of type enum or integer, got %s instead", exprs[0].Type().TypeString())
 		},
 	},
+	{
+		Name: "eof",
+		validator: func(exprs []Expression) (DataType, error) {
+			if len(exprs) != 1 {
+				return nil, fmt.Errorf("eof requires exactly 1 argument of file type, got %d arguments instead", len(exprs))
+			}
+
+			switch exprs[0].Type().(type) {
+			case *FileType:
+				return booleanTypeDef.Type, nil
+			}
+
+			return nil, fmt.Errorf("eof requires exactly 1 argument of file type, got %s instead", exprs[0].Type().TypeString())
+		},
+	},
+	{
+		Name: "eoln",
+		validator: func(exprs []Expression) (DataType, error) {
+			if len(exprs) != 1 {
+				return nil, fmt.Errorf("eoln requires exactly 1 argument of file type, got %d arguments instead", len(exprs))
+			}
+
+			switch exprs[0].Type().(type) {
+			case *FileType:
+				return booleanTypeDef.Type, nil
+			}
+
+			return nil, fmt.Errorf("eoln requires exactly 1 argument of file type, got %s instead", exprs[0].Type().TypeString())
+		},
+	},
 }
 
 func getBuiltinType(identifier string) DataType {
@@ -363,8 +431,6 @@ func getBuiltinType(identifier string) DataType {
 		return &RealType{}
 	case "string":
 		return &StringType{}
-	case "text":
-		return &TextType{}
 	}
 	return nil
 }
@@ -396,6 +462,14 @@ var charTypeDef = &TypeDefinition{
 	},
 }
 
+var textTypeDef = &TypeDefinition{
+	Name: "text",
+	Type: &FileType{
+		ElementType: charTypeDef.Type,
+		name:        "text",
+	},
+}
+
 // IsBooleanType returns true if the provided type is the boolean type, false otherwise.
 func IsBooleanType(dt DataType) bool {
 	return booleanTypeDef.Type.Equals(dt)
@@ -416,5 +490,6 @@ var builtinBlock = &Block{
 	Types: []*TypeDefinition{
 		booleanTypeDef,
 		charTypeDef,
+		textTypeDef,
 	},
 }

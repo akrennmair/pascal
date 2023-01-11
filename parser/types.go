@@ -136,11 +136,13 @@ func (t *SubrangeType) Resolve(_ *Block) error {
 }
 
 func (t *SubrangeType) IsCompatibleWith(dt DataType) bool {
-	switch ot := dt.(type) {
+	switch dt.(type) {
 	case *SubrangeType:
-		return t.Type_.IsCompatibleWith(ot)
+		return t.Type_.IsCompatibleWith(dt)
 	case *IntegerType:
 		return t.Type_.IsCompatibleWith(&IntegerType{})
+	case *EnumType:
+		return t.Type_.IsCompatibleWith(dt)
 	}
 
 	return false
@@ -268,6 +270,13 @@ func (t *ArrayType) Resolve(b *Block) error {
 }
 
 func (t *ArrayType) IsCompatibleWith(dt DataType) bool {
+	// special case: array of char is compatible with string.
+	if len(t.IndexTypes) == 1 && t.ElementType.Equals(charTypeDef.Type) {
+		if dt.IsCompatibleWith(&StringType{}) {
+			return true
+		}
+	}
+
 	o, ok := dt.(*ArrayType)
 	if !ok {
 		return false
@@ -284,7 +293,7 @@ func (t *ArrayType) IsCompatibleWith(dt DataType) bool {
 		return false
 	}
 	for idx := range t.IndexTypes {
-		if !t.IndexTypes[idx].Equals(o.IndexTypes[idx]) {
+		if !t.IndexTypes[idx].IsCompatibleWith(o.IndexTypes[idx]) {
 			return false
 		}
 	}
@@ -562,9 +571,8 @@ func (t *StringType) IsCompatibleWith(dt DataType) bool {
 		return false
 	}
 
-	// packed arrays of char are compatible with strings.
-	// TODO: only packed ones?
-	if arrType.Packed && len(arrType.IndexTypes) == 1 && arrType.ElementType.Equals(charTypeDef.Type) {
+	// arrays of char are compatible with strings.
+	if len(arrType.IndexTypes) == 1 && arrType.ElementType.Equals(charTypeDef.Type) {
 		return true
 	}
 
@@ -653,38 +661,6 @@ func (t *FileType) Resolve(b *Block) error {
 }
 
 func (t *FileType) IsCompatibleWith(dt DataType) bool {
-	return t.Equals(dt)
-}
-
-// TextType describes a text file.
-type TextType struct {
-	name string
-}
-
-func (t *TextType) TypeString() string {
-	return "text"
-}
-
-func (t *TextType) Equals(dt DataType) bool {
-	_, ok := dt.(*TextType)
-	return ok
-}
-
-func (t *TextType) TypeName() string {
-	return t.name
-}
-
-func (t *TextType) Named(name string) DataType {
-	nt := *t
-	nt.name = name
-	return &nt
-}
-
-func (t *TextType) Resolve(b *Block) error {
-	return nil
-}
-
-func (t *TextType) IsCompatibleWith(dt DataType) bool {
 	return t.Equals(dt)
 }
 
@@ -1067,8 +1043,14 @@ func typesCompatibleForAssignment(lt, rt DataType) bool {
 		return true
 	}
 
-	if isPackedCharArray(lt) && rt.Equals(&StringType{}) {
+	if isCharArray(lt) && rt.Equals(&StringType{}) {
 		return true
+	}
+
+	if isSubrangeType(lt) {
+		if lt.(*SubrangeType).Type_.IsCompatibleWith(rt) {
+			return true
+		}
 	}
 
 	// TODO: implement more cases of compatibility
@@ -1076,17 +1058,13 @@ func typesCompatibleForAssignment(lt, rt DataType) bool {
 	return false
 }
 
-func isPackedCharArray(typ DataType) bool {
+func isCharArray(typ DataType) bool {
 	arrType, ok := typ.(*ArrayType)
 	if !ok {
 		return false
 	}
 
-	if !arrType.Packed {
-		return false
-	}
-
-	return arrType.Packed && len(arrType.IndexTypes) == 1 && IsCharType(arrType.ElementType)
+	return len(arrType.IndexTypes) == 1 && IsCharType(arrType.ElementType)
 }
 
 func isIntegerType(dt DataType) bool {
@@ -1109,6 +1087,16 @@ func isRealType(dt DataType) bool {
 
 func isSetType(dt DataType) bool {
 	_, ok := dt.(*SetType)
+	return ok
+}
+
+func isSubrangeType(dt DataType) bool {
+	_, ok := dt.(*SubrangeType)
+	return ok
+}
+
+func isArrayType(dt DataType) bool {
+	_, ok := dt.(*ArrayType)
 	return ok
 }
 

@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -138,9 +139,22 @@ func (e *SimpleExpr) Reduce() Expression {
 	if len(e.Next) == 0 && (e.Sign == "" || e.Sign == "+") {
 		return e.First.Reduce()
 	}
+
+	sign := e.Sign
+
+	newFirst := e.First.Reduce()
+	if sign == "-" {
+		if intExpr, ok := newFirst.(*IntegerExpr); ok {
+			intExpr.Value = -intExpr.Value
+			sign = ""
+		} else if realExpr, ok := newFirst.(*RealExpr); ok {
+			realExpr.Minus = true
+			sign = ""
+		}
+	}
 	ne := &SimpleExpr{
-		Sign:  e.Sign,
-		First: e.First.Reduce(),
+		Sign:  sign,
+		First: newFirst,
 	}
 
 	for _, add := range e.Next {
@@ -540,7 +554,16 @@ func (e *IndexedVariableExpr) String() string {
 }
 
 func (e *IndexedVariableExpr) Type() DataType {
-	return e.Type_
+	arrType := e.Expr.Type().(*ArrayType)
+	if len(e.IndexExprs) == len(arrType.IndexTypes) {
+		return e.Type_
+	}
+	return &ArrayType{
+		IndexTypes:  arrType.IndexTypes[len(e.IndexExprs):],
+		ElementType: arrType.ElementType,
+		Packed:      arrType.Packed,
+		name:        "",
+	}
 }
 
 func (e *IndexedVariableExpr) IsVariableExpr() bool {
@@ -667,14 +690,17 @@ func (e *DerefExpr) String() string {
 }
 
 func (e *DerefExpr) Type() DataType {
-	t, ok := e.Expr.Type().(*PointerType)
-	if !ok {
-		panic("derefExpr was created with expression not of pointer type")
+	pt, ok := e.Expr.Type().(*PointerType)
+	if ok {
+		return pt.Type_
 	}
-	if t.Type_ == nil {
-		fmt.Printf("DerefExpr type is nil, name is %q\n", t.Name)
+
+	ft, ok := e.Expr.Type().(*FileType)
+	if ok {
+		return ft.ElementType
 	}
-	return t.Type_
+
+	panic(errors.New("derefExpr was created with expression not of pointer type"))
 }
 
 func (e *DerefExpr) IsVariableExpr() bool {
@@ -755,4 +781,28 @@ func decodeStringLiteral(s string) string {
 	out := buf.String()
 
 	return out
+}
+
+type RangeExpr struct {
+	LowerBound Expression
+	UpperBound Expression
+}
+
+func (e *RangeExpr) IsVariableExpr() bool {
+	return false
+}
+
+func (e *RangeExpr) Reduce() Expression {
+	return &RangeExpr{
+		LowerBound: e.LowerBound.Reduce(),
+		UpperBound: e.UpperBound.Reduce(),
+	}
+}
+
+func (e *RangeExpr) String() string {
+	return fmt.Sprintf("%s..%s", e.LowerBound.String(), e.UpperBound.Reduce())
+}
+
+func (e *RangeExpr) Type() DataType {
+	return e.LowerBound.Type()
 }

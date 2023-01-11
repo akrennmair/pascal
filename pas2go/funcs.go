@@ -54,7 +54,7 @@ func toGoType(typ parser.DataType) string {
 	case *parser.SetType:
 		return fmt.Sprintf("system.SetType[%s]", toGoType(dt.ElementType))
 	case *parser.FileType:
-		// TODO: implement
+		return fmt.Sprintf("system.FileType[%s]", toGoType(dt.ElementType))
 	case *parser.ProcedureType:
 		var buf strings.Builder
 		buf.WriteString("func(")
@@ -153,6 +153,9 @@ func recordTypeToGoType(rec *parser.RecordType) string {
 func constantLiteral(cl parser.ConstantLiteral) string {
 	switch lit := cl.(type) {
 	case *parser.IntegerLiteral:
+		if lit.Value < 0 {
+			return fmt.Sprintf("(%d)", lit.Value)
+		}
 		return fmt.Sprint(lit.Value)
 	case *parser.StringLiteral:
 		return fmt.Sprintf("%q", lit.Value)
@@ -161,9 +164,18 @@ func constantLiteral(cl parser.ConstantLiteral) string {
 		if lit.Minus {
 			sign = "-"
 		}
-		return fmt.Sprintf("%s%s.%se%d", sign, lit.BeforeComma, lit.AfterComma, lit.ScaleFactor)
+		realStr := fmt.Sprintf("%s%s.%se%d", sign, lit.BeforeComma, lit.AfterComma, lit.ScaleFactor)
+		if sign != "" {
+			return "(" + realStr + ")"
+		}
+		return realStr
 	case *parser.EnumValueLiteral:
 		return lit.Symbol
+	case *parser.CharLiteral:
+		if lit.Value == '\'' {
+			return `'\''`
+		}
+		return fmt.Sprintf("'%c'", lit.Value)
 	default:
 		return fmt.Sprintf("bug: unhandled constant literal type %T", cl)
 	}
@@ -350,13 +362,20 @@ func toExpr(expr parser.Expression) string {
 	case *parser.VariableExpr:
 		return toVariableExpr(e)
 	case *parser.IntegerExpr:
+		if e.Value < 0 {
+			return fmt.Sprintf("(%d)", e.Value)
+		}
 		return fmt.Sprint(e.Value)
 	case *parser.RealExpr:
 		sign := ""
 		if e.Minus {
 			sign = "-"
 		}
-		return fmt.Sprintf("%s%s.%se%d", sign, e.BeforeComma, e.AfterComma, e.ScaleFactor)
+		realStr := fmt.Sprintf("%s%s.%se%d", sign, e.BeforeComma, e.AfterComma, e.ScaleFactor)
+		if sign != "" {
+			realStr = "(" + realStr + ")"
+		}
+		return realStr
 	case *parser.StringExpr:
 		return fmt.Sprintf("%q", e.Value)
 	case *parser.NilExpr:
@@ -402,6 +421,9 @@ func toExpr(expr parser.Expression) string {
 		// TODO: implement full formatting
 		return toExpr(e.Expr)
 	case *parser.CharExpr:
+		if e.Value == '\'' {
+			return `'\''`
+		}
 		return fmt.Sprintf("'%c'", e.Value)
 	default:
 		return fmt.Sprintf("bug: invalid expression type %T", expr)
@@ -419,18 +441,8 @@ func toVariableExpr(e *parser.VariableExpr) string {
 
 	str := e.Name
 	varDecl := e.VarDecl
-	for varDecl != nil && varDecl.BelongsTo != "" {
-		if varDecl.BelongsToVarDecl != nil {
-			str = varDecl.BelongsTo + "." + str
-			varDecl = varDecl.BelongsToVarDecl
-		} else if varDecl.BelongsToParam != nil {
-			if varDecl.BelongsToParam.VariableParameter {
-				str = "(*" + varDecl.BelongsToParam.Name + ")." + str
-			} else {
-				str = varDecl.BelongsToParam.Name + "." + str
-			}
-			varDecl = nil
-		}
+	if varDecl != nil && varDecl.IsRecordField {
+		str = toExpr(varDecl.BelongsToExpr) + "." + str // TODO: add fix for when expression refers to variable parameter.
 	}
 
 	return str
@@ -541,6 +553,8 @@ func generateBuiltinProcedure(stmt *parser.ProcedureCallStatement) string {
 		case 2:
 			return toExpr(stmt.ActualParams[0]) + " -= " + toExpr(stmt.ActualParams[1])
 		}
+	case "rewrite", "reset", "unpack", "pack", "get", "put":
+		return fmt.Sprintf("/* TODO: %s(%s) */", stmt.Name, toExpr(stmt.ActualParams[0]))
 	}
 	return "BUG: missing builtin procedure " + stmt.Name
 }

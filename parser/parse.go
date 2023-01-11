@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 func newParser(name, text string) *parser {
@@ -589,10 +591,9 @@ type Variable struct {
 	// the following fields are only set for variables that are looked up from within with statements,
 	// and they indicate that Name and Type describe the field of a record variable of name BelongsTo of
 	// type BelongsToType.
-	BelongsTo        string
-	BelongsToType    DataType
-	BelongsToVarDecl *Variable
-	BelongsToParam   *FormalParameter
+	IsRecordField bool // true if "variable" is a record field.
+	BelongsToExpr Expression
+	BelongsToType DataType
 }
 
 // parseVarDeclarationPart parses a variable declaration part.
@@ -1425,44 +1426,35 @@ func (p *parser) parseWithStatement(b *Block, label *string) Statement {
 		Routine: b.Routine,
 	}
 
-	var recordVariables []string
+	var recordExpressions []Expression
 
 	for {
 
 		if p.peek().typ != itemIdentifier {
 			p.errorf("expected identifier of record variable, got %s instead", p.peek())
 		}
-		ident := p.next().val
 
-		var (
-			typ       DataType
-			varDecl   *Variable
-			paramDecl *FormalParameter
-		)
+		expr := p.parseExpression(b)
 
-		if varDecl = b.findVariable(ident); varDecl != nil {
-			typ = varDecl.Type
-		} else if paramDecl = b.findFormalParameter(ident); paramDecl != nil {
-			typ = paramDecl.Type
-		} else {
-			p.errorf("unknown variable %s x", ident)
+		if !expr.IsVariableExpr() {
+			p.errorf("not a variable access expression")
 		}
 
-		recType, ok := typ.(*RecordType)
+		recType, ok := expr.Type().(*RecordType)
 		if !ok {
-			p.errorf("variable %s is not a record variable", ident)
+			p.errorf("variable access not a record type")
 		}
 
-		recordVariables = append(recordVariables, ident)
+		recordExpressions = append(recordExpressions, expr)
 
 		for _, field := range recType.Fields {
 			withBlock.Variables = append(withBlock.Variables, &Variable{
-				Name:             field.Identifier,
-				Type:             field.Type,
-				BelongsTo:        ident,
-				BelongsToType:    recType,
-				BelongsToVarDecl: varDecl,
-				BelongsToParam:   paramDecl,
+				Name:          field.Identifier,
+				Type:          field.Type,
+				IsRecordField: true,
+				BelongsToType: recType,
+				//BelongsToVarDecl: varDecl, // TODO: set these correctly.
+				//BelongsToParam:   paramDecl,
 			})
 		}
 
@@ -1482,9 +1474,9 @@ func (p *parser) parseWithStatement(b *Block, label *string) Statement {
 	withBlock.Statements = append(withBlock.Statements, stmt)
 
 	return &WithStatement{
-		label:           label,
-		RecordVariables: recordVariables,
-		Block:           withBlock,
+		label:       label,
+		RecordExprs: recordExpressions,
+		Block:       withBlock,
 	}
 }
 
@@ -1694,7 +1686,7 @@ func (p *parser) parseTerm(b *Block) *TermExpr {
 // parseFactor parses a factor.
 //
 //	factor =
-//		variable | number | string | set | "nil" | constant-identifier | bound-identifier | function-designator | "(" expression ")" | "not" factor .
+//		variable | number | string | set-constructor | "nil" | constant-identifier | bound-identifier | function-designator | "(" expression ")" | "not" factor .
 func (p *parser) parseFactor(b *Block) Expression {
 	p.logger.Printf("Parsing factor")
 	defer p.logger.Printf("Finished parsing factor")
@@ -1790,9 +1782,10 @@ func (p *parser) parseVariable(b *Block, ident string) Expression {
 	for cont {
 		switch p.peek().typ {
 		case itemCaret:
-			_, ok := expr.Type().(*PointerType)
-			if !ok {
-				p.errorf("attempting to ^ but expression is not a pointer type")
+			_, isPointerType := expr.Type().(*PointerType)
+			_, isFileType := expr.Type().(*FileType)
+			if !isPointerType && !isFileType {
+				p.errorf("attempting to ^ but expression is not a pointer or file type")
 			}
 			p.next()
 			expr = &DerefExpr{Expr: expr}
@@ -1894,8 +1887,10 @@ func (p *parser) parseScaleFactor() int {
 
 // parseSet parses a set.
 //
-//	set =
-//		"[ " element-list " ]" .
+//	set-constructor =
+//		"[" [ member-designator { ", " member-designator } ] "]" .
+//	member-designator =
+//		expression [ '..' expression ] .
 func (p *parser) parseSet(b *Block) *SetExpr {
 	if p.peek().typ != itemOpenBracket {
 		p.errorf("expected [, found %s instead", p.next())
@@ -1910,7 +1905,16 @@ func (p *parser) parseSet(b *Block) *SetExpr {
 	}
 
 	expr := p.parseExpression(b)
-	set.Elements = append(set.Elements, expr)
+	if p.peek().typ == itemDoubleDot {
+		p.next()
+		expr2 := p.parseExpression(b)
+		if !expr.Type().Equals(expr2.Type()) {
+			p.errorf("when parsing member-designator, lower bound type %s differs from upper bound type %s", expr.Type().TypeString(), expr2.Type().TypeString())
+		}
+		set.Elements = append(set.Elements, &RangeExpr{LowerBound: expr, UpperBound: expr2})
+	} else {
+		set.Elements = append(set.Elements, expr)
+	}
 
 loop:
 	for {
@@ -1925,7 +1929,16 @@ loop:
 		}
 
 		expr := p.parseExpression(b)
-		set.Elements = append(set.Elements, expr)
+		if p.peek().typ == itemDoubleDot {
+			p.next()
+			expr2 := p.parseExpression(b)
+			if !expr.Type().Equals(expr2.Type()) {
+				p.errorf("when parsing member-designator, lower bound type %s differs from upper bound type %s", expr.Type().TypeString(), expr2.Type().TypeString())
+			}
+			set.Elements = append(set.Elements, &RangeExpr{LowerBound: expr, UpperBound: expr2})
+		} else {
+			set.Elements = append(set.Elements, expr)
+		}
 	}
 
 	return set
@@ -2014,6 +2027,12 @@ func (p *parser) parseArrayType(b *Block, packed bool) *ArrayType {
 	p.next()
 
 	elementType := p.parseType(b)
+
+	for isArrayType(elementType) {
+		arrType := elementType.(*ArrayType)
+		indexTypes = append(indexTypes, arrType.IndexTypes...)
+		elementType = arrType.ElementType
+	}
 
 	return &ArrayType{
 		IndexTypes:  indexTypes,
@@ -2415,6 +2434,7 @@ func (p *parser) validateParameters(proc *Routine, actualParams []Expression) (r
 
 	for idx := range proc.FormalParameters {
 		if !exprCompatible(proc.FormalParameters[idx].Type, actualParams[idx]) {
+
 			return nil, fmt.Errorf("parameter %s expects type %s, but %s was provided",
 				proc.FormalParameters[idx].Name, proc.FormalParameters[idx].Type.TypeString(), actualParams[idx].Type().TypeString())
 		}
@@ -2462,12 +2482,16 @@ func (p *parser) parseIndexedVariableExpr(b *Block, expr Expression) *IndexedVar
 
 	// TODO: support situation where fewer index expressions mean that an array of fewer dimensions is returned.
 
-	if len(arrType.IndexTypes) != len(indexes) {
+	if len(indexes) == 0 || len(arrType.IndexTypes) < len(indexes) {
 		p.errorf("array has %d dimensions but %d index expressions were provided", len(arrType.IndexTypes), len(indexes))
 	}
 
 	for idx, idxType := range arrType.IndexTypes {
+		if idx >= len(indexes) {
+			break
+		}
 		if !idxType.IsCompatibleWith(indexes[idx].Type()) {
+			fmt.Printf("idxType = %s index[idx].Type = %s\n", spew.Sdump(idxType), spew.Sdump(indexes[idx].Type()))
 			p.errorf("array dimension %d is of type %s, but index expression type %s was provided", idx, idxType.TypeString(), indexes[idx].Type().TypeString())
 		}
 	}
@@ -2547,23 +2571,13 @@ func (p *parser) verifyWriteType(typ DataType, ln bool) {
 		}
 	}
 
-	// enums are also allowed.
-	if _, ok := typ.(*EnumType); ok {
+	if isOrdinalType(typ) {
 		return
 	}
 
-	// subranges of integers are also allowed.
-	if srt, ok := typ.(*SubrangeType); ok {
-		if srt.Type_.Equals(&IntegerType{}) {
-			return
-		}
-	}
-
-	// packed arrays of char are also allowed. TODO: actually implement in writeln.
-	if arr, ok := typ.(*ArrayType); ok {
-		if arr.Packed && IsCharType(arr.ElementType) {
-			return
-		}
+	// arrays of char are also allowed.
+	if isCharArray(typ) {
+		return
 	}
 
 	p.errorf("can't use variables of type %s with %s", typ.TypeString(), funcName)

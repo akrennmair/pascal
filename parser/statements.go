@@ -205,7 +205,10 @@ type WithStatement struct {
 	label *string
 
 	// The record variables for which the field names can be used directly.
-	RecordVariables []string
+	RecordVariables []string // TODO: should be removed.
+
+	// The variable access expression for which the field names can be used directly.
+	RecordExprs []Expression
 
 	// Block containing the record variables' fields declared as variables as well as the
 	// statement where these are valid.

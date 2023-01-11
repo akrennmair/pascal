@@ -2,12 +2,21 @@ package pat_test
 
 import (
 	"io/ioutil"
+	"log"
+	"net/http"
+	_ "net/http/pprof"
 	"testing"
 
 	"github.com/akrennmair/pascal/parser"
 	"github.com/akrennmair/pascal/pas2go"
 	"github.com/stretchr/testify/require"
 )
+
+func init() {
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
+}
 
 func TestPascalAcceptanceTest(t *testing.T) {
 	patSourceFile := "iso7185pat.pas"
