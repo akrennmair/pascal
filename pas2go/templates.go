@@ -60,7 +60,7 @@ func main() {
 	{{- if . }}
 	type (
 	{{- range $type := . | sortTypeDefs }}
-	{{ $type| toGoTypeDef }}
+	{{ $type | toGoTypeDef }}
 	{{- end }}
 	)
 	{{ end -}}

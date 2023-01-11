@@ -463,7 +463,7 @@ var charTypeDef = &TypeDefinition{
 	Type: &SubrangeType{
 		LowerBound: 0,
 		UpperBound: 255,
-		name:       "char",
+		name:       "",
 		Type_:      &IntegerType{},
 	},
 }

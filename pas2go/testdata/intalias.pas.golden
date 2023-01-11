@@ -15,8 +15,10 @@ func main() {
 
 	var (
 		p pt
+		i intalias
 	)
 	_ = p
+	_ = i
 
 	p = new(intalias)
 }

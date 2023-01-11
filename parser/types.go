@@ -105,6 +105,9 @@ type SubrangeType struct {
 }
 
 func (t *SubrangeType) TypeString() string {
+	if t == charTypeDef.Type { // XXX: very hacky.
+		return "char"
+	}
 	lb := fmt.Sprint(t.LowerBound)
 	ub := fmt.Sprint(t.UpperBound)
 	if et, ok := t.Type_.(*EnumType); ok {

@@ -195,6 +195,7 @@ func (p *parser) parseDeclarationPart(b *Block) {
 	if p.peek().typ == itemVar {
 		p.parseVarDeclarationPart(b)
 	}
+
 	p.parseProcedureAndFunctionDeclarationPart(b)
 }
 
@@ -359,8 +360,6 @@ func (p *parser) parseTypeDefinitionPart(b *Block) {
 			p.errorf("couldn't resolve type: %v", err)
 		}
 	}
-
-	fmt.Printf("====\ntype definition = %s\n", spew.Sdump(b.Types))
 }
 
 type TypeDefinition struct {
@@ -442,6 +441,11 @@ restartParseDataType:
 	switch p.peek().typ {
 	case itemIdentifier:
 		ident := p.peek().val
+		if typ := getBuiltinType(ident); typ != nil {
+			p.next()
+			return typ
+		}
+
 		// if identifier is an already existing type name, it's an alias.
 		if typ := b.findType(ident); typ != nil {
 			p.next()

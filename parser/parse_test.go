@@ -2305,11 +2305,25 @@ func TestParserErrors(t *testing.T) {
 			`,
 		},
 		{
-			"simple expression with OR and non-boolean second term",
+			"simple expression with OR and string second term",
 			`in simple expression involving operator or, types boolean and integer are incompatible`,
 			`program test;
 
 			var a : integer;
+				b : boolean;
+
+			begin
+				if b OR a then
+					writeln('hello world')
+			end.
+			`,
+		},
+		{
+			"simple expression with OR and char second term",
+			`in simple expression involving operator or, types boolean and char are incompatible`,
+			`program test;
+
+			var a : char;
 				b : boolean;
 
 			begin

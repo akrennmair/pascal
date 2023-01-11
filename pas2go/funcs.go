@@ -35,8 +35,12 @@ func toGoTypeExcludeTypeName(typ parser.DataType, excludeTypeName string) string
 	case *parser.StringType:
 		return "string"
 	case *parser.PointerType:
-		if dt.TypeName() != "" && dt.TypeName() != excludeTypeName {
-			return dt.TypeName()
+		if name := typ.TypeName(); name != "" && name != excludeTypeName {
+			return name
+		}
+
+		if dt.TargetName != "" {
+			return "*" + dt.TargetName
 		}
 		return "*" + toGoType(dt.Type_)
 	case *parser.ArrayType:
@@ -52,6 +56,10 @@ func toGoTypeExcludeTypeName(typ parser.DataType, excludeTypeName string) string
 		buf.WriteString(toGoType(dt.ElementType))
 		return buf.String()
 	case *parser.SubrangeType:
+		if name := typ.TypeName(); name != "" && name != excludeTypeName {
+			return name
+		}
+
 		if parser.IsCharType(typ) {
 			return "byte"
 		}
@@ -62,9 +70,10 @@ func toGoTypeExcludeTypeName(typ parser.DataType, excludeTypeName string) string
 			return "bool"
 		}
 
-		if name := typ.TypeName(); name != "" {
+		if name := typ.TypeName(); name != "" && name != excludeTypeName {
 			return name
 		}
+
 		return "int" // Go doesn't have enum types, so we just define it as an alias to int, and declare constants and a string conversion method.
 	case *parser.SetType:
 		return fmt.Sprintf("system.SetType[%s]", toGoType(dt.ElementType))
