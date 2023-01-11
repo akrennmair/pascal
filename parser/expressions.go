@@ -116,6 +116,13 @@ func (e *SimpleExpr) String() string {
 }
 
 func (e *SimpleExpr) Type() DataType {
+	if e.First.Type().Equals(&IntegerType{}) {
+		for _, next := range e.Next {
+			if next.Term.Type().Equals(&RealType{}) {
+				return &RealType{}
+			}
+		}
+	}
 	return e.First.Type()
 }
 
