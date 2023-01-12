@@ -51,6 +51,10 @@ func Sqr(r float64) float64 {
 	return r * r
 }
 
+func SqrInt(i int) int {
+	return i * i
+}
+
 func Sqrt(r float64) float64 {
 	return math.Sqrt(r)
 }

@@ -352,10 +352,20 @@ func applyTypeConversion(newType string, expr string) string {
 func toExpr(expr parser.Expression) string {
 	switch e := expr.(type) {
 	case *parser.RelationalExpr:
+		leftExpr := toExpr(e.Left)
+		rightExpr := toExpr(e.Right)
 		if e.Operator == parser.OpIn {
-			return toExpr(e.Right) + ".In(" + toExpr(e.Left) + ")"
+			return rightExpr + ".In(" + leftExpr + ")"
 		}
-		return toExpr(e.Left) + " " + translateOperator(string(e.Operator)) + " " + toExpr(e.Right)
+		if isStringish(e.Left.Type()) && isStringish(e.Right.Type()) {
+			if isCharArray(e.Left.Type()) {
+				leftExpr = fmt.Sprintf("string(%s[:])", leftExpr)
+			}
+			if isCharArray(e.Right.Type()) {
+				rightExpr = fmt.Sprintf("string(%s[:])", rightExpr)
+			}
+		}
+		return leftExpr + " " + translateOperator(string(e.Operator)) + " " + rightExpr
 	case *parser.SimpleExpr:
 		if _, isSetType := e.First.Type().(*parser.SetType); isSetType {
 			return toSetSimpleExpr(e)
@@ -382,6 +392,9 @@ func toExpr(expr parser.Expression) string {
 		}
 		return buf.String()
 	case *parser.ConstantExpr:
+		if str, ok := getBuiltinConstant(e.Name); ok {
+			return str
+		}
 		return e.Name
 	case *parser.VariableExpr:
 		return toVariableExpr(e)
@@ -495,6 +508,8 @@ func toFunctionCallExpr(e *parser.FunctionCallExpr) string {
 			return "system.AbsInt" + actualParams(e.ActualParams, e.FormalParams)
 		case *parser.RealType:
 			return "system.AbsReal" + actualParams(e.ActualParams, e.FormalParams)
+		case *parser.SubrangeType:
+			return "system.AbsInt(" + toExpr(e.ActualParams[0]) + ")"
 		}
 	case "arctan":
 		return "system.Arctan" + actualParams(e.ActualParams, e.FormalParams)
@@ -513,7 +528,14 @@ func toFunctionCallExpr(e *parser.FunctionCallExpr) string {
 	case "sin":
 		return "system.Sin" + actualParams(e.ActualParams, e.FormalParams)
 	case "sqr":
-		return "system.Sqr" + actualParams(e.ActualParams, e.FormalParams)
+		switch e.ActualParams[0].Type().(type) {
+		case *parser.IntegerType:
+			return "system.SqrInt" + actualParams(e.ActualParams, e.FormalParams)
+		case *parser.RealType:
+			return "system.Sqr" + actualParams(e.ActualParams, e.FormalParams)
+		default:
+			return fmt.Sprintf("BUG: unexpected type %s", e.ActualParams[0].Type().TypeString())
+		}
 	case "sqrt":
 		return "system.Sqrt" + actualParams(e.ActualParams, e.FormalParams)
 	case "trunc":
@@ -568,6 +590,14 @@ func isBuiltinProcedure(name string) bool {
 	return parser.FindBuiltinProcedure(name) != nil
 }
 
+func getBuiltinConstant(ident string) (string, bool) {
+	switch ident {
+	case "maxint":
+		return "system.MaxInt", true
+	}
+	return "", false
+}
+
 func generateBuiltinProcedure(stmt *parser.ProcedureCallStatement) string {
 	switch stmt.Name {
 	case "new":
@@ -615,4 +645,35 @@ func toPointerParamList(params []parser.Expression) string {
 	buf.WriteString(")")
 
 	return buf.String()
+}
+
+func isCharArray(typ parser.DataType) bool {
+	arrType, ok := typ.(*parser.ArrayType)
+	return ok && parser.IsCharType(arrType.ElementType)
+}
+
+func isString(typ parser.DataType) bool {
+	_, ok := typ.(*parser.StringType)
+	return ok
+}
+
+func isStringish(typ parser.DataType) bool {
+	return isCharArray(typ) || isString(typ)
+}
+
+func assignment(stmt *parser.AssignmentStatement) string {
+	if isCharArray(stmt.LeftExpr.Type()) {
+		if isCharArray(stmt.RightExpr.Type()) {
+			return fmt.Sprintf("copy(%s[:], %s[:])", toExpr(stmt.LeftExpr), toExpr(stmt.RightExpr))
+		}
+		if isString(stmt.RightExpr.Type()) {
+			return fmt.Sprintf("copy(%s[:], []byte(%s))", toExpr(stmt.LeftExpr), toExpr(stmt.RightExpr))
+		}
+	} else if isString(stmt.LeftExpr.Type()) {
+		if isCharArray(stmt.RightExpr.Type()) {
+			return fmt.Sprintf("%s = string(%s[:])", toExpr(stmt.LeftExpr), toExpr(stmt.RightExpr))
+		}
+	}
+
+	return fmt.Sprintf("%s = %s", toExpr(stmt.LeftExpr), toExpr(stmt.RightExpr))
 }

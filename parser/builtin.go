@@ -270,13 +270,22 @@ var builtinFunctions = []*Routine{
 	},
 	{
 		Name: "sqr",
-		FormalParameters: []*FormalParameter{
-			{
-				Name: "r",
-				Type: &RealType{},
-			},
+		validator: func(exprs []Expression) (DataType, error) {
+			if len(exprs) != 1 {
+				return nil, fmt.Errorf("sqr requires exactly 1 argument of type integer or real, got %d arguments instead", len(exprs))
+			}
+
+			switch exprs[0].Type().(type) {
+			case *IntegerType:
+				return &IntegerType{}, nil
+			case *RealType:
+				return &RealType{}, nil
+			case *SubrangeType:
+				return exprs[0].Type(), nil
+			}
+
+			return nil, fmt.Errorf("sqr requires exactly 1 argument of type integer or real, got %s instead", exprs[0].Type().TypeString())
 		},
-		ReturnType: &RealType{},
 	},
 	{
 		Name: "sqrt",

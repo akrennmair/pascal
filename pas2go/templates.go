@@ -16,6 +16,7 @@ var (
 		"generateEnumConstants":    generateEnumConstants,
 		"isBuiltinProcedure":       isBuiltinProcedure,
 		"generateBuiltinProcedure": generateBuiltinProcedure,
+		"assignment":               assignment,
 	}
 	transpilerTemplate = template.Must(template.New("").Funcs(tmplFuncs).Parse(sourceTemplate))
 )
@@ -113,7 +114,7 @@ func main() {
 	{{- if eq .Type 0 }}{{/* goto */}}
 		goto L{{ .Target }}
 	{{- else if eq .Type 1 }}{{/* assignment */}}
-		{{ template "expr" .LeftExpr }} = {{ template "expr" .RightExpr }}
+		{{ . | assignment }}
 	{{- else if eq .Type 2 }}{{/* procedure call */}}
 		{{ if isBuiltinProcedure .Name -}}
 			{{ generateBuiltinProcedure . }}
