@@ -258,7 +258,7 @@ func lexText(l *lexer) stateFn {
 		switch l.peek() {
 		case '*':
 			l.next()
-			return lexDigraphComment
+			return lexComment
 		case '.':
 			l.next()
 			l.emit(itemOpenBracket)
@@ -403,18 +403,15 @@ func lexStringLiteral(l *lexer) stateFn {
 }
 
 func lexComment(l *lexer) stateFn {
-	l.next()
-	for r := l.next(); r != eof && r != '}'; r = l.next() {
+	r := l.next()
+	if r == '(' {
+		l.next()
 	}
-	l.ignore()
-	return lexText
-}
-
-func lexDigraphComment(l *lexer) stateFn {
-	l.next()
-	for r := l.next(); r != eof && !(r == '*' && l.peek() == ')'); r = l.next() {
+	for r = l.next(); r != eof && r != '}' && !(r == '*' && l.peek() == ')'); r = l.next() {
 	}
-	l.next()
+	if l.peek() == ')' {
+		l.next()
+	}
 	l.ignore()
 	return lexText
 }
