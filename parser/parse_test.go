@@ -1373,6 +1373,17 @@ func TestParserSuccesses(t *testing.T) {
 				writeln(i + 3.1415:10:10);
 			end.`,
 		},
+		{
+			"char subrange as array dimension, use indexed variable with char literal",
+			`program test;
+			
+			var x : array['a'..'z'] of integer;
+
+			begin
+				x['d'] := 42
+			end.
+			`,
+		},
 	}
 
 	for idx, testEntry := range testData {

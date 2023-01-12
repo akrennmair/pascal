@@ -492,7 +492,8 @@ func IsBooleanType(dt DataType) bool {
 
 // IsCharType returns true if the provided type is the char type, false otherwise.
 func IsCharType(dt DataType) bool {
-	return charTypeDef.Type.Equals(dt)
+	result := charTypeDef.Type.Equals(dt)
+	return result
 }
 
 var builtinBlock = &Block{

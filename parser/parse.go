@@ -2050,7 +2050,9 @@ func (p *parser) parseSimpleType(b *Block) DataType {
 		}
 	}
 
-	return p.parseSubrangeType(b)
+	typ := p.parseSubrangeType(b)
+
+	return typ
 }
 
 // parseSubrangeType parses a sub-range type.
@@ -2079,7 +2081,7 @@ func (p *parser) parseSubrangeType(b *Block) DataType {
 		typ = lb.Type
 	case *CharLiteral:
 		lowerValue = int(lb.Value)
-		typ = charTypeDef.Type
+		typ = lb.ConstantType()
 	default:
 		p.errorf("expected lower bound to be an integer, an enum value or a char, got a %s instead", lb.ConstantType().TypeString())
 	}
@@ -2100,7 +2102,7 @@ func (p *parser) parseSubrangeType(b *Block) DataType {
 		upperType = ub.Type
 	case *CharLiteral:
 		upperValue = int(ub.Value)
-		upperType = charTypeDef.Type
+		upperType = ub.ConstantType()
 	default:
 		p.errorf("expected upper bound to be an integer, an enum value or a char, got a %s instead", ub.ConstantType().TypeString())
 	}
@@ -2479,7 +2481,7 @@ func (p *parser) parseIndexedVariableExpr(b *Block, expr Expression) *IndexedVar
 			break
 		}
 		if !idxType.IsCompatibleWith(indexes[idx].Type(), true) {
-			p.errorf("array dimension %d is of type %s, but index expression type %s was provided", idx, idxType.TypeString(), indexes[idx].Type().TypeString())
+			p.errorf("array dimension %d is of type %s, but index expression type %s was provided\n", idx, idxType.TypeString(), indexes[idx].Type().TypeString())
 		}
 	}
 

@@ -147,7 +147,7 @@ func (t *SubrangeType) Resolve(_ *Block) error {
 }
 
 func (t *SubrangeType) IsCompatibleWith(dt DataType, assignmentCompatible bool) bool {
-	if assignmentCompatible && IsCharType(dt) { // TODO: check in greater detail what assignment compatibility entails.
+	if assignmentCompatible && !(IsCharType(t) || IsCharType(t.Type_)) && IsCharType(dt) { // TODO: check in greater detail what assignment compatibility entails.
 		return false
 	}
 	switch dt.(type) {
