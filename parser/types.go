@@ -12,7 +12,7 @@ type DataType interface {
 	TypeName() string           // non-empty if type was looked up by name (not in type definition).
 	Named(name string) DataType // produces a copy of the data type but with a name.
 	Resolve(b *Block) error
-	IsCompatibleWith(dt DataType) bool
+	IsCompatibleWith(dt DataType, assignmentCompatible bool) bool
 }
 
 // PointerType describes a type that is a pointer to another type.
@@ -83,7 +83,7 @@ func (t *PointerType) Resolve(b *Block) error {
 	return nil
 }
 
-func (t *PointerType) IsCompatibleWith(dt DataType) bool {
+func (t *PointerType) IsCompatibleWith(dt DataType, assignmentCompatible bool) bool {
 	o, ok := dt.(*PointerType)
 	if !ok {
 		return false
@@ -93,7 +93,7 @@ func (t *PointerType) IsCompatibleWith(dt DataType) bool {
 		return true
 	}
 
-	return t.Type_.IsCompatibleWith(o.Type_)
+	return t.Type_.IsCompatibleWith(o.Type_, assignmentCompatible)
 }
 
 // SubrangeType describes a type that is a range with a lower and an upper boundary of an integral type.
@@ -146,14 +146,17 @@ func (t *SubrangeType) Resolve(_ *Block) error {
 	return nil
 }
 
-func (t *SubrangeType) IsCompatibleWith(dt DataType) bool {
+func (t *SubrangeType) IsCompatibleWith(dt DataType, assignmentCompatible bool) bool {
+	if assignmentCompatible && IsCharType(dt) { // TODO: check in greater detail what assignment compatibility entails.
+		return false
+	}
 	switch dt.(type) {
 	case *SubrangeType:
-		return t.Type_.IsCompatibleWith(dt)
+		return t.Type_.IsCompatibleWith(dt, assignmentCompatible)
 	case *IntegerType:
-		return t.Type_.IsCompatibleWith(&IntegerType{})
+		return t.Type_.IsCompatibleWith(&IntegerType{}, assignmentCompatible)
 	case *EnumType:
-		return t.Type_.IsCompatibleWith(dt)
+		return t.Type_.IsCompatibleWith(dt, assignmentCompatible)
 	}
 
 	return false
@@ -203,7 +206,7 @@ func (t *EnumType) Resolve(_ *Block) error {
 	return nil
 }
 
-func (t *EnumType) IsCompatibleWith(dt DataType) bool {
+func (t *EnumType) IsCompatibleWith(dt DataType, assignmentCompatible bool) bool {
 	_, ok := dt.(*EnumType)
 	if !ok {
 		return false
@@ -280,10 +283,10 @@ func (t *ArrayType) Resolve(b *Block) error {
 	return t.ElementType.Resolve(b)
 }
 
-func (t *ArrayType) IsCompatibleWith(dt DataType) bool {
+func (t *ArrayType) IsCompatibleWith(dt DataType, assignmentCompatible bool) bool {
 	// special case: array of char is compatible with string.
 	if len(t.IndexTypes) == 1 && t.ElementType.Equals(charTypeDef.Type) {
-		if dt.IsCompatibleWith(&StringType{}) {
+		if dt.IsCompatibleWith(&StringType{}, assignmentCompatible) {
 			return true
 		}
 	}
@@ -296,7 +299,7 @@ func (t *ArrayType) IsCompatibleWith(dt DataType) bool {
 		return false
 	}
 
-	if !t.ElementType.IsCompatibleWith(o.ElementType) {
+	if !t.ElementType.IsCompatibleWith(o.ElementType, assignmentCompatible) {
 		return false
 	}
 
@@ -304,7 +307,7 @@ func (t *ArrayType) IsCompatibleWith(dt DataType) bool {
 		return false
 	}
 	for idx := range t.IndexTypes {
-		if !t.IndexTypes[idx].IsCompatibleWith(o.IndexTypes[idx]) {
+		if !t.IndexTypes[idx].IsCompatibleWith(o.IndexTypes[idx], assignmentCompatible) {
 			return false
 		}
 	}
@@ -449,7 +452,7 @@ func (t *RecordType) Resolve(b *Block) error {
 	return nil
 }
 
-func (t *RecordType) IsCompatibleWith(dt DataType) bool {
+func (t *RecordType) IsCompatibleWith(dt DataType, assignmentCompatible bool) bool {
 	return t.Equals(dt)
 }
 
@@ -491,13 +494,13 @@ func (t *SetType) Resolve(b *Block) error {
 	return t.ElementType.Resolve(b)
 }
 
-func (t *SetType) IsCompatibleWith(dt DataType) bool {
+func (t *SetType) IsCompatibleWith(dt DataType, assignmentCompatible bool) bool {
 	if t.Equals(dt) {
 		return true
 	}
 
 	if isSetType(dt) {
-		if t.ElementType.IsCompatibleWith(dt.(*SetType).ElementType) {
+		if t.ElementType.IsCompatibleWith(dt.(*SetType).ElementType, assignmentCompatible) {
 			return true
 		}
 	}
@@ -533,7 +536,7 @@ func (t *IntegerType) Resolve(_ *Block) error {
 	return nil
 }
 
-func (t *IntegerType) IsCompatibleWith(dt DataType) bool {
+func (t *IntegerType) IsCompatibleWith(dt DataType, assignmentCompatible bool) bool {
 	if t.Equals(dt) {
 		return true
 	}
@@ -541,7 +544,7 @@ func (t *IntegerType) IsCompatibleWith(dt DataType) bool {
 	// TODO: is there a danger for infinite recursion? As long as types
 	// other than integer define their integer compatibility,
 	// this shouldn't happen.
-	return dt.IsCompatibleWith(t)
+	return dt.IsCompatibleWith(t, assignmentCompatible)
 }
 
 // StringType describes the string type.
@@ -572,7 +575,7 @@ func (t *StringType) Resolve(_ *Block) error {
 	return nil
 }
 
-func (t *StringType) IsCompatibleWith(dt DataType) bool {
+func (t *StringType) IsCompatibleWith(dt DataType, assignmentCompatible bool) bool {
 	if t.Equals(dt) {
 		return true
 	}
@@ -618,7 +621,7 @@ func (t *RealType) Resolve(_ *Block) error {
 	return nil
 }
 
-func (t *RealType) IsCompatibleWith(dt DataType) bool {
+func (t *RealType) IsCompatibleWith(dt DataType, assignmentCompatible bool) bool {
 	if t.Equals(dt) {
 		return true
 	}
@@ -671,7 +674,7 @@ func (t *FileType) Resolve(b *Block) error {
 	return t.ElementType.Resolve(b)
 }
 
-func (t *FileType) IsCompatibleWith(dt DataType) bool {
+func (t *FileType) IsCompatibleWith(dt DataType, assignmentCompatible bool) bool {
 	return t.Equals(dt)
 }
 
@@ -733,7 +736,7 @@ func (t *ProcedureType) Resolve(b *Block) error {
 	return nil
 }
 
-func (t *ProcedureType) IsCompatibleWith(dt DataType) bool {
+func (t *ProcedureType) IsCompatibleWith(dt DataType, assignmentCompatible bool) bool {
 	return t.Equals(dt)
 }
 
@@ -808,7 +811,7 @@ func (t *FunctionType) Resolve(b *Block) error {
 	return nil
 }
 
-func (t *FunctionType) IsCompatibleWith(dt DataType) bool {
+func (t *FunctionType) IsCompatibleWith(dt DataType, assignmentCompatible bool) bool {
 	return t.Equals(dt)
 }
 
@@ -962,40 +965,8 @@ func (l *EnumValueLiteral) String() string {
 	return l.Symbol
 }
 
-/*
-func typesCompatible(t1, t2 DataType) bool {
-	if t1.Equals(t2) {
-		return true
-	}
-
-	if isIntegerType(t1) && isIntegerType(t2) {
-		return true
-	}
-
-	if (isIntegerType(t1) && isRealType(t2)) || (isRealType(t1) && isIntegerType(t2)) {
-		return true
-	}
-
-	if srt, isSubrangeType := t1.(*SubrangeType); isSubrangeType {
-		if typesCompatible(srt.Type_, t2) {
-			return true
-		}
-	}
-
-	if isSetType(t1) && isSetType(t2) {
-		if typesCompatible(t1.(*SetType).ElementType, t2.(*SetType).ElementType) {
-			return true
-		}
-	}
-
-	// TODO: implement more cases of compatibility
-
-	return false
-}
-*/
-
 func exprCompatible(t DataType, expr Expression) bool {
-	if t.IsCompatibleWith(expr.Type()) {
+	if t.IsCompatibleWith(expr.Type(), false) {
 		return true
 	}
 
@@ -1036,7 +1007,7 @@ func typesCompatibleForAssignment(lt, rt DataType) bool {
 			return true
 		}
 
-		if lt.(*SetType).ElementType.IsCompatibleWith(rt.(*SetType).ElementType) {
+		if lt.(*SetType).ElementType.IsCompatibleWith(rt.(*SetType).ElementType, true) {
 			return true
 		}
 	}
@@ -1059,7 +1030,7 @@ func typesCompatibleForAssignment(lt, rt DataType) bool {
 	}
 
 	if isSubrangeType(lt) {
-		if lt.(*SubrangeType).Type_.IsCompatibleWith(rt) {
+		if lt.(*SubrangeType).Type_.IsCompatibleWith(rt, true) {
 			return true
 		}
 	}

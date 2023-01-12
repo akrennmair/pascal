@@ -8,8 +8,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-
-	"github.com/davecgh/go-spew/spew"
 )
 
 func newParser(name, text string) *parser {
@@ -1539,11 +1537,11 @@ func (p *parser) parseExpression(b *Block) Expression {
 			p.errorf("in: expected set type, got %s instead.", rt.TypeString())
 		}
 
-		if !lt.IsCompatibleWith(st.ElementType) {
+		if !lt.IsCompatibleWith(st.ElementType, false) {
 			p.errorf("type %s does not match set type %s", lt.TypeString(), st.ElementType.TypeString())
 		}
 	} else {
-		if !lt.IsCompatibleWith(rt) {
+		if !lt.IsCompatibleWith(rt, false) {
 			p.errorf("in relational expression with operator %s, types %s and %s are incompatible", relExpr.Operator, lt.TypeString(), rt.TypeString())
 		}
 	}
@@ -1593,7 +1591,7 @@ func (p *parser) parseSimpleExpression(b *Block) *SimpleExpr {
 
 		nextTerm := p.parseTerm(b)
 
-		if !simpleExpr.First.Type().IsCompatibleWith(nextTerm.Type()) {
+		if !simpleExpr.First.Type().IsCompatibleWith(nextTerm.Type(), false) {
 			p.errorf("in simple expression involving operator %s, types %s and %s are incompatible", operator, simpleExpr.First.Type().TypeString(), nextTerm.Type().TypeString())
 		}
 
@@ -1651,7 +1649,7 @@ func (p *parser) parseTerm(b *Block) *TermExpr {
 
 		nextFactor := p.parseFactor(b)
 
-		if !term.First.Type().IsCompatibleWith(nextFactor.Type()) {
+		if !term.First.Type().IsCompatibleWith(nextFactor.Type(), false) {
 			p.errorf("in term involving operator %s, types %s and %s are incompatible", operator, term.First.Type().TypeString(), nextFactor.Type().TypeString())
 		}
 
@@ -2480,8 +2478,7 @@ func (p *parser) parseIndexedVariableExpr(b *Block, expr Expression) *IndexedVar
 		if idx >= len(indexes) {
 			break
 		}
-		if !idxType.IsCompatibleWith(indexes[idx].Type()) {
-			fmt.Printf("idxType = %s index[idx].Type = %s\n", spew.Sdump(idxType), spew.Sdump(indexes[idx].Type()))
+		if !idxType.IsCompatibleWith(indexes[idx].Type(), true) {
 			p.errorf("array dimension %d is of type %s, but index expression type %s was provided", idx, idxType.TypeString(), indexes[idx].Type().TypeString())
 		}
 	}
