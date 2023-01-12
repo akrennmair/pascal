@@ -1889,6 +1889,9 @@ func (p *parser) parseSet(b *Block) *SetExpr {
 	}
 
 	expr := p.parseExpression(b)
+	if !isOrdinalType(expr.Type()) {
+		p.errorf("sets require an ordinal type, got %s instead", expr.Type().TypeString())
+	}
 	if p.peek().typ == itemDoubleDot {
 		p.next()
 		expr2 := p.parseExpression(b)
@@ -1913,6 +1916,9 @@ loop:
 		}
 
 		expr := p.parseExpression(b)
+		if !isOrdinalType(expr.Type()) {
+			p.errorf("sets require an ordinal type, got %s instead", expr.Type().TypeString())
+		}
 		if p.peek().typ == itemDoubleDot {
 			p.next()
 			expr2 := p.parseExpression(b)
