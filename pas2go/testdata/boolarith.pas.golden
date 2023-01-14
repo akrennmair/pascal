@@ -1,0 +1,26 @@
+package main
+
+import (
+	"github.com/akrennmair/pascal/pas2go/system"
+)
+
+var _ = system.Write
+
+// program test
+func main() {
+	var (
+		a bool
+		b bool
+	)
+	_ = a
+	_ = b
+
+	a = true
+	b = false
+	system.Writeln("boolean succ(true): ", system.BoolSucc(a))
+	system.Writeln("boolean succ(false): ", system.BoolSucc(b))
+	system.Writeln("boolean succ(succ(false)): ", system.BoolSucc(system.BoolSucc(b)))
+	system.Writeln("boolean pred(true): ", system.BoolPred(a))
+	system.Writeln("boolean pred(false): ", system.BoolPred(b))
+	system.Writeln("boolean pred(pred(false)): ", system.BoolPred(system.BoolPred(b)))
+}

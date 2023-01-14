@@ -378,6 +378,7 @@ func toExpr(expr parser.Expression) string {
 			buf.WriteString(translateOperator(string(next.Operator)))
 			buf.WriteString(applyTypeConversion(typeConv, toExpr(next.Term)))
 		}
+
 		return buf.String()
 	case *parser.TermExpr:
 		if _, isSetType := e.First.Type().(*parser.SetType); isSetType {
@@ -557,8 +558,14 @@ func toFunctionCallExpr(e *parser.FunctionCallExpr) string {
 		}
 		return "int(" + toExpr(param) + ")"
 	case "succ":
+		if parser.IsBooleanType(e.ActualParams[0].Type()) {
+			return "system.BoolSucc(" + toExpr(e.ActualParams[0]) + ")"
+		}
 		return "(" + toExpr(e.ActualParams[0]) + " + 1)"
 	case "pred":
+		if parser.IsBooleanType(e.ActualParams[0].Type()) {
+			return "system.BoolPred(" + toExpr(e.ActualParams[0]) + ")"
+		}
 		return "(" + toExpr(e.ActualParams[0]) + " - 1)"
 	}
 
@@ -659,6 +666,11 @@ func isString(typ parser.DataType) bool {
 
 func isStringish(typ parser.DataType) bool {
 	return isCharArray(typ) || isString(typ)
+}
+
+func isInteger(typ parser.DataType) bool {
+	_, ok := typ.(*parser.IntegerType)
+	return ok
 }
 
 func assignment(stmt *parser.AssignmentStatement) string {

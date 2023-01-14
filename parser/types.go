@@ -1062,6 +1062,14 @@ func isIntegerType(dt DataType) bool {
 	return false
 }
 
+func isStringType(dt DataType) bool {
+	if _, ok := dt.(*StringType); ok {
+		return ok
+	}
+
+	return isCharArray(dt)
+}
+
 func isRealType(dt DataType) bool {
 	_, ok := dt.(*RealType)
 	return ok

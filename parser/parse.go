@@ -1584,8 +1584,9 @@ func (p *parser) parseSimpleExpression(b *Block) *SimpleExpr {
 		} else {
 			if !isIntegerType(simpleExpr.First.Type()) &&
 				!isRealType(simpleExpr.First.Type()) &&
+				!(operator == OperatorAdd && isStringType(simpleExpr.First.Type())) &&
 				((operator != OperatorAdd && operator != OperatorSubtract) || !isSetType(simpleExpr.First.Type())) {
-				p.errorf("can only use %s operator with integer or real types, got %s instead", operator, simpleExpr.First.Type().TypeString())
+				p.errorf("can't use %s operator with %s", operator, simpleExpr.First.Type().TypeString())
 			}
 		}
 
