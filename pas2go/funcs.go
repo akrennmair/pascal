@@ -357,7 +357,12 @@ func toExpr(expr parser.Expression) string {
 		if e.Operator == parser.OpIn {
 			return rightExpr + ".In(" + leftExpr + ")"
 		}
-		if isStringish(e.Left.Type()) && isStringish(e.Right.Type()) {
+		if parser.IsBooleanType(e.Left.Type()) && parser.IsBooleanType(e.Right.Type()) {
+			if e.Operator == parser.OpGreater || e.Operator == parser.OpGreaterEqual || e.Operator == parser.OpLess || e.Operator == parser.OpLessEqual {
+				leftExpr = "system.BoolOrd(" + leftExpr + ")"
+				rightExpr = "system.BoolOrd(" + rightExpr + ")"
+			}
+		} else if isStringish(e.Left.Type()) && isStringish(e.Right.Type()) {
 			if isCharArray(e.Left.Type()) {
 				leftExpr = fmt.Sprintf("string(%s[:])", leftExpr)
 			}
@@ -549,7 +554,9 @@ func toFunctionCallExpr(e *parser.FunctionCallExpr) string {
 		return "system.Odd" + actualParams(e.ActualParams, e.FormalParams)
 	case "ord":
 		param := e.ActualParams[0]
-		if se, ok := param.(*parser.StringExpr); ok {
+		if parser.IsBooleanType(param.Type()) {
+			return "system.BoolOrd(" + toExpr(param) + ")"
+		} else if se, ok := param.(*parser.StringExpr); ok {
 			param = &parser.CharExpr{
 				Value: se.Value[0],
 			}
@@ -688,4 +695,16 @@ func assignment(stmt *parser.AssignmentStatement) string {
 	}
 
 	return fmt.Sprintf("%s = %s", toExpr(stmt.LeftExpr), toExpr(stmt.RightExpr))
+}
+
+func isBooleanType(dt parser.DataType) bool {
+	return parser.IsBooleanType(dt)
+}
+
+func booleanForLoop(stmt *parser.ForStatement) string {
+	rangeFunc := "BoolRange"
+	if stmt.DownTo {
+		rangeFunc = "BoolRangeDown"
+	}
+	return fmt.Sprintf("for _, %s := range system.%s(%s, %s)", stmt.Name, rangeFunc, toExpr(stmt.InitialExpr), toExpr(stmt.FinalExpr))
 }

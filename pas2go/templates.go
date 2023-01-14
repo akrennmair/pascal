@@ -17,6 +17,8 @@ var (
 		"isBuiltinProcedure":       isBuiltinProcedure,
 		"generateBuiltinProcedure": generateBuiltinProcedure,
 		"assignment":               assignment,
+		"isBooleanType":            isBooleanType,
+		"booleanForLoop":           booleanForLoop,
 	}
 	transpilerTemplate = template.Must(template.New("").Funcs(tmplFuncs).Parse(sourceTemplate))
 )
@@ -136,7 +138,11 @@ func main() {
 			}
 		}
 	{{- else if eq .Type 6 }}{{/* for statement */}}
+		{{- if .InitialExpr.Type | isBooleanType }}
+		{{ booleanForLoop . }} {
+		{{- else }}
 		for {{ .Name }} = {{ template "expr" .InitialExpr }}; {{ .Name }} {{ if .DownTo }}>={{ else }}<={{ end }} {{ template "expr" .FinalExpr }}; {{ .Name }}{{ if .DownTo }}--{{ else }}++{{ end }} {
+		{{- end }}
 			{{- template "statement" .Statement }}
 		}
 	{{- else if eq .Type 7 }}{{/* if statement */}}
