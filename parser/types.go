@@ -104,6 +104,10 @@ type SubrangeType struct {
 	name       string
 }
 
+func (t *SubrangeType) within(i int) bool {
+	return i >= t.LowerBound && i <= t.UpperBound
+}
+
 func (t *SubrangeType) TypeString() string {
 	if t == charTypeDef.Type { // XXX: very hacky.
 		return "char"

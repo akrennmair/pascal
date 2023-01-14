@@ -341,7 +341,7 @@ func (e *VariableExpr) Reduce() Expression {
 
 // IntegerExpr describes a literal of type integer, as an expression.
 type IntegerExpr struct {
-	Value int64
+	Value int
 }
 
 func (e *IntegerExpr) String() string {
@@ -810,4 +810,9 @@ func (e *RangeExpr) String() string {
 
 func (e *RangeExpr) Type() DataType {
 	return e.LowerBound.Type()
+}
+
+func isIntegerExpr(expr Expression) bool {
+	_, ok := expr.(*IntegerExpr)
+	return ok
 }

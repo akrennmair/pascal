@@ -1312,7 +1312,8 @@ func (p *parser) parseForStatement(b *Block, label *string) *ForStatement {
 
 	variable := p.next().val
 
-	if b.findVariable(variable) == nil {
+	varDecl := b.findVariable(variable)
+	if varDecl == nil {
 		p.errorf("unknown variable %s in for statement", variable)
 	}
 
@@ -1322,6 +1323,12 @@ func (p *parser) parseForStatement(b *Block, label *string) *ForStatement {
 	p.next()
 
 	initialExpr := p.parseExpression(b)
+
+	if isSubrangeType(varDecl.Type) && isIntegerExpr(initialExpr) {
+		if !varDecl.Type.(*SubrangeType).within(initialExpr.(*IntegerExpr).Value) {
+			p.errorf("initial expression %d is outside subrange type %s", initialExpr.(*IntegerExpr).Value, varDecl.Type.TypeString())
+		}
+	}
 
 	down := false
 	switch p.peek().typ {
@@ -1335,6 +1342,12 @@ func (p *parser) parseForStatement(b *Block, label *string) *ForStatement {
 	p.next()
 
 	finalExpr := p.parseExpression(b)
+
+	if isSubrangeType(varDecl.Type) && isIntegerExpr(finalExpr) {
+		if !varDecl.Type.(*SubrangeType).within(finalExpr.(*IntegerExpr).Value) {
+			p.errorf("initial expression %d is outside subrange type %s", initialExpr.(*IntegerExpr).Value, varDecl.Type.TypeString())
+		}
+	}
 
 	if p.peek().typ != itemDo {
 		p.errorf("expected do, got %s", p.next())
@@ -1904,7 +1917,7 @@ func (p *parser) parseNumber(minus bool) Expression {
 		intValue = -intValue
 	}
 	p.logger.Printf("parseNumber: parsed int %d", intValue)
-	return &IntegerExpr{intValue}
+	return &IntegerExpr{int(intValue)}
 }
 
 // parseScaleFactor parses a scale factor.
@@ -2497,6 +2510,8 @@ func (p *parser) validateParameters(proc *Routine, actualParams []Expression) (r
 				return nil, fmt.Errorf("parameter %s is a variable parameter, but an actual parameter other than variable was provided",
 					proc.FormalParameters[idx].Name)
 			}
+
+			// TODO: validate whether actual parameter is a packed element, and if so, throw error. See PRT 1848.
 		}
 	}
 
