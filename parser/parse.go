@@ -2596,9 +2596,19 @@ func (p *parser) parseWritelnFormat(expr Expression, b *Block) (widthExpr Expres
 	if p.peek().typ == itemColon {
 		p.next()
 		widthExpr = p.parseExpression(b)
+		if intExpr, ok := widthExpr.(*IntegerExpr); ok {
+			if intExpr.Value == 0 {
+				p.errorf("write with zero width is not allowed")
+			}
+		}
 		if p.peek().typ == itemColon {
 			p.next()
 			decimalPlacesExpr = p.parseExpression(b)
+			if intExpr, ok := decimalPlacesExpr.(*IntegerExpr); ok {
+				if intExpr.Value == 0 {
+					p.errorf("write with zero decimal places is not allowed")
+				}
+			}
 		}
 	}
 
