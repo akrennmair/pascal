@@ -2569,7 +2569,7 @@ func (p *parser) parseWrite(b *Block, ln bool, label *string) *WriteStatement {
 	if first.IsVariableExpr() && isFileType {
 		stmt.FileVar = first
 	} else {
-		p.verifyWriteType(first.Type(), ln)
+		p.verifyWriteParameter(first, ln)
 		width, decimalPlaces := p.parseWritelnFormat(first, b)
 		stmt.ActualParams = append(stmt.ActualParams, &FormatExpr{Expr: first, Width: width, DecimalPlaces: decimalPlaces})
 	}
@@ -2578,7 +2578,7 @@ func (p *parser) parseWrite(b *Block, ln bool, label *string) *WriteStatement {
 		p.next()
 
 		param := p.parseExpression(b)
-		p.verifyWriteType(param.Type(), ln)
+		p.verifyWriteParameter(param, ln)
 
 		width, decimalPlaces := p.parseWritelnFormat(param, b)
 		stmt.ActualParams = append(stmt.ActualParams, &FormatExpr{Expr: param, Width: width, DecimalPlaces: decimalPlaces})
@@ -2619,10 +2619,18 @@ func (p *parser) parseWritelnFormat(expr Expression, b *Block) (widthExpr Expres
 	return widthExpr, decimalPlacesExpr
 }
 
-func (p *parser) verifyWriteType(typ DataType, ln bool) {
+func (p *parser) verifyWriteParameter(expr Expression, ln bool) {
+	typ := expr.Type()
+
 	funcName := "write"
 	if ln {
 		funcName += "ln"
+	}
+
+	if strLiteral, ok := expr.(*StringExpr); ok {
+		if len(strLiteral.Value) == 0 {
+			p.errorf("%s with zero length string is not allowed", funcName)
+		}
 	}
 
 	allowedWriteTypes := []DataType{&IntegerType{}, &RealType{}, charTypeDef.Type, &StringType{}, booleanTypeDef.Type}
