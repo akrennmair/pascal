@@ -12,8 +12,9 @@ import (
 
 func newParser(name, text string) *parser {
 	return &parser{
-		lexer:  lex(name, text),
-		logger: log.New(io.Discard, "parser", log.LstdFlags|log.Lshortfile),
+		lexer:      lex(name, text),
+		logger:     log.New(io.Discard, "parser", log.LstdFlags|log.Lshortfile),
+		enumValues: make(map[string]*EnumValue),
 	}
 }
 
@@ -37,11 +38,15 @@ func Parse(name, text string) (ast *AST, err error) {
 
 func parseWithLexer(lexer *lexer) (ast *AST, err error) {
 	p := &parser{
-		lexer:  lexer,
-		logger: log.New(io.Discard, "parser", log.LstdFlags|log.Lshortfile),
+		lexer:      lexer,
+		logger:     log.New(io.Discard, "parser", log.LstdFlags|log.Lshortfile),
+		enumValues: make(map[string]*EnumValue),
 	}
 	defer p.recover(&err)
 	ast, err = p.parse()
+	if err == nil {
+		p.addEnumValuesToBlock(ast.Block)
+	}
 	return ast, err
 }
 
@@ -50,6 +55,9 @@ type parser struct {
 	logger    *log.Logger
 	token     [3]item
 	peekCount int
+
+	enumValues    map[string]*EnumValue
+	enumValueList []string
 }
 
 // AST describes the Abstract Syntax Tree of the parsed Pascal program.
@@ -64,6 +72,12 @@ type AST struct {
 	// declarations and definitions as well as the main program
 	// to be executed.
 	Block *Block
+}
+
+type EnumValue struct {
+	Name  string
+	Value int
+	Type  DataType
 }
 
 func (p *parser) recover(errp *error) {
@@ -475,7 +489,7 @@ restartParseDataType:
 		}
 		return &PointerType{TargetName: ident, name: typeDefName, block: b}
 	case itemOpenParen:
-		return p.parseEnumType(b)
+		return p.parseEnumType(b, typeDefName)
 	case itemPacked:
 		p.next()
 		packed = true
@@ -520,7 +534,7 @@ restartParseDataType:
 //
 //	enumerated-type =
 //	   "(" identifier-list ")" .
-func (p *parser) parseEnumType(b *Block) *EnumType {
+func (p *parser) parseEnumType(b *Block, typedefName string) *EnumType {
 	if p.peek().typ != itemOpenParen {
 		p.errorf("expected (, got %s", p.next())
 	}
@@ -535,7 +549,44 @@ func (p *parser) parseEnumType(b *Block) *EnumType {
 
 	// TODO: ensure that identifiers in identifier list are indeed unique.
 
-	return &EnumType{Identifiers: identifierList}
+	typ := &EnumType{Identifiers: identifierList, name: typedefName}
+
+	p.addEnumValues(typ.Identifiers, typ)
+
+	return typ
+}
+
+func (p *parser) addEnumValues(identifiers []string, typ DataType) {
+	for identIdx, ident := range identifiers {
+		if p.enumValueExists(ident) {
+			p.errorf("enum value %s already exists", ident)
+		}
+		p.addEnumValue(ident, identIdx, typ)
+	}
+}
+
+func (p *parser) addEnumValue(ident string, identIdx int, typ DataType) {
+	p.enumValues[ident] = &EnumValue{Name: ident, Value: identIdx, Type: typ}
+	p.enumValueList = append(p.enumValueList, ident)
+}
+
+func (p *parser) getEnumValue(ident string) (identIdx int, typ DataType, ok bool) {
+	v, ok := p.enumValues[ident]
+	if !ok {
+		return 0, nil, false
+	}
+	return v.Value, v.Type, true
+}
+
+func (p *parser) enumValueExists(ident string) bool {
+	// TODO: implement
+	return false
+}
+
+func (p *parser) addEnumValuesToBlock(b *Block) {
+	for _, ident := range p.enumValueList {
+		b.EnumValues = append(b.EnumValues, p.enumValues[ident])
+	}
 }
 
 // parseIdentifierList parses an identifier list.
@@ -2036,7 +2087,7 @@ func (p *parser) parseArrayType(b *Block, packed bool) *ArrayType {
 //		subrange-type | enumerated-type .
 func (p *parser) parseSimpleType(b *Block) DataType {
 	if p.peek().typ == itemOpenParen {
-		return p.parseEnumType(b)
+		return p.parseEnumType(b, "")
 	}
 
 	if typ := b.findType(p.peek().val); typ != nil {

@@ -11,6 +11,7 @@ func main() {
 	type (
 		ttt int
 	)
+
 	const (
 		foo ttt = 0
 		bar ttt = 1

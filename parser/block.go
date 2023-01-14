@@ -31,6 +31,9 @@ type Block struct {
 	// Variables contains all variables declared in the block.
 	Variables []*Variable
 
+	// EnumValues contains all enum values of a program. If any enum values exists, this is only set in the top-most block.
+	EnumValues []*EnumValue
+
 	// Procedure contains all procedures declared in the block.
 	Procedures []*Routine
 

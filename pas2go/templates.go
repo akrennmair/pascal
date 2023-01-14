@@ -12,8 +12,7 @@ var (
 		"formalParams":             formalParams,
 		"actualParams":             actualParams,
 		"toExpr":                   toExpr,
-		"filterEnumTypes":          filterEnumTypes,
-		"generateEnumConstants":    generateEnumConstants,
+		"generateEnumValue":        generateEnumValue,
 		"isBuiltinProcedure":       isBuiltinProcedure,
 		"generateBuiltinProcedure": generateBuiltinProcedure,
 		"assignment":               assignment,
@@ -42,7 +41,7 @@ func main() {
 {{- define "block" }}
 	{{- template "constants" .Constants }}
 	{{- template "types" .Types }}
-	{{- template "typeConstants" .Types }}
+	{{- template "enumValues" .EnumValues }}
 	{{- template "variables" .Variables }}
 	{{- template "functions" .Procedures }}
 	{{- template "functions" .Functions }}
@@ -69,13 +68,14 @@ func main() {
 	{{ end -}}
 {{ end }}
 
-{{- define "typeConstants" }}
-	{{- $types := . | filterEnumTypes }}
-	{{- if $types }}
-		{{- range $type := $types }}
-			{{- $type | generateEnumConstants }}
+{{- define "enumValues" }}
+	{{- if . }}
+		const (
+		{{- range $v := . }}
+		{{ $v | generateEnumValue }}
 		{{- end }}
-	{{- end -}}
+		)
+	{{ end -}}
 {{ end }}
 
 {{- define "variables" }}

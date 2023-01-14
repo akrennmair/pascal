@@ -579,23 +579,19 @@ func toFunctionCallExpr(e *parser.FunctionCallExpr) string {
 	return e.Name + actualParams(e.ActualParams, e.FormalParams)
 }
 
-func filterEnumTypes(typeDefs []*parser.TypeDefinition) (enumTypes []*parser.TypeDefinition) {
-	for _, typeDef := range typeDefs {
-		if _, ok := typeDef.Type.(*parser.EnumType); ok {
-			enumTypes = append(enumTypes, typeDef)
-		}
-	}
-	return enumTypes
-}
-
-func generateEnumConstants(typeDef *parser.TypeDefinition) string {
+func generateEnumValue(enumValue *parser.EnumValue) string {
 	var buf strings.Builder
 
-	buf.WriteString("const (\n")
-	for identIdx, ident := range typeDef.Type.(*parser.EnumType).Identifiers {
-		fmt.Fprintf(&buf, "	%s %s = %d\n", ident, typeDef.Name, identIdx)
+	buf.WriteString(enumValue.Name)
+	buf.WriteString(" ")
+
+	if name := enumValue.Type.TypeName(); name != "" {
+		buf.WriteString(name)
+		buf.WriteString(" ")
 	}
-	buf.WriteString(")\n")
+
+	buf.WriteString("= ")
+	buf.WriteString(fmt.Sprintf("%d", enumValue.Value))
 
 	return buf.String()
 }
