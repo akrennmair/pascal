@@ -479,6 +479,7 @@ func (e *NotExpr) Reduce() Expression {
 // SetExpr describes a set literal, as an expression.
 type SetExpr struct {
 	Elements []Expression
+	Type_    DataType
 }
 
 func (e *SetExpr) String() string {
@@ -495,8 +496,10 @@ func (e *SetExpr) String() string {
 }
 
 func (e *SetExpr) Type() DataType {
-	t := &SetType{}
-	if len(e.Elements) > 0 {
+	t := &SetType{
+		ElementType: e.Type_,
+	}
+	if len(e.Elements) > 0 && t.ElementType == nil {
 		t.ElementType = e.Elements[0].Type()
 	}
 	return t

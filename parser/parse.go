@@ -1200,6 +1200,17 @@ func (p *parser) parseAssignmentOrProcedureStatement(b *Block, label *string) St
 		if rexpr.Type() == nil {
 			p.errorf("in assignment, right expression type is nil")
 		}
+
+		// fix up type of empty set expressions.
+		if setExpr, ok := rexpr.(*SetExpr); ok {
+			if leftType, ok2 := lexpr.Type().(*SetType); ok2 {
+				if setExpr.Type_ == nil {
+					setExpr.Type_ = leftType.ElementType
+				}
+			}
+
+		}
+
 		if !typesCompatibleForAssignment(lexpr.Type(), rexpr.Type()) {
 			if !isCharStringLiteralAssignment(b, lexpr, rexpr) {
 				p.errorf("incompatible types: got %s, expected %s", rexpr.Type().TypeString(), lexpr.Type().TypeString())
@@ -1919,7 +1930,7 @@ func (p *parser) parseScaleFactor() int {
 	return int(scaleFactor)
 }
 
-// parseSet parses a set.
+// parseSet parses a set literal.
 //
 //	set-constructor =
 //		"[" [ member-designator { ", " member-designator } ] "]" .
