@@ -4,7 +4,7 @@ type SetType[T comparable] struct {
 	values []T
 }
 
-func (ts *SetType[T]) In(elem T) bool {
+func (ts SetType[T]) In(elem T) bool {
 	for _, v := range ts.values {
 		if v == elem {
 			return true
@@ -13,7 +13,7 @@ func (ts *SetType[T]) In(elem T) bool {
 	return false
 }
 
-func (ts *SetType[T]) Union(o SetType[T]) SetType[T] {
+func (ts SetType[T]) Union(o SetType[T]) SetType[T] {
 	set := make(map[T]struct{})
 
 	for _, v := range ts.values {
@@ -32,7 +32,7 @@ func (ts *SetType[T]) Union(o SetType[T]) SetType[T] {
 	return newSet
 }
 
-func (ts *SetType[T]) Difference(o SetType[T]) SetType[T] {
+func (ts SetType[T]) Difference(o SetType[T]) SetType[T] {
 	set := make(map[T]struct{})
 
 	for _, v := range ts.values {
@@ -51,7 +51,7 @@ func (ts *SetType[T]) Difference(o SetType[T]) SetType[T] {
 	return newSet
 }
 
-func (ts *SetType[T]) Intersection(o SetType[T]) SetType[T] {
+func (ts SetType[T]) Intersection(o SetType[T]) SetType[T] {
 	set := make(map[T]struct{})
 
 	for _, v := range ts.values {
@@ -69,6 +69,53 @@ func (ts *SetType[T]) Intersection(o SetType[T]) SetType[T] {
 	return newSet
 }
 
+func Range[T comparable](from, to T) SetType[T] {
+	set := SetType[T]{}
+	// TODO: implement
+	return set
+}
+
 func Set[T comparable](values ...T) SetType[T] {
 	return SetType[T]{values: values}
+}
+
+func (ts SetType[T]) Equals(os SetType[T]) bool {
+	// this is not very efficient.
+	for _, v := range ts.values {
+		if !os.In(v) {
+			return false
+		}
+	}
+
+	for _, v := range os.values {
+		if !ts.In(v) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (ts SetType[T]) NotEquals(os SetType[T]) bool {
+	return !ts.Equals(os)
+}
+
+func (ts SetType[T]) Less(os SetType[T]) bool {
+	// TODO: implement
+	return false
+}
+
+func (ts SetType[T]) LessEqual(os SetType[T]) bool {
+	// TODO: implement
+	return false
+}
+
+func (ts SetType[T]) Greater(os SetType[T]) bool {
+	// TODO: implement
+	return false
+}
+
+func (ts SetType[T]) GreaterEqual(os SetType[T]) bool {
+	// TODO: implement
+	return false
 }

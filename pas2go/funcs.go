@@ -281,6 +281,47 @@ func translateOperator(op string) string {
 	return newOp
 }
 
+func toSetRelationalExpr(e *parser.RelationalExpr) string {
+	var buf strings.Builder
+
+	switch e.Operator {
+	case parser.OpEqual:
+		buf.WriteString(toExpr(e.Left))
+		buf.WriteString(".Equals(")
+		buf.WriteString(toExpr(e.Right))
+		buf.WriteString(")")
+	case parser.OpNotEqual:
+		buf.WriteString(toExpr(e.Left))
+		buf.WriteString(".NotEquals(")
+		buf.WriteString(toExpr(e.Right))
+		buf.WriteString(")")
+	case parser.OpLess:
+		buf.WriteString(toExpr(e.Left))
+		buf.WriteString(".Less(")
+		buf.WriteString(toExpr(e.Right))
+		buf.WriteString(")")
+	case parser.OpLessEqual:
+		buf.WriteString(toExpr(e.Left))
+		buf.WriteString(".LessEqual(")
+		buf.WriteString(toExpr(e.Right))
+		buf.WriteString(")")
+	case parser.OpGreater:
+		buf.WriteString(toExpr(e.Left))
+		buf.WriteString(".Greater(")
+		buf.WriteString(toExpr(e.Right))
+		buf.WriteString(")")
+	case parser.OpGreaterEqual:
+		buf.WriteString(toExpr(e.Left))
+		buf.WriteString(".GreaterEqual(")
+		buf.WriteString(toExpr(e.Right))
+		buf.WriteString(")")
+	default:
+		fmt.Fprintf(&buf, "BUG: unsupported set relational operator %s", string(e.Operator))
+	}
+
+	return buf.String()
+}
+
 func toSetSimpleExpr(e *parser.SimpleExpr) string {
 	var buf strings.Builder
 
@@ -380,6 +421,9 @@ func toExpr(expr parser.Expression) string {
 		rightExpr := toExpr(e.Right)
 		if e.Operator == parser.OpIn {
 			return rightExpr + ".In(" + leftExpr + ")"
+		}
+		if _, isSetType := e.Left.Type().(*parser.SetType); isSetType {
+			return toSetRelationalExpr(e)
 		}
 		if parser.IsBooleanType(e.Left.Type()) && parser.IsBooleanType(e.Right.Type()) {
 			if e.Operator == parser.OpGreater || e.Operator == parser.OpGreaterEqual || e.Operator == parser.OpLess || e.Operator == parser.OpLessEqual {
