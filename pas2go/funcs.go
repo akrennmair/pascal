@@ -777,6 +777,16 @@ func assignment(stmt *parser.AssignmentStatement) string {
 		if isCharArray(stmt.RightExpr.Type()) {
 			return fmt.Sprintf("%s = string(%s[:])", toExpr(stmt.LeftExpr), toExpr(stmt.RightExpr))
 		}
+	} else if isSetType(stmt.LeftExpr.Type()) && isSetType(stmt.RightExpr.Type()) {
+		if isBooleanType(stmt.LeftExpr.Type().(*parser.SetType).ElementType) && isBooleanType(stmt.RightExpr.Type().(*parser.SetType).ElementType) {
+			return fmt.Sprintf("system.BoolSetAssign(&%s, %s)", toExpr(stmt.LeftExpr), toExpr(stmt.RightExpr))
+		} else if isBooleanType(stmt.LeftExpr.Type().(*parser.SetType).ElementType) && !isBooleanType(stmt.RightExpr.Type().(*parser.SetType).ElementType) {
+			return fmt.Sprintf("system.SetAssignToBool(&%s, %s)", toExpr(stmt.LeftExpr), toExpr(stmt.RightExpr))
+		} else if !isBooleanType(stmt.LeftExpr.Type().(*parser.SetType).ElementType) && isBooleanType(stmt.RightExpr.Type().(*parser.SetType).ElementType) {
+			return fmt.Sprintf("system.SetAssignFromBool(&%s, %s)", toExpr(stmt.LeftExpr), toExpr(stmt.RightExpr))
+		}
+
+		return fmt.Sprintf("system.SetAssign(&%s, %s)", toExpr(stmt.LeftExpr), toExpr(stmt.RightExpr))
 	}
 
 	return fmt.Sprintf("%s = %s", toExpr(stmt.LeftExpr), toExpr(stmt.RightExpr))
@@ -784,6 +794,11 @@ func assignment(stmt *parser.AssignmentStatement) string {
 
 func isBooleanType(dt parser.DataType) bool {
 	return parser.IsBooleanType(dt)
+}
+
+func isSetType(dt parser.DataType) bool {
+	_, ok := dt.(*parser.SetType)
+	return ok
 }
 
 func booleanForLoop(stmt *parser.ForStatement) string {
