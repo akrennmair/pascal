@@ -13,7 +13,7 @@ func main() {
 	)
 	_ = s
 
-	s = system.Set[int](10, 5, 17)
+	system.SetAssign(&s, system.Set[int](10, 5, 17))
 	if s.In(10) {
 		system.Writeln("10 is in s!")
 	}
