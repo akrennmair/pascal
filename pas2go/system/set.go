@@ -1,6 +1,9 @@
 package system
 
-import "reflect"
+import (
+	"fmt"
+	"reflect"
+)
 
 type setTypeConstraint interface {
 	byte | ~int | bool
@@ -79,14 +82,28 @@ func (ts SetType[T]) Intersection(o SetType[T]) SetType[T] {
 	return newSet
 }
 
-func Range[T setTypeConstraint](from, to T) SetType[T] {
-	set := SetType[T]{}
-	// TODO: implement
-	return set
+func Range[T intSetTypeConstraint](from, to T) []T {
+	var values []T
+	for i := from; i <= to; i++ {
+		values = append(values, i)
+	}
+	return values
 }
 
-func Set[T setTypeConstraint](values ...T) SetType[T] {
-	return SetType[T]{values: values}
+func Set[T setTypeConstraint](values ...any) SetType[T] {
+	set := SetType[T]{}
+	for _, v := range values {
+		switch vv := v.(type) {
+		case T:
+			set.values = append(set.values, vv)
+		case []T:
+			set.values = append(set.values, vv...)
+		default:
+			var foo T
+			panic(fmt.Errorf("can't construct set[%T] from %T", foo, v))
+		}
+	}
+	return set
 }
 
 func (ts SetType[T]) Equals(os SetType[T]) bool {
