@@ -708,7 +708,7 @@ func generateBuiltinProcedure(stmt *parser.ProcedureCallStatement) string {
 			if isBooleanType(typ) {
 				typeName = "bool"
 			}
-			return fmt.Sprintf("%s = (*%s)(new(%s))", toExpr(stmt.ActualParams[0]), typeName, toGoType(typ))
+			return fmt.Sprintf("%s = new(%s)", toExpr(stmt.ActualParams[0]), typeName)
 		}
 		return toExpr(stmt.ActualParams[0]) + " = new(" + toGoType(typ) + ")"
 	case "dispose":
@@ -805,7 +805,7 @@ func assignment(stmt *parser.AssignmentStatement) string {
 		return fmt.Sprintf("system.SetAssign(%s%s, %s)", ptrPrefix, toExpr(leftExpr), toExpr(stmt.RightExpr))
 	}
 
-	if stmt.LeftExpr.Type().IsCompatibleWith(stmt.RightExpr.Type(), true) && stmt.LeftExpr.Type().TypeName() != stmt.RightExpr.Type().TypeName() {
+	if !stmt.LeftExpr.Type().Equals(stmt.RightExpr.Type()) && stmt.LeftExpr.Type().IsCompatibleWith(stmt.RightExpr.Type(), true) && stmt.LeftExpr.Type().TypeName() != stmt.RightExpr.Type().TypeName() {
 		return fmt.Sprintf("%s = %s(%s)", toExpr(stmt.LeftExpr), toGoType(stmt.LeftExpr.Type()), toExpr(stmt.RightExpr))
 	}
 

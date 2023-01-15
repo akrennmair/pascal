@@ -8,15 +8,14 @@ var _ = system.Write
 
 // program test
 func main() {
-	type (
-		foo int
-	)
-
 	var (
-		x foo
+		pavcs [10]int
+		i     int
 	)
-	_ = x
+	_ = pavcs
+	_ = i
 
-	x = foo(4)
-	system.Writeln("x = ", x)
+	for i = 1; i <= 10; i++ {
+		pavcs[i-(1)] = system.Chr(i + int('f'))
+	}
 }
