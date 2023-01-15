@@ -787,15 +787,22 @@ func assignment(stmt *parser.AssignmentStatement) string {
 			return fmt.Sprintf("%s = string(%s[:])", toExpr(stmt.LeftExpr), toExpr(stmt.RightExpr))
 		}
 	} else if isSetType(stmt.LeftExpr.Type()) && isSetType(stmt.RightExpr.Type()) {
-		if isBooleanType(stmt.LeftExpr.Type().(*parser.SetType).ElementType) && isBooleanType(stmt.RightExpr.Type().(*parser.SetType).ElementType) {
-			return fmt.Sprintf("system.BoolSetAssign(&%s, %s)", toExpr(stmt.LeftExpr), toExpr(stmt.RightExpr))
-		} else if isBooleanType(stmt.LeftExpr.Type().(*parser.SetType).ElementType) && !isBooleanType(stmt.RightExpr.Type().(*parser.SetType).ElementType) {
-			return fmt.Sprintf("system.SetAssignToBool(&%s, %s)", toExpr(stmt.LeftExpr), toExpr(stmt.RightExpr))
-		} else if !isBooleanType(stmt.LeftExpr.Type().(*parser.SetType).ElementType) && isBooleanType(stmt.RightExpr.Type().(*parser.SetType).ElementType) {
-			return fmt.Sprintf("system.SetAssignFromBool(&%s, %s)", toExpr(stmt.LeftExpr), toExpr(stmt.RightExpr))
+		leftExpr := stmt.LeftExpr
+		ptrPrefix := "&"
+		if isBooleanType(leftExpr.Type().(*parser.SetType).ElementType) && isBooleanType(stmt.RightExpr.Type().(*parser.SetType).ElementType) {
+			return fmt.Sprintf("system.BoolSetAssign(%s%s, %s)", ptrPrefix, toExpr(leftExpr), toExpr(stmt.RightExpr))
+		} else if isBooleanType(leftExpr.Type().(*parser.SetType).ElementType) && !isBooleanType(stmt.RightExpr.Type().(*parser.SetType).ElementType) {
+			return fmt.Sprintf("system.SetAssignToBool(%s%s, %s)", ptrPrefix, toExpr(leftExpr), toExpr(stmt.RightExpr))
+		} else if !isBooleanType(leftExpr.Type().(*parser.SetType).ElementType) && isBooleanType(stmt.RightExpr.Type().(*parser.SetType).ElementType) {
+			return fmt.Sprintf("system.SetAssignFromBool(%s%s, %s)", ptrPrefix, toExpr(leftExpr), toExpr(stmt.RightExpr))
 		}
 
-		return fmt.Sprintf("system.SetAssign(&%s, %s)", toExpr(stmt.LeftExpr), toExpr(stmt.RightExpr))
+		if derefExpr, ok := leftExpr.(*parser.DerefExpr); ok {
+			leftExpr = derefExpr.Expr
+			ptrPrefix = ""
+		}
+
+		return fmt.Sprintf("system.SetAssign(%s%s, %s)", ptrPrefix, toExpr(leftExpr), toExpr(stmt.RightExpr))
 	}
 
 	if stmt.LeftExpr.Type().IsCompatibleWith(stmt.RightExpr.Type(), true) && stmt.LeftExpr.Type().TypeName() != stmt.RightExpr.Type().TypeName() {
