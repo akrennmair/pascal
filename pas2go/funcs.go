@@ -66,10 +66,6 @@ func toGoTypeExcludeTypeName(typ parser.DataType, excludeTypeName string) string
 			return name
 		}
 
-		if parser.IsCharType(typ) {
-			return "byte"
-		}
-
 		return "int" // Go doesn't have subrange types, so that's the closest we can translate them to.
 	case *parser.EnumType:
 		if parser.IsBooleanType(typ) {
@@ -707,6 +703,13 @@ func generateBuiltinProcedure(stmt *parser.ProcedureCallStatement) string {
 	switch stmt.Name {
 	case "new":
 		typ := stmt.ActualParams[0].Type().(*parser.PointerType).Type_
+		typeName := typ.TypeName()
+		if typeName != "" {
+			if isBooleanType(typ) {
+				typeName = "bool"
+			}
+			return fmt.Sprintf("%s = (*%s)(new(%s))", toExpr(stmt.ActualParams[0]), typeName, toGoType(typ))
+		}
 		return toExpr(stmt.ActualParams[0]) + " = new(" + toGoType(typ) + ")"
 	case "dispose":
 		return toExpr(stmt.ActualParams[0]) + " = nil"
@@ -793,6 +796,10 @@ func assignment(stmt *parser.AssignmentStatement) string {
 		}
 
 		return fmt.Sprintf("system.SetAssign(&%s, %s)", toExpr(stmt.LeftExpr), toExpr(stmt.RightExpr))
+	}
+
+	if stmt.LeftExpr.Type().IsCompatibleWith(stmt.RightExpr.Type(), true) && stmt.LeftExpr.Type().TypeName() != stmt.RightExpr.Type().TypeName() {
+		return fmt.Sprintf("%s = %s(%s)", toExpr(stmt.LeftExpr), toGoType(stmt.LeftExpr.Type()), toExpr(stmt.RightExpr))
 	}
 
 	return fmt.Sprintf("%s = %s", toExpr(stmt.LeftExpr), toExpr(stmt.RightExpr))

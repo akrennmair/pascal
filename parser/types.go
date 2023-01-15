@@ -548,6 +548,10 @@ func (t *IntegerType) IsCompatibleWith(dt DataType, assignmentCompatible bool) b
 	switch ot := dt.(type) {
 	case *SubrangeType:
 		return t.IsCompatibleWith(ot.Type_, assignmentCompatible)
+	case *RealType:
+		if !assignmentCompatible {
+			return true
+		}
 	}
 
 	return false
