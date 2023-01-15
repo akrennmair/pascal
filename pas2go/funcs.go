@@ -34,6 +34,12 @@ func toGoTypeExcludeTypeName(typ parser.DataType, excludeTypeName string) string
 		return recordTypeToGoType(dt)
 	case *parser.StringType:
 		return "string"
+	case *parser.CharType:
+		if name := typ.TypeName(); name != "" && name != excludeTypeName {
+			return name
+		}
+
+		return "byte"
 	case *parser.PointerType:
 		if name := typ.TypeName(); name != "" && name != excludeTypeName {
 			return name

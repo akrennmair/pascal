@@ -325,7 +325,7 @@ var builtinFunctions = []*Routine{
 				Type: &IntegerType{},
 			},
 		},
-		ReturnType: charTypeDef.Type,
+		ReturnType: &CharType{},
 	},
 	{
 		Name: "odd",
@@ -376,6 +376,8 @@ var builtinFunctions = []*Routine{
 				return exprs[0].Type(), nil
 			case *SubrangeType:
 				return exprs[0].Type(), nil
+			case *CharType:
+				return exprs[0].Type(), nil
 			}
 
 			return nil, fmt.Errorf("succ requires exactly 1 argument of type enum or integer, got %s instead", exprs[0].Type().TypeString())
@@ -394,6 +396,8 @@ var builtinFunctions = []*Routine{
 			case *EnumType:
 				return exprs[0].Type(), nil
 			case *SubrangeType:
+				return exprs[0].Type(), nil
+			case *CharType:
 				return exprs[0].Type(), nil
 			}
 
@@ -441,7 +445,7 @@ func getBuiltinType(identifier string) DataType {
 	case "string":
 		return &StringType{}
 	case "char":
-		return charTypeDef.Type
+		return &CharType{}
 	case "boolean":
 		return booleanTypeDef.Type
 	case "text":
@@ -467,20 +471,10 @@ var booleanTypeDef = &TypeDefinition{
 	},
 }
 
-var charTypeDef = &TypeDefinition{
-	Name: "char",
-	Type: &SubrangeType{
-		LowerBound: 0,
-		UpperBound: 255,
-		name:       "",
-		Type_:      &IntegerType{},
-	},
-}
-
 var textTypeDef = &TypeDefinition{
 	Name: "text",
 	Type: &FileType{
-		ElementType: charTypeDef.Type,
+		ElementType: &CharType{},
 		name:        "text",
 	},
 }
@@ -492,7 +486,7 @@ func IsBooleanType(dt DataType) bool {
 
 // IsCharType returns true if the provided type is the char type, false otherwise.
 func IsCharType(dt DataType) bool {
-	result := charTypeDef.Type.Equals(dt)
+	result := dt.Equals(&CharType{})
 	return result
 }
 
@@ -505,7 +499,6 @@ var builtinBlock = &Block{
 	},
 	Types: []*TypeDefinition{
 		booleanTypeDef,
-		charTypeDef,
 		textTypeDef,
 	},
 }

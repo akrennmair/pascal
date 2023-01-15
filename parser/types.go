@@ -109,9 +109,6 @@ func (t *SubrangeType) within(i int) bool {
 }
 
 func (t *SubrangeType) TypeString() string {
-	if t == charTypeDef.Type { // XXX: very hacky.
-		return "char"
-	}
 	lb := fmt.Sprint(t.LowerBound)
 	ub := fmt.Sprint(t.UpperBound)
 	if et, ok := t.Type_.(*EnumType); ok {
@@ -119,6 +116,10 @@ func (t *SubrangeType) TypeString() string {
 			lb = et.Identifiers[t.LowerBound]
 			ub = et.Identifiers[t.UpperBound]
 		}
+	}
+	if _, ok := t.Type_.(*CharType); ok {
+		lb = toCharLiteral(byte(t.LowerBound))
+		ub = toCharLiteral(byte(t.UpperBound))
 	}
 	return fmt.Sprintf("%s..%s", lb, ub)
 }
@@ -151,15 +152,14 @@ func (t *SubrangeType) Resolve(_ *Block) error {
 }
 
 func (t *SubrangeType) IsCompatibleWith(dt DataType, assignmentCompatible bool) bool {
-	if assignmentCompatible && !(IsCharType(t) || IsCharType(t.Type_)) && IsCharType(dt) { // TODO: check in greater detail what assignment compatibility entails.
-		return false
-	}
 	switch dt.(type) {
 	case *SubrangeType:
 		return t.Type_.IsCompatibleWith(dt, assignmentCompatible)
 	case *IntegerType:
 		return t.Type_.IsCompatibleWith(&IntegerType{}, assignmentCompatible)
 	case *EnumType:
+		return t.Type_.IsCompatibleWith(dt, assignmentCompatible)
+	case *CharType:
 		return t.Type_.IsCompatibleWith(dt, assignmentCompatible)
 	}
 
@@ -289,7 +289,7 @@ func (t *ArrayType) Resolve(b *Block) error {
 
 func (t *ArrayType) IsCompatibleWith(dt DataType, assignmentCompatible bool) bool {
 	// special case: array of char is compatible with string.
-	if len(t.IndexTypes) == 1 && t.ElementType.Equals(charTypeDef.Type) {
+	if len(t.IndexTypes) == 1 && t.ElementType.Equals(&CharType{}) {
 		if dt.IsCompatibleWith(&StringType{}, assignmentCompatible) {
 			return true
 		}
@@ -545,6 +545,53 @@ func (t *IntegerType) IsCompatibleWith(dt DataType, assignmentCompatible bool) b
 		return true
 	}
 
+	switch ot := dt.(type) {
+	case *SubrangeType:
+		return t.IsCompatibleWith(ot.Type_, assignmentCompatible)
+	}
+
+	return false
+}
+
+// CharType describes the char type.
+type CharType struct {
+	name string
+}
+
+func (t *CharType) TypeString() string {
+	return "char"
+}
+
+func (t *CharType) Equals(dt DataType) bool {
+	_, ok := dt.(*CharType)
+	return ok
+}
+
+func (t *CharType) TypeName() string {
+	return t.name
+}
+
+func (t *CharType) Named(name string) DataType {
+	nt := *t
+	nt.name = name
+	return &nt
+}
+
+func (t *CharType) Resolve(_ *Block) error {
+	return nil
+}
+
+func (t *CharType) IsCompatibleWith(dt DataType, assignmentCompatible bool) bool {
+	if t.Equals(dt) {
+		return true
+	}
+
+	if isSubrangeType(dt) {
+		if t.Equals(dt.(*SubrangeType).Type_) {
+			return true
+		}
+	}
+
 	// TODO: is there a danger for infinite recursion? As long as types
 	// other than integer define their integer compatibility,
 	// this shouldn't happen.
@@ -590,7 +637,7 @@ func (t *StringType) IsCompatibleWith(dt DataType, assignmentCompatible bool) bo
 	}
 
 	// arrays of char are compatible with strings.
-	if len(arrType.IndexTypes) == 1 && arrType.ElementType.Equals(charTypeDef.Type) {
+	if len(arrType.IndexTypes) == 1 && arrType.ElementType.Equals(&CharType{}) {
 		return true
 	}
 
@@ -931,7 +978,7 @@ type CharLiteral struct {
 }
 
 func (l *CharLiteral) ConstantType() DataType {
-	return charTypeDef.Type
+	return &CharType{}
 }
 
 func (l *CharLiteral) Negate() (ConstantLiteral, error) {
@@ -939,13 +986,7 @@ func (l *CharLiteral) Negate() (ConstantLiteral, error) {
 }
 
 func (l *CharLiteral) String() string {
-	var buf strings.Builder
-
-	buf.WriteString("'")
-	buf.WriteByte(l.Value)
-	buf.WriteString("'")
-
-	return buf.String()
+	return toCharLiteral(l.Value)
 }
 
 // EnumValueLiteral describes a literal of an enumerated type, both by
@@ -989,7 +1030,7 @@ func labelCompatibleWithType(label ConstantLiteral, typ DataType) bool {
 	}
 
 	sl, ok := label.(*StringLiteral)
-	if ok && sl.IsCharLiteral() && typ.Equals(charTypeDef.Type) {
+	if ok && sl.IsCharLiteral() && typ.Equals(&CharType{}) {
 		return true
 	}
 
@@ -1102,37 +1143,15 @@ func isOrdinalType(dt DataType) bool {
 		return true
 	case *EnumType:
 		return true
+	case *CharType:
+		return true
 	}
 	return false
 }
 
-func isCharStringLiteralAssignment(b *Block, lexpr Expression, rexpr Expression) bool {
-	se, isStringExpr := rexpr.(*StringExpr)
-
-	var (
-		sl              *StringLiteral
-		isStringLiteral bool
-	)
-
-	sc, isStringConstant := rexpr.(*ConstantExpr)
-	if isStringConstant {
-		constDecl := b.findConstantDeclaration(sc.Name)
-		if constDecl != nil {
-			sl, isStringLiteral = constDecl.Value.(*StringLiteral)
-		}
+func toCharLiteral(c byte) string {
+	if c == '\'' {
+		return "'\\''"
 	}
-
-	/*
-		fmt.Printf("=====\n")
-		fmt.Printf("lexpr = %s (%s)\n", spew.Sdump(lexpr), lexpr.Type().Type())
-		fmt.Printf("rexpr = %s (%s) sl = %s isStringLiteral = %t\n", spew.Sdump(rexpr), rexpr.Type().Type(), sl, isStringLiteral)
-		fmt.Printf("lexpr.IsVariabelExpr = %t\n", lexpr.IsVariableExpr())
-		fmt.Printf("lexpr is char = %t\n", IsCharType(lexpr.Type()))
-		fmt.Printf("rexpr is string = %t\n", rexpr.Type().Equals(getBuiltinType("string")))
-	*/
-
-	return lexpr.IsVariableExpr() &&
-		IsCharType(lexpr.Type()) &&
-		rexpr.Type().Equals(&StringType{}) &&
-		((isStringExpr && se.IsCharLiteral()) || isStringLiteral && sl.IsCharLiteral())
+	return fmt.Sprintf("'%c'", c)
 }

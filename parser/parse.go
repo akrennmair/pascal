@@ -1212,11 +1212,7 @@ func (p *parser) parseAssignmentOrProcedureStatement(b *Block, label *string) St
 		}
 
 		if !typesCompatibleForAssignment(lexpr.Type(), rexpr.Type()) {
-			if !isCharStringLiteralAssignment(b, lexpr, rexpr) {
-				p.errorf("incompatible types: got %s, expected %s", rexpr.Type().TypeString(), lexpr.Type().TypeString())
-			} else {
-				rexpr = p.stringToCharLiteralExpr(rexpr)
-			}
+			p.errorf("incompatible types: got %s, expected %s", rexpr.Type().TypeString(), lexpr.Type().TypeString())
 		}
 		return &AssignmentStatement{label: label, LeftExpr: lexpr, RightExpr: rexpr}
 	}
@@ -2124,6 +2120,11 @@ func (p *parser) parseSimpleType(b *Block) DataType {
 			p.next()
 			return typ
 		}
+
+		if _, ok := typ.(*CharType); ok {
+			p.next()
+			return typ
+		}
 	}
 
 	typ := p.parseSubrangeType(b)
@@ -2540,7 +2541,7 @@ func (p *parser) parseIndexedVariableExpr(b *Block, expr Expression) *IndexedVar
 			p.errorf("string index needs to be an integer type, actually got %s", indexes[0].Type().TypeString())
 		}
 
-		return &IndexedVariableExpr{Expr: expr, IndexExprs: indexes, Type_: charTypeDef.Type}
+		return &IndexedVariableExpr{Expr: expr, IndexExprs: indexes, Type_: &CharType{}}
 	}
 
 	arrType, ok := expr.Type().(*ArrayType)
@@ -2558,7 +2559,7 @@ func (p *parser) parseIndexedVariableExpr(b *Block, expr Expression) *IndexedVar
 		if idx >= len(indexes) {
 			break
 		}
-		if !idxType.IsCompatibleWith(indexes[idx].Type(), true) {
+		if !typesCompatibleForAssignment(idxType, indexes[idx].Type()) {
 			p.errorf("array dimension %d is of type %s, but index expression type %s was provided\n", idx, idxType.TypeString(), indexes[idx].Type().TypeString())
 		}
 	}
@@ -2648,7 +2649,7 @@ func (p *parser) verifyWriteParameter(expr Expression, ln bool) {
 		}
 	}
 
-	allowedWriteTypes := []DataType{&IntegerType{}, &RealType{}, charTypeDef.Type, &StringType{}, booleanTypeDef.Type}
+	allowedWriteTypes := []DataType{&IntegerType{}, &RealType{}, &CharType{}, &StringType{}, booleanTypeDef.Type}
 
 	for _, at := range allowedWriteTypes {
 		if at.Equals(typ) {

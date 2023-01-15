@@ -418,7 +418,7 @@ func (e *CharExpr) String() string {
 }
 
 func (e *CharExpr) Type() DataType {
-	return charTypeDef.Type
+	return &CharType{}
 }
 
 func (e *CharExpr) IsVariableExpr() bool {
